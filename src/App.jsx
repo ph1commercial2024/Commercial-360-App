@@ -484,8 +484,7 @@ function AppHeader({ profile, pageTitle }) {
 
       {/* System label */}
       <div style={{ flexShrink: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.white, letterSpacing: "0.02em", lineHeight: 1.2 }}>D&amp;C – Procurement, Commercial &amp; Contract</div>
-        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em", textTransform: "uppercase", lineHeight: 1.2 }}>Management System</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.white, letterSpacing: "0.02em", lineHeight: 1.2 }}>Commercial 360</div>
       </div>
 
       {/* Page title */}
