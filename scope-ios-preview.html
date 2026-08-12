@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Scope of Works — iOS Style Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #E5E5EA; padding: 32px 20px; }
+  .page-wrap { max-width: 680px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
+  .page-title { font-size: 13px; font-weight: 600; color: #6B6B6B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px; }
+
+  /* ── iOS Section container ── */
+  .ios-section { background: #F2F2F7; border-radius: 14px; padding: 16px 14px; }
+
+  /* ── Header ── */
+  .ios-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .ios-header-title { font-size: 17px; font-weight: 600; color: #1C1C1E; letter-spacing: -0.3px; }
+  .ios-header-sub { font-size: 12px; color: #6B6B6B; margin-top: 3px; }
+  .ios-add-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: #ED6055; color: #fff; border: none; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(237,96,85,0.35); }
+
+  /* ── Work type section ── */
+  .wt-section { margin-bottom: 20px; }
+  .wt-label-row { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 7px; }
+  .wt-label { font-size: 11px; font-weight: 500; color: #6B6B6B; text-transform: uppercase; letter-spacing: 0.04em; }
+  .wt-progress { font-size: 11px; color: #FF9500; font-weight: 600; }
+  .wt-progress.done { color: #34C759; }
+  .wt-remove { font-size: 12px; color: #FF3B30; background: none; border: none; cursor: pointer; font-weight: 500; }
+
+  /* ── iOS grouped card ── */
+  .ios-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 0 rgba(0,0,0,0.08); }
+  .ios-group-hdr { padding: 9px 16px 5px; font-size: 12px; font-weight: 700; color: #8E8E93; background: #F9F9F9; border-bottom: 1px solid rgba(0,0,0,0.06); letter-spacing: 0.02em; }
+
+  /* ── Item row ── */
+  .ios-row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; min-height: 44px; }
+  .ios-row-label { flex: 1; font-size: 14px; color: #1C1C1E; line-height: 1.35; }
+  .ios-sep { height: 1px; background: rgba(0,0,0,0.08); margin-left: 16px; }
+
+  /* ── Segmented pill ── */
+  .seg-pill { display: flex; background: #E5E5EA; border-radius: 8px; padding: 2px; gap: 2px; flex-shrink: 0; }
+  .seg-btn { padding: 4px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; background: transparent; color: #8E8E93; transition: all 0.15s; }
+  .seg-btn.req-active { background: #fff; color: #34C759; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .seg-btn.notreq-active { background: #fff; color: #FF3B30; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+
+  /* ── Remarks field ── */
+  .remarks-row { padding: 0 16px 11px; }
+  .remarks-input { width: 100%; padding: 8px 12px; font-size: 13px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.12); background: #F9F9F9; outline: none; color: #1C1C1E; font-family: inherit; }
+  .remarks-input.missing { border-color: #FF3B30; background: #FFF5F5; }
+
+  /* ── Add custom item ── */
+  .add-custom { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 8px 4px; background: none; border: none; cursor: pointer; font-size: 14px; color: #ED6055; font-weight: 500; font-family: inherit; }
+  .add-circle { width: 22px; height: 22px; border-radius: 50%; background: #ED6055; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1; flex-shrink: 0; }
+
+  /* ── Empty state ── */
+  .empty-card { background: #fff; border-radius: 12px; padding: 40px 20px; text-align: center; box-shadow: 0 1px 0 rgba(0,0,0,0.08); }
+  .empty-icon { font-size: 40px; margin-bottom: 10px; }
+  .empty-title { font-size: 15px; font-weight: 600; color: #1C1C1E; margin-bottom: 4px; }
+  .empty-sub { font-size: 13px; color: #8E8E93; }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <div class="page-title">Create Purchase Request — Scope of Works Section</div>
+
+  <div class="ios-section">
+    <!-- Header -->
+    <div class="ios-header">
+      <div>
+        <div class="ios-header-title">Scope of Works <span style="color:#FF3B30">*</span></div>
+        <div class="ios-header-sub">Mark each item as Required or Not Required</div>
+      </div>
+      <button class="ios-add-btn">
+        <span style="font-size:16px;line-height:1">+</span> Add Work Type
+      </button>
+    </div>
+
+    <!-- ── Work Type 1: General Requirements ── -->
+    <div class="wt-section">
+      <div class="wt-label-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="wt-label">General Requirements</span>
+          <span class="wt-progress">2/7</span>
+        </div>
+        <button class="wt-remove">Remove</button>
+      </div>
+
+      <div class="ios-card">
+        <!-- Sub-group: Site Management -->
+        <div class="ios-group-hdr">Site Management</div>
+
+        <!-- Item 1: Required -->
+        <div class="ios-row">
+          <span class="ios-row-label">Full-Time Safety Officer</span>
+          <div class="seg-pill">
+            <button class="seg-btn req-active">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+        <div class="ios-sep"></div>
+
+        <!-- Item 2: Not Required (with remarks) -->
+        <div>
+          <div class="ios-row">
+            <span class="ios-row-label">Part-Time Safety Officer</span>
+            <div class="seg-pill">
+              <button class="seg-btn">✓ Required</button>
+              <button class="seg-btn notreq-active">✕ Not Req.</button>
+            </div>
+          </div>
+          <div class="remarks-row">
+            <input class="remarks-input" value="Covered under main contractor's General Requirements" />
+          </div>
+        </div>
+        <div class="ios-sep"></div>
+
+        <!-- Item 3: Unanswered -->
+        <div class="ios-row">
+          <span class="ios-row-label">Temporary Site Office</span>
+          <div class="seg-pill">
+            <button class="seg-btn">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+        <div class="ios-sep"></div>
+
+        <!-- Item 4: Unanswered -->
+        <div class="ios-row">
+          <span class="ios-row-label">Temporary Bodega / Warehouse</span>
+          <div class="seg-pill">
+            <button class="seg-btn">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+        <div class="ios-sep"></div>
+
+        <!-- Item 5: Required -->
+        <div class="ios-row">
+          <span class="ios-row-label">Mobilization / Demobilization</span>
+          <div class="seg-pill">
+            <button class="seg-btn req-active">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+
+        <!-- Sub-group: Insurance & Permits -->
+        <div class="ios-group-hdr" style="margin-top:0">Insurance &amp; Permits</div>
+
+        <div class="ios-row">
+          <span class="ios-row-label">Construction Insurance (CARI)</span>
+          <div class="seg-pill">
+            <button class="seg-btn">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+        <div class="ios-sep"></div>
+
+        <div class="ios-row">
+          <span class="ios-row-label">Permits and Licenses</span>
+          <div class="seg-pill">
+            <button class="seg-btn">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="add-custom">
+        <span class="add-circle">+</span>
+        Add custom item
+      </button>
+    </div>
+
+    <!-- ── Work Type 2: Structural Works (all done) ── -->
+    <div class="wt-section">
+      <div class="wt-label-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="wt-label">Structural Works</span>
+          <span class="wt-progress done">✓ Complete</span>
+        </div>
+        <button class="wt-remove">Remove</button>
+      </div>
+
+      <div class="ios-card" style="border: 1px solid rgba(52,199,89,0.3)">
+        <div class="ios-row">
+          <span class="ios-row-label">Pile Works (Driven / Bored)</span>
+          <div class="seg-pill">
+            <button class="seg-btn req-active">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+        <div class="ios-sep"></div>
+
+        <div class="ios-row">
+          <span class="ios-row-label">Footing / Foundation Works</span>
+          <div class="seg-pill">
+            <button class="seg-btn req-active">✓ Required</button>
+            <button class="seg-btn">✕ Not Req.</button>
+          </div>
+        </div>
+        <div class="ios-sep"></div>
+
+        <div>
+          <div class="ios-row">
+            <span class="ios-row-label">Post-Tensioning Works</span>
+            <div class="seg-pill">
+              <button class="seg-btn">✓ Required</button>
+              <button class="seg-btn notreq-active">✕ Not Req.</button>
+            </div>
+          </div>
+          <div class="remarks-row">
+            <input class="remarks-input" value="Not applicable — housing project, no post-tensioning" />
+          </div>
+        </div>
+      </div>
+
+      <button class="add-custom">
+        <span class="add-circle">+</span>
+        Add custom item
+      </button>
+    </div>
+
+    <!-- ── Work Type 3: Empty state example (for reference, not shown in real usage) ── -->
+    <!-- Shown when no work types are added:
+    <div class="empty-card">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">No Work Types Added</div>
+      <div class="empty-sub">Tap <strong>+ Add Work Type</strong> to start building your scope</div>
+    </div>
+    -->
+
+  </div><!-- /ios-section -->
+</div>
+</body>
+</html>

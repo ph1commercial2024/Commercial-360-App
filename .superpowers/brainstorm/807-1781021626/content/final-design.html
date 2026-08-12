@@ -1,0 +1,208 @@
+<h2>Final Design — Option A with All Improvements</h2>
+<p class="subtitle">Risk banner + fixed hierarchy + coral button + full contract terms. Two states shown.</p>
+
+<style>
+  .demo { font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; color: #1A1917; }
+  .demo-header { padding: 11px 20px; background: #F8F7F5; border-bottom: 1px solid #E5E3DF; display: flex; align-items: center; gap: 8px; }
+  .demo-footer { padding: 10px 20px; border-top: 1px solid #E5E3DF; background: #F8F7F5; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #A09D97; }
+  .demo-footer strong { color: #6B6860; }
+  .slabel { font-size: 10px; font-weight: 700; color: #A09D97; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+</style>
+
+<div style="max-width:920px;margin:0 auto;">
+  <div class="split">
+
+    <!-- CLEAN STATE -->
+    <div>
+      <h3 style="font-size:13px;margin-bottom:10px;">✓ Clean — no risk flags</h3>
+      <div class="demo" style="border:2px solid #E5E3DF;border-radius:12px;overflow:hidden;background:#fff;">
+
+        <!-- Header -->
+        <div class="demo-header">
+          <span style="font-size:12px;font-weight:700;">🏆 Award Recommendation</span>
+          <span style="font-size:10px;font-weight:600;padding:2px 10px;border-radius:20px;background:#FDF1F0;color:#ED6055;border:1px solid rgba(237,96,85,0.25);">ABC Construction Co.</span>
+          <div style="margin-left:auto;">
+            <button style="padding:5px 12px;border-radius:7px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:11px;font-weight:700;font-family:inherit;cursor:default;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+
+        <!-- Risk banner — clean -->
+        <div style="padding:7px 20px;background:#E6F4EF;border-bottom:1px solid #B6E8D4;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:12px;">✓</span>
+          <span style="font-size:11px;font-weight:600;color:#0F6E56;">No risk flags — all criteria met</span>
+        </div>
+
+        <!-- Body: 1fr 1.6fr -->
+        <div style="display:grid;grid-template-columns:1fr 1.6fr;">
+
+          <!-- Left: vendor card -->
+          <div style="padding:16px 18px;border-right:1px solid #E5E3DF;">
+            <div class="slabel">Recommended Vendor</div>
+            <div style="padding:12px 14px;border-radius:9px;background:#F8F7F5;border:1px solid #E5E3DF;">
+              <div style="font-size:9px;font-weight:700;color:#ED6055;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">★ Recommended</div>
+              <div style="font-size:15px;font-weight:700;color:#1A1917;margin-bottom:3px;">ABC Construction Co.</div>
+              <div style="font-size:14px;font-weight:700;font-family:monospace;color:#ED6055;margin-bottom:8px;">₱ 2,500,000.00</div>
+              <span style="font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;">Progress Billing</span>
+            </div>
+          </div>
+
+          <!-- Right: justification -->
+          <div style="padding:16px 18px;">
+            <div class="slabel">Award Justification <span style="color:#B91C1C;">*</span></div>
+            <textarea readonly rows="5" style="width:100%;box-sizing:border-box;border:1px solid #E5E3DF;border-radius:8px;padding:10px;font-size:11px;color:#6B6860;line-height:1.6;font-family:inherit;resize:vertical;background:#fff;">Vendor meets all Class A accreditation requirements. Quote of ₱2,500,000 is the lowest compliant bid. Price validity extends to July 15, 2026. Estimated completion within PR deadline.</textarea>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 10px;border-radius:6px;background:#FDF1F0;border:1px solid rgba(237,96,85,0.2);">
+              <span style="font-size:11px;">⚡</span>
+              <span style="font-size:10px;color:#C94A3F;font-weight:600;">Auto-generated — review and edit as needed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contract Terms -->
+        <div style="padding:14px 18px;background:#FFFBFA;border-top:1px solid #E5E3DF;">
+          <div class="slabel">Recommended Contract Terms — ABC Construction Co.</div>
+          <div style="border:1px solid #E5E3DF;border-radius:9px;overflow:hidden;background:#fff;">
+            <!-- Amount header -->
+            <div style="padding:8px 14px;background:#FDF1F0;border-bottom:1px solid rgba(237,96,85,0.15);display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:11px;color:#6B6860;font-weight:600;">Total Contract Amount</span>
+              <span style="font-size:14px;font-weight:700;font-family:monospace;color:#ED6055;">₱ 2,500,000.00</span>
+            </div>
+            <!-- Three columns -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
+              <div style="padding:10px 14px;border-right:1px solid #E5E3DF;">
+                <div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:6px;">Payment Schedule</div>
+                <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#ED6055;display:inline-block;"></span>Downpayment (15%)</span><span style="font-family:monospace;font-weight:600;">₱ 375,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#6B6860;display:inline-block;"></span>Progress (net)</span><span style="font-family:monospace;font-weight:600;">₱ 1,912,500</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#0F6E56;display:inline-block;"></span>Retention release</span><span style="font-family:monospace;font-weight:600;">₱ 212,500</span></div>
+                </div>
+              </div>
+              <div style="padding:10px 14px;border-right:1px solid #E5E3DF;">
+                <div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:6px;">Required Bonds</div>
+                <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;">Performance Bond</span><span style="font-family:monospace;font-weight:600;">₱ 250,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;">Warranty Bond</span><span style="font-family:monospace;font-weight:600;">₱ 125,000</span></div>
+                </div>
+              </div>
+              <div style="padding:10px 14px;">
+                <div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:6px;">Timeline</div>
+                <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;">
+                  <div><div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:1px;">Commencement</div><div style="font-weight:600;">Upon NTP</div></div>
+                  <div><div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:1px;">Duration</div><div style="font-weight:600;">60 Calendar Days</div></div>
+                  <div><div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:1px;">Warranty / DLP</div><div style="font-weight:600;">12 months</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+
+    <!-- WARNING STATE -->
+    <div>
+      <h3 style="font-size:13px;margin-bottom:10px;">⚠ Warning — timeline issue</h3>
+      <div class="demo" style="border:2px solid #E5E3DF;border-radius:12px;overflow:hidden;background:#fff;">
+
+        <!-- Header -->
+        <div class="demo-header">
+          <span style="font-size:12px;font-weight:700;">🏆 Award Recommendation</span>
+          <span style="font-size:10px;font-weight:600;padding:2px 10px;border-radius:20px;background:#FDF1F0;color:#ED6055;border:1px solid rgba(237,96,85,0.25);">ABC Construction Co.</span>
+          <div style="margin-left:auto;">
+            <button style="padding:5px 12px;border-radius:7px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:11px;font-weight:700;font-family:inherit;cursor:default;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+
+        <!-- Risk banner — warning (expanded) -->
+        <div style="padding:10px 20px;background:#FEF3E2;border-bottom:1px solid rgba(146,88,10,0.2);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span>⚠</span>
+            <span style="font-size:11px;font-weight:700;color:#92580A;">Timeline Feasibility Warning</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+            <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(0,0,0,0.07);color:#92580A;font-weight:600;">30d prep</span>
+            <span style="color:#92580A;font-size:11px;">+</span>
+            <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(0,0,0,0.07);color:#92580A;font-weight:600;">60d work</span>
+            <span style="color:#92580A;font-size:11px;">=</span>
+            <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:#92580A;color:#fff;font-weight:700;">90d total</span>
+          </div>
+          <div style="display:grid;grid-template-columns:130px 1fr;gap:2px 0;font-size:11px;color:#92580A;">
+            <span>Days to Completion</span><span style="font-weight:700;font-family:monospace;">90 days</span>
+            <span>Available</span><span style="font-family:monospace;">75 days</span>
+            <span style="border-top:1px solid rgba(146,88,10,0.25);padding-top:3px;margin-top:2px;"></span>
+            <span style="border-top:1px solid rgba(146,88,10,0.25);padding-top:3px;margin-top:2px;font-weight:700;font-family:monospace;">Short by 15 days</span>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div style="display:grid;grid-template-columns:1fr 1.6fr;">
+          <div style="padding:16px 18px;border-right:1px solid #E5E3DF;">
+            <div class="slabel">Recommended Vendor</div>
+            <div style="padding:12px 14px;border-radius:9px;background:#F8F7F5;border:1px solid #E5E3DF;">
+              <div style="font-size:9px;font-weight:700;color:#ED6055;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">★ Recommended</div>
+              <div style="font-size:15px;font-weight:700;color:#1A1917;margin-bottom:3px;">ABC Construction Co.</div>
+              <div style="font-size:14px;font-weight:700;font-family:monospace;color:#ED6055;margin-bottom:8px;">₱ 2,500,000.00</div>
+              <span style="font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;">Progress Billing</span>
+            </div>
+          </div>
+          <div style="padding:16px 18px;">
+            <div class="slabel">Award Justification <span style="color:#B91C1C;">*</span></div>
+            <textarea readonly rows="5" style="width:100%;box-sizing:border-box;border:1px solid #E5E3DF;border-radius:8px;padding:10px;font-size:11px;color:#6B6860;line-height:1.6;font-family:inherit;resize:vertical;background:#fff;">Vendor meets all Class A requirements. Lowest compliant bid at ₱2,500,000. Note: Timeline concern — 90 days to completion vs. 75 days available (short by 15 days). Justification for acceptance noted.</textarea>
+          </div>
+        </div>
+
+        <!-- Contract Terms (same) -->
+        <div style="padding:14px 18px;background:#FFFBFA;border-top:1px solid #E5E3DF;">
+          <div class="slabel">Recommended Contract Terms — ABC Construction Co.</div>
+          <div style="border:1px solid #E5E3DF;border-radius:9px;overflow:hidden;background:#fff;">
+            <div style="padding:8px 14px;background:#FDF1F0;border-bottom:1px solid rgba(237,96,85,0.15);display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:11px;color:#6B6860;font-weight:600;">Total Contract Amount</span>
+              <span style="font-size:14px;font-weight:700;font-family:monospace;color:#ED6055;">₱ 2,500,000.00</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;">
+              <div style="padding:10px 14px;border-right:1px solid #E5E3DF;">
+                <div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:6px;">Payment Schedule</div>
+                <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#ED6055;display:inline-block;"></span>DP (15%)</span><span style="font-family:monospace;font-weight:600;">₱ 375,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#6B6860;display:inline-block;"></span>Progress</span><span style="font-family:monospace;font-weight:600;">₱ 1,912,500</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#0F6E56;display:inline-block;"></span>Retention</span><span style="font-family:monospace;font-weight:600;">₱ 212,500</span></div>
+                </div>
+              </div>
+              <div style="padding:10px 14px;border-right:1px solid #E5E3DF;">
+                <div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:6px;">Required Bonds</div>
+                <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;">Performance</span><span style="font-family:monospace;font-weight:600;">₱ 250,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#6B6860;">Warranty</span><span style="font-family:monospace;font-weight:600;">₱ 125,000</span></div>
+                </div>
+              </div>
+              <div style="padding:10px 14px;">
+                <div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:6px;">Timeline</div>
+                <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;">
+                  <div><div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:1px;">Commencement</div><div style="font-weight:600;">Upon NTP</div></div>
+                  <div><div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:1px;">Duration</div><div style="font-weight:600;">60 Calendar Days</div></div>
+                  <div><div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;margin-bottom:1px;">Warranty / DLP</div><div style="font-weight:600;">12 months</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px;padding:14px 18px;background:#F8F7F5;border-radius:10px;border:1px solid #E5E3DF;">
+    <div style="font-size:12px;font-weight:700;color:#1A1917;margin-bottom:8px;">Summary of all changes from current UI</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:11px;color:#6B6860;">
+      <div>✓ Auto-recommend button: purple → coral (matches design system)</div>
+      <div>✓ Vendor card: name in dark (#1A1917), amount in coral — clear hierarchy</div>
+      <div>✓ Risk flags: collapsed banner when clean, expanded with detail when warning</div>
+      <div>✓ Layout: 1fr 1.6fr — more room for justification textarea</div>
+      <div>✓ Auto-gen notice: purple → coral to match button</div>
+      <div>✓ Contract terms: 3-column panel (payment / bonds / timeline)</div>
+    </div>
+  </div>
+
+</div>

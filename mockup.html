@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4PH ConstructHub — Project Status Dashboard</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
+
+    :root {
+      --black:      #000000;
+      --coral:      #ed6055;
+      --white:      #ffffff;
+      --gray-50:    #f7f7f7;
+      --gray-100:   #efefef;
+      --gray-200:   #dedede;
+      --gray-300:   #c4c4c4;
+      --gray-400:   #9a9a9a;
+      --gray-500:   #6e6e6e;
+      --gray-700:   #333333;
+      --gray-800:   #1a1a1a;
+      --coral-10:   #fdf2f1;
+      --coral-20:   #f9d9d7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: #ececec;
+      color: var(--gray-800);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* ══════════════════════════════
+       TOP BAR
+    ══════════════════════════════ */
+    .topbar {
+      background: var(--black);
+      height: 54px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px;
+      position: sticky; top: 0; z-index: 300;
+      border-bottom: 2px solid var(--coral);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      height: 32px; width: 32px;
+      background: var(--coral);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; color: var(--white);
+      letter-spacing: -0.5px; flex-shrink: 0;
+    }
+    .brand-name {
+      color: var(--white); font-size: 14px; font-weight: 700;
+      letter-spacing: -.2px;
+    }
+    .brand-name em { color: var(--coral); font-style: normal; }
+    .brand-sep { width: 1px; height: 18px; background: #2a2a2a; }
+    .brand-division { color: #666; font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; }
+
+    .topbar-nav { display: flex; gap: 1px; }
+    .tnav-link {
+      color: #777; font-size: 11.5px; font-weight: 500;
+      padding: 6px 13px; border-radius: 4px; text-decoration: none;
+      letter-spacing: .1px; transition: all .15s;
+    }
+    .tnav-link:hover { color: var(--white); background: #1c1c1c; }
+    .tnav-link.active { background: var(--coral); color: var(--white); font-weight: 600; }
+
+    .topbar-right { display: flex; align-items: center; gap: 16px; }
+    .topbar-date { color: #555; font-size: 10.5px; letter-spacing: .2px; }
+    .user-block { display: flex; align-items: center; gap: 8px; }
+    .user-av {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--coral); color: var(--white);
+      font-size: 10.5px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid #222;
+    }
+    .user-info-wrap {}
+    .user-info-name { color: var(--white); font-size: 11.5px; font-weight: 600; }
+    .user-info-role { color: #666; font-size: 10px; }
+    .admin-badge {
+      background: var(--coral); color: var(--white);
+      font-size: 9px; font-weight: 700; padding: 2px 7px;
+      border-radius: 3px; letter-spacing: .5px; text-transform: uppercase;
+    }
+
+    /* ══════════════════════════════
+       PAGE LAYOUT
+    ══════════════════════════════ */
+    .page { display: flex; min-height: calc(100vh - 54px); }
+
+    /* SIDEBAR — floating */
+    .sidebar {
+      width: 52px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 100;
+    }
+    .sidebar-float {
+      position: fixed;
+      top: 70px;
+      left: 12px;
+      width: 52px;
+      background: var(--white);
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      box-shadow: 0 4px 24px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06);
+      padding: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: width .22s cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
+    }
+    .sidebar-float:hover {
+      width: 196px;
+    }
+    .sb-section { margin-bottom: 6px; }
+    .sb-label {
+      padding: 6px 14px 4px;
+      font-size: 8.5px; font-weight: 700;
+      color: var(--gray-300); text-transform: uppercase; letter-spacing: 1.2px;
+      white-space: nowrap; opacity: 0; transition: opacity .18s;
+    }
+    .sidebar-float:hover .sb-label { opacity: 1; }
+    .sb-divider { height: 1px; background: var(--gray-100); margin: 6px 10px; }
+    .sb-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 0 8px 0;
+      justify-content: center;
+      color: var(--gray-500);
+      border-left: 3px solid transparent;
+      font-size: 11.5px; font-weight: 500; cursor: pointer;
+      transition: all .12s;
+      white-space: nowrap;
+    }
+    .sidebar-float:hover .sb-item {
+      padding: 8px 14px 8px 11px;
+      justify-content: flex-start;
+    }
+    .sb-item:hover { background: var(--gray-50); color: var(--gray-800); }
+    .sb-item.active {
+      background: var(--coral-10);
+      color: var(--coral);
+      border-left-color: var(--coral);
+      font-weight: 600;
+    }
+    .sb-icon { width: 18px; text-align: center; font-size: 14px; flex-shrink: 0; }
+    .sb-text { opacity: 0; transition: opacity .18s .05s; }
+    .sidebar-float:hover .sb-text { opacity: 1; }
+
+    /* MAIN & RIGHT */
+    .main { flex: 1; padding: 22px 18px 22px 22px; min-width: 0; }
+    .right { width: 360px; flex-shrink: 0; padding: 22px 22px 22px 2px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ══════════════════════════════
+       DOCUMENT HEADER
+    ══════════════════════════════ */
+    .doc-header {
+      background: var(--black);
+      border-radius: 8px;
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+    .doc-header-top {
+      padding: 18px 22px 16px;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .doc-tag {
+      font-size: 9px; font-weight: 700; color: var(--coral);
+      text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 5px;
+    }
+    .doc-title {
+      font-size: 19px; font-weight: 800; color: var(--white);
+      letter-spacing: -.3px; line-height: 1.2;
+    }
+    .doc-subtitle { font-size: 11px; color: #666; margin-top: 3px; }
+    .doc-meta { text-align: right; }
+    .doc-meta-date { font-size: 16px; font-weight: 700; color: var(--white); }
+    .doc-meta-period { font-size: 10px; color: #555; margin-top: 2px; }
+    .doc-meta-stamps { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }
+    .doc-stamp {
+      font-size: 9px; font-weight: 700; padding: 3px 8px;
+      border-radius: 3px; letter-spacing: .5px; text-transform: uppercase;
+      border: 1px solid #2a2a2a; color: #555;
+    }
+    .doc-stamp.highlight { border-color: var(--coral); color: var(--coral); }
+    .doc-header-bottom {
+      padding: 8px 22px;
+      display: flex; gap: 24px;
+    }
+    .doc-kv { display: flex; gap: 6px; align-items: baseline; }
+    .doc-kv-label { font-size: 9px; font-weight: 600; color: #444; text-transform: uppercase; letter-spacing: .7px; }
+    .doc-kv-value { font-size: 10.5px; color: #777; }
+
+    /* ══════════════════════════════
+       KPI STRIP
+    ══════════════════════════════ */
+    .kpi-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
+    .kpi {
+      background: var(--white); border-radius: 7px;
+      border: 1px solid var(--gray-200);
+      padding: 14px 16px 12px;
+      position: relative; overflow: hidden;
+    }
+    .kpi::before {
+      content: ''; position: absolute;
+      left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--coral);
+    }
+    .kpi-label {
+      font-size: 9px; font-weight: 700; color: var(--gray-400);
+      text-transform: uppercase; letter-spacing: .8px; margin-bottom: 5px;
+    }
+    .kpi-value { font-size: 28px; font-weight: 800; color: var(--black); line-height: 1; }
+    .kpi-note { font-size: 10px; color: var(--gray-400); margin-top: 4px; }
+    .kpi-note.pos { color: #2d8a5e; }
+    .kpi-note.neg { color: var(--coral); }
+    .kpi-note.warn { color: #b45309; }
+
+    /* ══════════════════════════════
+       SECTION HEADER
+    ══════════════════════════════ */
+    .section-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .section-hd-left { display: flex; align-items: center; gap: 8px; }
+    .section-hd-bar { width: 3px; height: 14px; background: var(--coral); border-radius: 99px; }
+    .section-hd-title { font-size: 10px; font-weight: 700; color: var(--gray-700); text-transform: uppercase; letter-spacing: .8px; }
+    .section-hd-right { font-size: 10.5px; color: var(--coral); font-weight: 600; cursor: pointer; }
+    .section-hd-right:hover { text-decoration: underline; }
+
+    /* ══════════════════════════════
+       PHASE BOARD
+    ══════════════════════════════ */
+    .phase-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
+    .phase-col {
+      background: var(--white); border-radius: 7px;
+      border: 1px solid var(--gray-200); overflow: hidden;
+    }
+    .ph-hd {
+      padding: 10px 12px 9px;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .ph-name { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--black); }
+    .ph-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .ph-cnt {
+      font-size: 10px; font-weight: 700;
+      padding: 1px 7px; border-radius: 3px;
+    }
+
+    .pc-init  { border-top: 3px solid #9a9a9a; }
+    .pc-init  .ph-dot { background: #9a9a9a; }
+    .pc-init  .ph-cnt { background: #f5f5f5; color: #9a9a9a; }
+
+    .pc-plan  { border-top: 3px solid #4a7fc1; }
+    .pc-plan  .ph-dot { background: #4a7fc1; }
+    .pc-plan  .ph-cnt { background: #eef3fb; color: #4a7fc1; }
+
+    .pc-exec  { border-top: 3px solid var(--coral); }
+    .pc-exec  .ph-dot { background: var(--coral); }
+    .pc-exec  .ph-cnt { background: var(--coral-10); color: var(--coral); }
+
+    .pc-close { border-top: 3px solid #2d8a5e; }
+    .pc-close .ph-dot { background: #2d8a5e; }
+    .pc-close .ph-cnt { background: #edfaf4; color: #2d8a5e; }
+
+    .ph-list { padding: 6px; display: flex; flex-direction: column; gap: 3px; min-height: 0; max-height: 160px; overflow-y: auto; }
+    .ph-list::-webkit-scrollbar { width: 3px; }
+    .ph-list::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 99px; }
+
+    .proj-row {
+      padding: 6px 9px; border: 1px solid var(--gray-100); border-radius: 4px;
+      background: var(--gray-50); cursor: pointer; transition: all .12s;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .proj-row:hover { border-color: var(--coral); background: var(--coral-10); }
+    .proj-row-name { font-size: 11px; font-weight: 600; color: var(--black); }
+    .proj-row-sub  { font-size: 9px; color: var(--gray-400); margin-top: 0px; }
+    .proj-row-arr  { color: var(--gray-200); font-size: 13px; }
+    .proj-row:hover .proj-row-arr { color: var(--coral); }
+    .ph-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 52px; color: var(--gray-300); gap: 3px; font-size: 10.5px; }
+
+    /* ══════════════════════════════
+       FORMAL TABLE CARD
+    ══════════════════════════════ */
+    .tbl-card { background: var(--white); border-radius: 7px; border: 1px solid var(--gray-200); overflow: hidden; margin-bottom: 4px; }
+
+    .tbl-card-hd {
+      padding: 13px 16px 11px;
+      background: var(--gray-50);
+      border-bottom: 2px solid var(--gray-200);
+      display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .tbl-card-hd-left { border-left: 3px solid var(--coral); padding-left: 10px; }
+    .tbl-card-title { font-size: 12.5px; font-weight: 700; color: var(--black); }
+    .tbl-card-sub   { font-size: 10.5px; color: var(--gray-400); margin-top: 1px; }
+    .tbl-card-hd-right { display: flex; gap: 8px; }
+    .tbl-btn {
+      font-size: 10px; font-weight: 600; padding: 5px 11px;
+      border-radius: 4px; cursor: pointer; border: 1px solid var(--gray-200);
+      background: var(--white); color: var(--gray-500);
+      transition: all .12s;
+    }
+    .tbl-btn:hover { border-color: var(--coral); color: var(--coral); }
+    .tbl-btn.primary { background: var(--coral); border-color: var(--coral); color: var(--white); }
+    .tbl-btn.primary:hover { background: #d9524a; }
+
+    .filters { display: flex; gap: 7px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--gray-100); }
+    .fsel {
+      padding: 5px 20px 5px 9px; border: 1px solid var(--gray-200);
+      border-radius: 4px; font-size: 11px; color: var(--gray-500);
+      background: var(--white); appearance: none; font-family: inherit;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23bbb'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 7px center;
+      cursor: pointer;
+    }
+    .fsel:focus { outline: none; border-color: var(--coral); }
+    .fsearch {
+      padding: 5px 9px; border: 1px solid var(--gray-200);
+      border-radius: 4px; font-size: 11px; color: var(--gray-500);
+      background: var(--white); font-family: inherit; flex: 1; min-width: 110px;
+    }
+    .fsearch:focus { outline: none; border-color: var(--coral); }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 9px; font-weight: 700; color: var(--gray-400);
+      text-transform: uppercase; letter-spacing: .8px;
+      padding: 8px 12px; text-align: left;
+      background: #fafafa;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    tbody td { padding: 9px 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--gray-50); }
+
+    .t-proj  { font-weight: 700; font-size: 11.5px; color: var(--black); }
+    .t-issue { font-size: 11.5px; color: var(--gray-700); max-width: 220px; }
+    .t-meta  { font-size: 11px; color: var(--gray-400); }
+    .t-date  { font-size: 10.5px; color: var(--gray-400); white-space: nowrap; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9.5px; font-weight: 700;
+      padding: 2px 8px; border-radius: 3px;
+      letter-spacing: .3px; text-transform: uppercase;
+    }
+    .b-open    { background: var(--coral-10); color: var(--coral); border: 1px solid var(--coral-20); }
+    .b-closed  { background: #edfaf4; color: #2d8a5e; border: 1px solid #c4edd9; }
+    .b-review  { background: #f4f0fc; color: #6b3fa0; border: 1px solid #d9caf0; }
+    .b-ongoing { background: #fef9ec; color: #92600a; border: 1px solid #f5dfa0; }
+    .b-approved{ background: #eef3fb; color: #2a5fa8; border: 1px solid #bdd0ee; }
+    .b-expired { background: #fef2f2; color: #c0392b; border: 1px solid #f5c2be; }
+
+    .tbl-foot {
+      padding: 9px 16px; border-top: 1px solid var(--gray-100);
+      font-size: 10px; color: var(--gray-400);
+      display: flex; align-items: center; justify-content: space-between;
+      background: #fafafa;
+    }
+
+    /* ══════════════════════════════
+       RIGHT PANEL
+    ══════════════════════════════ */
+    .r-card { background: var(--white); border-radius: 7px; border: 1px solid var(--gray-200); overflow: hidden; }
+
+    .r-hd {
+      padding: 12px 14px 10px;
+      background: var(--gray-50);
+      border-bottom: 2px solid var(--gray-200);
+      border-left: 3px solid var(--coral);
+      display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .r-title { font-size: 11.5px; font-weight: 700; color: var(--black); }
+    .r-sub   { font-size: 10px; color: var(--gray-400); margin-top: 1px; }
+
+    /* 4PH COMPLETION */
+    .fourph-body { padding: 12px 14px 14px; }
+    .fourph-item { margin-bottom: 14px; }
+    .fourph-item:last-child { margin-bottom: 0; }
+
+    .fourph-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+    .fourph-name { font-size: 11px; font-weight: 700; color: var(--black); }
+    .fourph-pct  { font-size: 11px; font-weight: 700; color: var(--coral); }
+    .fourph-units{ font-size: 9.5px; color: var(--gray-400); margin-bottom: 5px; }
+
+    .bar-track { height: 6px; background: var(--gray-100); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
+    .bar-fill   { height: 100%; border-radius: 99px; }
+    .bf-coral { background: var(--coral); }
+    .bf-blue  { background: #4a7fc1; }
+    .bf-amber { background: #d9900a; }
+    .bf-gray  { background: var(--gray-200); }
+
+    .fourph-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
+    .fstat {
+      background: var(--gray-50); border: 1px solid var(--gray-100);
+      border-radius: 4px; padding: 5px 6px; text-align: center;
+    }
+    .fstat-val { font-size: 13px; font-weight: 800; color: var(--black); line-height: 1; }
+    .fstat-lbl { font-size: 8.5px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+    .fstat.accepted .fstat-val { color: #2d8a5e; }
+    .fstat.pending  .fstat-val { color: #92600a; }
+    .fstat.defect   .fstat-val { color: var(--coral); }
+
+    .fourph-divider { border: none; border-top: 1px solid var(--gray-100); margin: 13px 0; }
+
+    .fourph-summary {
+      padding: 10px 14px;
+      background: var(--black);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .fs-label { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .7px; }
+    .fs-value { font-size: 13px; font-weight: 800; color: var(--white); }
+    .fs-pct   { font-size: 10px; color: var(--coral); font-weight: 700; }
+
+    /* COMPLIANCE */
+    .c-filters { padding: 9px 12px; display: flex; gap: 7px; border-bottom: 1px solid var(--gray-100); background: var(--gray-50); }
+    .c-filters select {
+      flex: 1; padding: 5px 8px; border: 1px solid var(--gray-200);
+      border-radius: 4px; font-size: 10.5px; font-family: inherit; color: var(--gray-500);
+      background: var(--white);
+    }
+    .c-filters select:focus { outline: none; border-color: var(--coral); }
+    .c-tbl table { width: 100%; }
+    .c-tbl thead th { padding: 7px 12px; font-size: 8.5px; }
+    .c-tbl tbody td { padding: 9px 12px; }
+    .permit-name { font-size: 11px; color: var(--gray-700); }
+    .remarks-txt { font-size: 10px; color: var(--gray-400); font-style: italic; }
+
+    /* PLACEHOLDER */
+    .ph-card {
+      background: var(--white); border-radius: 7px;
+      border: 1px dashed var(--gray-200);
+      padding: 24px; text-align: center;
+    }
+    .ph-icon { font-size: 24px; margin-bottom: 8px; }
+    .ph-title { font-size: 11.5px; font-weight: 700; color: var(--gray-700); }
+    .ph-desc  { font-size: 10.5px; color: var(--gray-400); margin-top: 4px; line-height: 1.5; }
+
+    /* FOOTER */
+    .page-footer {
+      grid-column: 1/-1;
+      background: var(--black);
+      padding: 10px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-left { font-size: 9.5px; color: #444; }
+    .footer-right { font-size: 9.5px; color: #444; }
+    .footer-right span { color: var(--coral); }
+  </style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-logo">4PH</div>
+    <div class="brand-name">4PH <em>ConstructHub</em></div>
+    <div class="brand-sep"></div>
+    <div class="brand-division">Design &amp; Construction Division</div>
+  </div>
+
+  <nav class="topbar-nav">
+    <a class="tnav-link active" href="#">Dashboard</a>
+    <a class="tnav-link" href="#">Projects</a>
+    <a class="tnav-link" href="#">Contracts</a>
+    <a class="tnav-link" href="#">Compliance</a>
+    <a class="tnav-link" href="#">Reports</a>
+    <a class="tnav-link" href="#">Admin</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="topbar-date">28 May 2026 &nbsp;·&nbsp; Q2 FY2026</div>
+    <div class="user-block">
+      <div class="user-av">DC</div>
+      <div class="user-info-wrap">
+        <div class="user-info-name">DC Head &nbsp;<span class="admin-badge">Admin</span></div>
+        <div class="user-info-role">Design &amp; Construction</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE ═══ -->
+<div class="page">
+
+  <!-- SIDEBAR — floating pill -->
+  <div class="sidebar">
+    <div class="sidebar-float">
+      <div class="sb-section">
+        <div class="sb-label">Overview</div>
+        <div class="sb-item active"><span class="sb-icon">⊞</span><span class="sb-text">Dashboard</span></div>
+        <div class="sb-item"><span class="sb-icon">📁</span><span class="sb-text">All Projects</span></div>
+        <div class="sb-item"><span class="sb-icon">📋</span><span class="sb-text">Contracts</span></div>
+      </div>
+      <div class="sb-divider"></div>
+      <div class="sb-section">
+        <div class="sb-label">Management</div>
+        <div class="sb-item"><span class="sb-icon">⚠️</span><span class="sb-text">Issues &amp; Concerns</span></div>
+        <div class="sb-item"><span class="sb-icon">🛡️</span><span class="sb-text">Compliance</span></div>
+        <div class="sb-item"><span class="sb-icon">🏗️</span><span class="sb-text">4PH Completion</span></div>
+      </div>
+      <div class="sb-divider"></div>
+      <div class="sb-section">
+        <div class="sb-label">Reporting</div>
+        <div class="sb-item"><span class="sb-icon">📊</span><span class="sb-text">Board Report</span></div>
+        <div class="sb-item"><span class="sb-icon">📤</span><span class="sb-text">Export PDF</span></div>
+        <div class="sb-item"><span class="sb-icon">📥</span><span class="sb-text">Export Excel</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <div class="main">
+
+
+    <!-- KPI STRIP -->
+    <div class="kpi-strip">
+      <div class="kpi">
+        <div class="kpi-label">Total Projects</div>
+        <div class="kpi-value">6</div>
+        <div class="kpi-note pos">↑ 1 added this quarter</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Open Issues</div>
+        <div class="kpi-value">3</div>
+        <div class="kpi-note warn">2 unresolved &gt; 30 days</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Active Permits</div>
+        <div class="kpi-value">2</div>
+        <div class="kpi-note">No expired permits</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Units Accepted</div>
+        <div class="kpi-value">247</div>
+        <div class="kpi-note">of 560 total &nbsp;(44%)</div>
+      </div>
+    </div>
+
+    <!-- PHASE BOARD -->
+    <div class="section-hd">
+      <div class="section-hd-left">
+        <div class="section-hd-bar"></div>
+        <div class="section-hd-title">I. Projects by Construction Phase</div>
+      </div>
+      <span class="section-hd-right">View All Projects →</span>
+    </div>
+    <div class="phase-grid">
+
+      <div class="phase-col pc-init">
+        <div class="ph-hd">
+          <div class="ph-name"><div class="ph-dot"></div>Initiation</div>
+          <span class="ph-cnt">4</span>
+        </div>
+        <div class="ph-list">
+          <div class="proj-row">
+            <div><div class="proj-row-name">Initiation Demo</div><div class="proj-row-sub">Feasibility Study</div></div>
+            <span class="proj-row-arr">›</span>
+          </div>
+          <div class="proj-row">
+            <div><div class="proj-row-name">Strevi</div><div class="proj-row-sub">Site Assessment</div></div>
+            <span class="proj-row-arr">›</span>
+          </div>
+          <div class="proj-row">
+            <div><div class="proj-row-name">Strevi Tower 1</div><div class="proj-row-sub">Design Brief</div></div>
+            <span class="proj-row-arr">›</span>
+          </div>
+          <div class="proj-row">
+            <div><div class="proj-row-name">Newest</div><div class="proj-row-sub">Preliminary Stage</div></div>
+            <span class="proj-row-arr">›</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase-col pc-plan">
+        <div class="ph-hd">
+          <div class="ph-name"><div class="ph-dot"></div>Planning</div>
+          <span class="ph-cnt">1</span>
+        </div>
+        <div class="ph-list">
+          <div class="proj-row">
+            <div><div class="proj-row-name">Planning</div><div class="proj-row-sub">Design &amp; Permits</div></div>
+            <span class="proj-row-arr">›</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase-col pc-exec">
+        <div class="ph-hd">
+          <div class="ph-name"><div class="ph-dot"></div>Execution &amp; Monitoring</div>
+          <span class="ph-cnt">0</span>
+        </div>
+        <div class="ph-list">
+          <div class="ph-empty"><div>◇</div><div>No projects yet</div></div>
+        </div>
+      </div>
+
+      <div class="phase-col pc-close">
+        <div class="ph-hd">
+          <div class="ph-name"><div class="ph-dot"></div>Close-Out</div>
+          <span class="ph-cnt">1</span>
+        </div>
+        <div class="ph-list">
+          <div class="proj-row">
+            <div><div class="proj-row-name">Close-Out</div><div class="proj-row-sub">Final Handover</div></div>
+            <span class="proj-row-arr">›</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ISSUES & CONCERNS -->
+    <div class="section-hd" style="margin-top:20px;">
+      <div class="section-hd-left">
+        <div class="section-hd-bar"></div>
+        <div class="section-hd-title">II. Issues &amp; Concerns Register</div>
+      </div>
+      <span class="section-hd-right">+ Log New Issue</span>
+    </div>
+    <div class="tbl-card">
+      <div class="tbl-card-hd">
+        <div class="tbl-card-hd-left">
+          <div class="tbl-card-title">Issues &amp; Concerns</div>
+          <div class="tbl-card-sub">Comprehensive tracking of all project-level issues requiring management action</div>
+        </div>
+        <div class="tbl-card-hd-right">
+          <button class="tbl-btn">Export</button>
+          <button class="tbl-btn primary">+ Add Issue</button>
+        </div>
+      </div>
+      <div class="filters">
+        <select class="fsel"><option>All Statuses</option><option>Open</option><option>Closed</option><option>For Review</option></select>
+        <select class="fsel"><option>All Groups</option><option>Commercial</option><option>Technical</option><option>Legal</option></select>
+        <select class="fsel"><option>All Projects</option><option>Strevi</option><option>Planning</option><option>Newest</option></select>
+        <select class="fsel"><option>All Mgmt Levels</option><option>Project Level</option><option>Division Level</option><option>Board Level</option></select>
+        <input class="fsearch" type="text" placeholder="Search issues and concerns…" />
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Issue / Concern</th>
+            <th>Group</th>
+            <th>Mgmt. Level</th>
+            <th>Raised By</th>
+            <th>Date Raised</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="t-proj">Newest</td>
+            <td class="t-issue">DADSASDJAJI — Site access delay affecting mobilization schedule</td>
+            <td class="t-meta">Commercial</td>
+            <td class="t-meta">Division</td>
+            <td class="t-meta">J. Santos</td>
+            <td class="t-date">10 May 2026</td>
+            <td><span class="badge b-open">Open</span></td>
+          </tr>
+          <tr>
+            <td class="t-proj">—</td>
+            <td class="t-issue">ANDSJKANDJADA — Contractor non-compliance with safety protocols</td>
+            <td class="t-meta">—</td>
+            <td class="t-meta">—</td>
+            <td class="t-meta">M. Reyes</td>
+            <td class="t-date">14 May 2026</td>
+            <td><span class="badge b-open">Open</span></td>
+          </tr>
+          <tr>
+            <td class="t-proj">Planning</td>
+            <td class="t-issue">AAAAA — Projected budget overrun requires board-level approval</td>
+            <td class="t-meta">—</td>
+            <td class="t-meta">—</td>
+            <td class="t-meta">B. Cruz</td>
+            <td class="t-date">20 May 2026</td>
+            <td><span class="badge b-open">Open</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="tbl-foot">
+        <span>Showing 3 of 3 records</span>
+        <span>Last updated: 28 May 2026 &nbsp;·&nbsp; For internal use only</span>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- ═══ RIGHT PANEL ═══ -->
+  <div class="right">
+
+    <!-- 4PH COMPLETION (now first) -->
+    <div class="r-card">
+      <div class="r-hd" style="border-left-color: var(--black);">
+        <div>
+          <div class="r-title">4PH Project Completion &amp; Acceptance</div>
+          <div class="r-sub">Unit turnover status by project phase</div>
+        </div>
+      </div>
+
+      <div class="fourph-body">
+
+        <div class="fourph-item">
+          <div class="fourph-row">
+            <span class="fourph-name">Phase 1 — Strevi Residences</span>
+            <span class="fourph-pct">67%</span>
+          </div>
+          <div class="fourph-units">80 of 120 units accepted</div>
+          <div class="bar-track"><div class="bar-fill bf-coral" style="width:67%"></div></div>
+          <div class="fourph-stats">
+            <div class="fstat accepted"><div class="fstat-val">80</div><div class="fstat-lbl">Accepted</div></div>
+            <div class="fstat pending" ><div class="fstat-val">30</div><div class="fstat-lbl">Pending</div></div>
+            <div class="fstat defect"  ><div class="fstat-val">10</div><div class="fstat-lbl">Defects</div></div>
+          </div>
+        </div>
+
+        <hr class="fourph-divider" />
+
+        <div class="fourph-item">
+          <div class="fourph-row">
+            <span class="fourph-name">Phase 2 — Strevi Tower 1</span>
+            <span class="fourph-pct">30%</span>
+          </div>
+          <div class="fourph-units">60 of 200 units accepted</div>
+          <div class="bar-track"><div class="bar-fill bf-blue" style="width:30%"></div></div>
+          <div class="fourph-stats">
+            <div class="fstat accepted"><div class="fstat-val">60</div><div class="fstat-lbl">Accepted</div></div>
+            <div class="fstat pending" ><div class="fstat-val">120</div><div class="fstat-lbl">Pending</div></div>
+            <div class="fstat defect"  ><div class="fstat-val">20</div><div class="fstat-lbl">Defects</div></div>
+          </div>
+        </div>
+
+        <hr class="fourph-divider" />
+
+        <div class="fourph-item">
+          <div class="fourph-row">
+            <span class="fourph-name">Phase 3 — Planning Commons</span>
+            <span class="fourph-pct">67%</span>
+          </div>
+          <div class="fourph-units">107 of 160 units accepted</div>
+          <div class="bar-track"><div class="bar-fill bf-amber" style="width:67%"></div></div>
+          <div class="fourph-stats">
+            <div class="fstat accepted"><div class="fstat-val">107</div><div class="fstat-lbl">Accepted</div></div>
+            <div class="fstat pending" ><div class="fstat-val">40</div><div class="fstat-lbl">Pending</div></div>
+            <div class="fstat defect"  ><div class="fstat-val">13</div><div class="fstat-lbl">Defects</div></div>
+          </div>
+        </div>
+
+        <hr class="fourph-divider" />
+
+        <div class="fourph-item">
+          <div class="fourph-row">
+            <span class="fourph-name">Phase 4 — Newest Development</span>
+            <span class="fourph-pct">0%</span>
+          </div>
+          <div class="fourph-units">0 of 80 units accepted</div>
+          <div class="bar-track"><div class="bar-fill bf-gray" style="width:2%"></div></div>
+          <div class="fourph-stats">
+            <div class="fstat accepted"><div class="fstat-val">0</div><div class="fstat-lbl">Accepted</div></div>
+            <div class="fstat pending" ><div class="fstat-val">80</div><div class="fstat-lbl">Pending</div></div>
+            <div class="fstat defect"  ><div class="fstat-val">0</div><div class="fstat-lbl">Defects</div></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="fourph-summary">
+        <div>
+          <div class="fs-label">Overall Completion</div>
+          <div class="fs-value">247 <span style="font-size:11px;color:#555;font-weight:400;">of 560 units</span></div>
+        </div>
+        <div style="text-align:right;">
+          <div class="fs-pct">44% accepted</div>
+          <div style="font-size:9.5px;color:#555;margin-top:2px;">Q2 FY2026</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLIANCE (now second) -->
+    <div class="r-card">
+      <div class="r-hd" style="border-left-color: var(--coral);">
+        <div>
+          <div class="r-title">Compliance &amp; Permits Monitoring</div>
+          <div class="r-sub">Permit status across all active projects</div>
+        </div>
+      </div>
+      <div class="c-filters">
+        <select><option>All Statuses</option><option>Ongoing</option><option>Approved</option><option>Expired</option></select>
+        <select><option>All Projects</option><option>Strevi</option><option>Newest</option></select>
+      </div>
+      <div class="c-tbl">
+        <table>
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Permit Type</th>
+              <th>Status</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="t-proj" style="font-size:11px;">Strevi</td>
+              <td class="permit-name">Building Permit</td>
+              <td><span class="badge b-ongoing">Ongoing</span></td>
+              <td class="remarks-txt">—</td>
+            </tr>
+            <tr>
+              <td class="t-proj" style="font-size:11px;">Newest</td>
+              <td class="permit-name">Environmental Clearance</td>
+              <td><span class="badge b-ongoing">Ongoing</span></td>
+              <td class="remarks-txt">fifty</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tbl-foot">
+        <span>2 of 2 active permits</span>
+        <span>No expired permits</span>
+      </div>
+    </div>
+
+    <!-- PLACEHOLDER -->
+    <div class="ph-card">
+      <div class="ph-icon">📊</div>
+      <div class="ph-title">Additional Reporting Modules</div>
+      <div class="ph-desc">Board report export, milestone tracking, financial analytics, and more — coming in next release.</div>
+    </div>
+
+  </div><!-- /right -->
+
+</div><!-- /page -->
+
+<!-- PAGE FOOTER -->
+<div style="background:var(--black);padding:10px 28px;display:flex;align-items:center;justify-content:space-between;">
+  <span style="font-size:9.5px;color:#444;">4PH ConstructHub &nbsp;·&nbsp; Design &amp; Construction Division &nbsp;·&nbsp; Internal Use Only</span>
+  <span style="font-size:9.5px;color:#444;">Generated: 28 May 2026 &nbsp;·&nbsp; <span style="color:var(--coral);">Confidential</span></span>
+</div>
+
+</body>
+</html>

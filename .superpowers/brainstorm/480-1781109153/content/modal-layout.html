@@ -1,0 +1,130 @@
+<h2>Preview & Edit Modal — Page Layout</h2>
+<p class="subtitle">How should the three editable pages (NOA/NTP, Contract Agreement, Term Sheet) be organized inside the modal?</p>
+
+<div class="cards" style="gap:24px;align-items:stretch">
+
+  <!-- Option A: Tabs -->
+  <div class="card" data-choice="tabs" onclick="toggleSelect(this)" style="flex:1;min-width:220px">
+    <div class="card-image" style="padding:20px 16px 0">
+      <div style="background:#fff;border:1.5px solid #e0e0e0;border-radius:8px;overflow:hidden;font-size:11px">
+        <!-- Tab bar -->
+        <div style="display:flex;border-bottom:2px solid #e0e0e0;background:#f7f7f7">
+          <div style="padding:7px 12px;background:#fff;border-bottom:2px solid #e05c44;color:#e05c44;font-weight:700;margin-bottom:-2px;font-size:10px">NOA/NTP</div>
+          <div style="padding:7px 12px;color:#888;font-size:10px">Contract Agmt</div>
+          <div style="padding:7px 12px;color:#888;font-size:10px">Term Sheet</div>
+        </div>
+        <!-- Page content area -->
+        <div style="padding:16px 14px;min-height:160px">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #e05c44;padding-bottom:8px;margin-bottom:10px">
+            <div style="width:40px;height:28px;background:#f0f0f0;border-radius:3px"></div>
+            <div style="text-align:right;line-height:1.6">
+              <div style="width:90px;height:7px;background:#ddd;border-radius:2px;margin-bottom:4px;margin-left:auto"></div>
+              <div style="width:60px;height:6px;background:#eee;border-radius:2px;margin-left:auto"></div>
+            </div>
+          </div>
+          <div style="font-weight:700;font-size:10px;text-align:center;border-bottom:1px solid #e05c44;padding-bottom:5px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">NOTICE OF AWARD AND NOTICE TO PROCEED</div>
+          <div style="height:6px;background:#eee;border-radius:2px;margin-bottom:5px"></div>
+          <div style="height:6px;background:#eee;border-radius:2px;margin-bottom:5px;width:80%"></div>
+          <div style="height:6px;background:#eee;border-radius:2px;margin-bottom:5px;width:90%"></div>
+          <div style="height:6px;background:#eee;border-radius:2px;margin-bottom:12px;width:70%"></div>
+          <div style="background:#fef5f3;border:1px solid #fad4cc;border-radius:3px;padding:6px;font-size:9px;color:#777">Click any text to edit directly...</div>
+        </div>
+        <!-- Footer -->
+        <div style="background:#f7f7f7;padding:8px 14px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #e0e0e0">
+          <div style="padding:4px 10px;background:#eee;border-radius:4px;font-size:9px;color:#666">Cancel</div>
+          <div style="padding:4px 10px;background:#e05c44;border-radius:4px;font-size:9px;color:#fff">Generate & Print</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Tabbed Pages</h3>
+      <p>One tab per page — NOA/NTP, Contract Agreement, Term Sheet. Focus on one document at a time. Cleaner modal, less scrolling.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Continuous scroll -->
+  <div class="card" data-choice="scroll" onclick="toggleSelect(this)" style="flex:1;min-width:220px">
+    <div class="card-image" style="padding:20px 16px 0">
+      <div style="background:#fff;border:1.5px solid #e0e0e0;border-radius:8px;overflow:hidden;font-size:11px">
+        <!-- Toolbar -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#f7f7f7;border-bottom:1px solid #e0e0e0">
+          <div style="font-size:9px;color:#888">Scroll to edit each page</div>
+          <div style="display:flex;gap:6px">
+            <div style="padding:3px 8px;background:#eee;border-radius:3px;font-size:8px;color:#666">Cancel</div>
+            <div style="padding:3px 8px;background:#e05c44;border-radius:3px;font-size:8px;color:#fff">Print</div>
+          </div>
+        </div>
+        <!-- Scrollable content -->
+        <div style="padding:12px 14px;max-height:180px;overflow:hidden">
+          <!-- Page 2 mini -->
+          <div style="border:1px solid #fad4cc;border-radius:4px;padding:8px;margin-bottom:8px;background:#fff">
+            <div style="font-size:8px;font-weight:700;color:#e05c44;margin-bottom:4px;text-transform:uppercase">NOA / NTP Letter</div>
+            <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:3px"></div>
+            <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:3px;width:85%"></div>
+            <div style="height:5px;background:#eee;border-radius:2px;width:70%"></div>
+          </div>
+          <!-- Page 3 mini -->
+          <div style="border:1px solid #e0e0e0;border-radius:4px;padding:8px;margin-bottom:8px;background:#fff">
+            <div style="font-size:8px;font-weight:700;color:#555;margin-bottom:4px;text-transform:uppercase">Contract Agreement</div>
+            <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:3px"></div>
+            <div style="height:5px;background:#eee;border-radius:2px;width:90%"></div>
+          </div>
+          <!-- Page 4 mini -->
+          <div style="border:1px solid #e0e0e0;border-radius:4px;padding:8px;background:#fff">
+            <div style="font-size:8px;font-weight:700;color:#555;margin-bottom:4px;text-transform:uppercase">Term Sheet</div>
+            <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:3px"></div>
+            <div style="height:5px;background:#eee;border-radius:2px;width:75%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Continuous Scroll</h3>
+      <p>All three pages stacked vertically in one scrollable modal. See all documents at once, easy to scroll between them without switching tabs.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Sidebar nav -->
+  <div class="card" data-choice="sidebar" onclick="toggleSelect(this)" style="flex:1;min-width:220px">
+    <div class="card-image" style="padding:20px 16px 0">
+      <div style="background:#fff;border:1.5px solid #e0e0e0;border-radius:8px;overflow:hidden;font-size:11px;display:flex;flex-direction:column">
+        <!-- Top bar -->
+        <div style="padding:6px 12px;background:#f7f7f7;border-bottom:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:9px;font-weight:600;color:#444">Edit Documents</div>
+          <div style="padding:3px 8px;background:#e05c44;border-radius:3px;font-size:8px;color:#fff">Generate & Print</div>
+        </div>
+        <!-- Body: sidebar + content -->
+        <div style="display:flex;min-height:180px">
+          <!-- Sidebar -->
+          <div style="width:80px;background:#f7f7f7;border-right:1px solid #e0e0e0;padding:8px 0;flex-shrink:0">
+            <div style="padding:6px 8px;background:#fef5f3;border-left:2px solid #e05c44;margin-bottom:2px">
+              <div style="font-size:8px;font-weight:700;color:#e05c44">NOA/NTP</div>
+              <div style="font-size:7px;color:#aaa">Letter</div>
+            </div>
+            <div style="padding:6px 8px;margin-bottom:2px">
+              <div style="font-size:8px;color:#666">Contract</div>
+              <div style="font-size:7px;color:#aaa">Agreement</div>
+            </div>
+            <div style="padding:6px 8px">
+              <div style="font-size:8px;color:#666">Term</div>
+              <div style="font-size:7px;color:#aaa">Sheet</div>
+            </div>
+          </div>
+          <!-- Content area -->
+          <div style="flex:1;padding:12px">
+            <div style="font-weight:700;font-size:10px;text-align:center;border-bottom:1px solid #e05c44;padding-bottom:4px;margin-bottom:8px;text-transform:uppercase">NOTICE OF AWARD</div>
+            <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:4px"></div>
+            <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:4px;width:85%"></div>
+            <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:4px;width:90%"></div>
+            <div style="height:5px;background:#eee;border-radius:2px;width:70%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Sidebar Navigation</h3>
+      <p>Left panel lists the three documents; clicking one shows it on the right. Clear navigation, large editing space per page.</p>
+    </div>
+  </div>
+
+</div>

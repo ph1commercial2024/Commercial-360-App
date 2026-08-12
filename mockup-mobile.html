@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=375, initial-scale=1.0" />
+  <title>4PH ConstructHub — Mobile</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    :root {
+      --black:    #000000;
+      --coral:    #ed6055;
+      --white:    #ffffff;
+      --gray-50:  #f7f7f7;
+      --gray-100: #efefef;
+      --gray-200: #dedede;
+      --gray-300: #c4c4c4;
+      --gray-400: #9a9a9a;
+      --gray-500: #6e6e6e;
+      --gray-700: #333333;
+      --gray-800: #1a1a1a;
+      --coral-10: #fdf2f1;
+      --coral-20: #f9d9d7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      font-size: 13px;
+      max-width: 375px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding-bottom: 70px;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      background: var(--black);
+      border-bottom: 2px solid var(--coral);
+      padding: 10px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 200;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .brand-logo {
+      width: 28px; height: 28px; background: var(--coral);
+      border-radius: 5px; display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 800; color: var(--white); letter-spacing: -.5px;
+    }
+    .brand-name { color: var(--white); font-size: 13px; font-weight: 700; }
+    .brand-name em { color: var(--coral); font-style: normal; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+    .notif-btn {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: #111; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; cursor: pointer;
+    }
+    .user-av {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--coral); color: var(--white);
+      font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── PAGE TITLE ── */
+    .page-title {
+      padding: 14px 16px 10px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .page-title-left h1 { font-size: 17px; font-weight: 800; color: var(--black); }
+    .page-title-left p  { font-size: 10.5px; color: var(--gray-400); margin-top: 1px; }
+    .live-chip {
+      font-size: 9px; font-weight: 700; padding: 3px 8px;
+      border-radius: 99px; border: 1px solid var(--coral);
+      color: var(--coral); letter-spacing: .4px;
+    }
+
+    /* ── KPI CARDS ── */
+    .kpi-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px; padding: 0 16px 14px;
+    }
+    .kpi {
+      background: var(--white); border-radius: 8px;
+      border: 1px solid var(--gray-200);
+      padding: 12px 14px 10px;
+      position: relative; overflow: hidden;
+    }
+    .kpi::before {
+      content: ''; position: absolute;
+      left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--coral);
+    }
+    .kpi-label { font-size: 9px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 4px; }
+    .kpi-value { font-size: 26px; font-weight: 800; color: var(--black); line-height: 1; }
+    .kpi-note  { font-size: 9.5px; color: var(--gray-400); margin-top: 3px; }
+    .kpi-note.pos  { color: #2d8a5e; }
+    .kpi-note.warn { color: #b45309; }
+
+    /* ── SECTION HEADER ── */
+    .sec-hd {
+      padding: 4px 16px 8px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sec-hd-left { display: flex; align-items: center; gap: 7px; }
+    .sec-bar { width: 3px; height: 13px; background: var(--coral); border-radius: 99px; }
+    .sec-title { font-size: 10px; font-weight: 700; color: var(--gray-700); text-transform: uppercase; letter-spacing: .7px; }
+    .sec-action { font-size: 10.5px; color: var(--coral); font-weight: 600; }
+
+    /* ── PHASE SCROLL ── */
+    .phase-scroll-wrap { padding: 0 16px 16px; }
+    .phase-scroll {
+      display: flex; gap: 8px;
+      overflow-x: auto; padding-bottom: 6px;
+      scrollbar-width: none;
+    }
+    .phase-scroll::-webkit-scrollbar { display: none; }
+    .phase-card {
+      flex-shrink: 0; width: 150px;
+      background: var(--white); border-radius: 8px;
+      border: 1px solid var(--gray-200); overflow: hidden;
+    }
+    .ph-card-hd {
+      padding: 8px 10px 7px;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .ph-card-name { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: var(--black); }
+    .ph-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .ph-cnt { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+
+    .pc-init  { border-top: 3px solid #9a9a9a; }
+    .pc-init  .ph-dot { background: #9a9a9a; }
+    .pc-init  .ph-cnt { background: #f5f5f5; color: #9a9a9a; }
+    .pc-plan  { border-top: 3px solid #4a7fc1; }
+    .pc-plan  .ph-dot { background: #4a7fc1; }
+    .pc-plan  .ph-cnt { background: #eef3fb; color: #4a7fc1; }
+    .pc-exec  { border-top: 3px solid var(--coral); }
+    .pc-exec  .ph-dot { background: var(--coral); }
+    .pc-exec  .ph-cnt { background: var(--coral-10); color: var(--coral); }
+    .pc-close { border-top: 3px solid #2d8a5e; }
+    .pc-close .ph-dot { background: #2d8a5e; }
+    .pc-close .ph-cnt { background: #edfaf4; color: #2d8a5e; }
+
+    .ph-card-items { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+    .ph-proj-row {
+      padding: 6px 8px; background: var(--gray-50);
+      border: 1px solid var(--gray-100); border-radius: 5px;
+      font-size: 10.5px; font-weight: 600; color: var(--black);
+      cursor: pointer;
+    }
+    .ph-proj-sub { font-size: 9px; color: var(--gray-400); margin-top: 1px; }
+    .ph-empty { padding: 14px 8px; text-align: center; color: var(--gray-300); font-size: 10px; }
+
+    /* ── CARD WRAPPER ── */
+    .card-wrap { padding: 0 16px 14px; }
+    .card {
+      background: var(--white); border-radius: 8px;
+      border: 1px solid var(--gray-200); overflow: hidden;
+    }
+    .card-hd {
+      padding: 11px 14px 9px;
+      background: var(--gray-50);
+      border-bottom: 2px solid var(--gray-200);
+      border-left: 3px solid var(--coral);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title { font-size: 12px; font-weight: 700; color: var(--black); }
+    .card-sub   { font-size: 10px; color: var(--gray-400); margin-top: 1px; }
+    .card-btn {
+      font-size: 10px; font-weight: 700; padding: 4px 10px;
+      border-radius: 4px; background: var(--coral);
+      color: var(--white); border: none; cursor: pointer;
+    }
+
+    /* ── ISSUES LIST (mobile card style) ── */
+    .issues-filters {
+      padding: 8px 12px; display: flex; gap: 6px; overflow-x: auto;
+      border-bottom: 1px solid var(--gray-100); scrollbar-width: none;
+    }
+    .issues-filters::-webkit-scrollbar { display: none; }
+    .filter-chip {
+      flex-shrink: 0; padding: 4px 10px; border-radius: 99px;
+      border: 1px solid var(--gray-200); font-size: 10.5px;
+      color: var(--gray-500); background: var(--white); white-space: nowrap;
+      cursor: pointer;
+    }
+    .filter-chip.active { background: var(--coral-10); border-color: var(--coral-20); color: var(--coral); font-weight: 600; }
+
+    .issue-item {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .issue-item:last-child { border-bottom: none; }
+    .issue-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+    .issue-proj { font-size: 11px; font-weight: 700; color: var(--black); }
+    .badge {
+      display: inline-block; font-size: 9px; font-weight: 700;
+      padding: 2px 7px; border-radius: 3px; letter-spacing: .2px;
+      text-transform: uppercase;
+    }
+    .b-open    { background: var(--coral-10); color: var(--coral); border: 1px solid var(--coral-20); }
+    .b-ongoing { background: #fef9ec; color: #92600a; border: 1px solid #f5dfa0; }
+    .b-approved{ background: #eef3fb; color: #2a5fa8; border: 1px solid #bdd0ee; }
+    .issue-desc { font-size: 11.5px; color: var(--gray-700); margin-bottom: 5px; line-height: 1.4; }
+    .issue-meta { display: flex; gap: 10px; }
+    .issue-meta-item { font-size: 10px; color: var(--gray-400); }
+    .issue-meta-item strong { color: var(--gray-600); }
+
+    .card-footer {
+      padding: 8px 14px; border-top: 1px solid var(--gray-100);
+      font-size: 10px; color: var(--gray-400);
+      display: flex; justify-content: space-between;
+      background: #fafafa;
+    }
+
+    /* ── 4PH COMPLETION ── */
+    .fourph-body { padding: 12px 14px 14px; }
+    .fourph-item { margin-bottom: 14px; }
+    .fourph-item:last-child { margin-bottom: 0; }
+    .fourph-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
+    .fourph-name { font-size: 11px; font-weight: 700; color: var(--black); }
+    .fourph-pct  { font-size: 11px; font-weight: 700; color: var(--coral); }
+    .fourph-units{ font-size: 9.5px; color: var(--gray-400); margin-bottom: 5px; }
+    .bar-track { height: 6px; background: var(--gray-100); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
+    .bar-fill   { height: 100%; border-radius: 99px; }
+    .bf-coral { background: var(--coral); }
+    .bf-blue  { background: #4a7fc1; }
+    .bf-amber { background: #d9900a; }
+    .bf-gray  { background: var(--gray-200); }
+    .fourph-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
+    .fstat {
+      background: var(--gray-50); border: 1px solid var(--gray-100);
+      border-radius: 4px; padding: 5px 4px; text-align: center;
+    }
+    .fstat-val { font-size: 13px; font-weight: 800; color: var(--black); line-height: 1; }
+    .fstat-lbl { font-size: 8px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+    .fstat.accepted .fstat-val { color: #2d8a5e; }
+    .fstat.pending  .fstat-val { color: #92600a; }
+    .fstat.defect   .fstat-val { color: var(--coral); }
+    .fourph-divider { border: none; border-top: 1px solid var(--gray-100); margin: 12px 0; }
+    .fourph-summary {
+      margin: 0 14px 14px;
+      padding: 10px 14px;
+      background: var(--black); border-radius: 6px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .fs-label { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .6px; }
+    .fs-value { font-size: 14px; font-weight: 800; color: var(--white); }
+    .fs-pct   { font-size: 11px; color: var(--coral); font-weight: 700; }
+
+    /* ── COMPLIANCE TABLE (mobile) ── */
+    .compliance-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .compliance-item:last-child { border-bottom: none; }
+    .comp-left {}
+    .comp-proj   { font-size: 11px; font-weight: 700; color: var(--black); }
+    .comp-permit { font-size: 11.5px; color: var(--gray-600); margin-top: 1px; }
+    .comp-remark { font-size: 10px; color: var(--gray-400); font-style: italic; margin-top: 2px; }
+
+    /* ── BOTTOM NAV ── */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 375px;
+      background: var(--white);
+      border-top: 1px solid var(--gray-200);
+      display: flex;
+      padding: 6px 0 10px;
+      z-index: 200;
+      box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; gap: 3px;
+      padding: 4px 0; cursor: pointer;
+    }
+    .nav-btn-icon { font-size: 18px; }
+    .nav-btn-label { font-size: 9px; font-weight: 600; color: var(--gray-400); letter-spacing: .2px; }
+    .nav-btn.active .nav-btn-label { color: var(--coral); }
+    .nav-btn.active .nav-btn-icon { filter: none; }
+    .nav-indicator {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--coral); margin: 0 auto 1px;
+      visibility: hidden;
+    }
+    .nav-btn.active .nav-indicator { visibility: visible; }
+
+    /* ── DIVIDER ── */
+    .section-gap { height: 6px; }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-logo">4PH</div>
+    <div class="brand-name">4PH <em>ConstructHub</em></div>
+  </div>
+  <div class="topbar-right">
+    <div class="notif-btn">🔔</div>
+    <div class="user-av">DC</div>
+  </div>
+</div>
+
+<!-- PAGE TITLE -->
+<div class="page-title">
+  <div class="page-title-left">
+    <h1>Dashboard</h1>
+    <p>Design &amp; Construction &nbsp;·&nbsp; 28 May 2026</p>
+  </div>
+  <div class="live-chip">● LIVE</div>
+</div>
+
+<!-- KPI CARDS -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">Total Projects</div>
+    <div class="kpi-value">6</div>
+    <div class="kpi-note pos">↑ 1 this quarter</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Open Issues</div>
+    <div class="kpi-value">3</div>
+    <div class="kpi-note warn">2 overdue</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Active Permits</div>
+    <div class="kpi-value">2</div>
+    <div class="kpi-note">No expired</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Units Accepted</div>
+    <div class="kpi-value">247</div>
+    <div class="kpi-note">of 560 (44%)</div>
+  </div>
+</div>
+
+<!-- I. PHASE BOARD -->
+<div class="sec-hd">
+  <div class="sec-hd-left">
+    <div class="sec-bar"></div>
+    <div class="sec-title">I. Projects by Phase</div>
+  </div>
+  <span class="sec-action">View All →</span>
+</div>
+<div class="phase-scroll-wrap">
+  <div class="phase-scroll">
+
+    <div class="phase-card pc-init">
+      <div class="ph-card-hd">
+        <div class="ph-card-name"><div class="ph-dot"></div>Initiation</div>
+        <span class="ph-cnt">4</span>
+      </div>
+      <div class="ph-card-items">
+        <div class="ph-proj-row">Initiation Demo<div class="ph-proj-sub">Feasibility Study</div></div>
+        <div class="ph-proj-row">Strevi<div class="ph-proj-sub">Site Assessment</div></div>
+        <div class="ph-proj-row">Strevi Tower 1<div class="ph-proj-sub">Design Brief</div></div>
+        <div class="ph-proj-row">Newest<div class="ph-proj-sub">Preliminary</div></div>
+      </div>
+    </div>
+
+    <div class="phase-card pc-plan">
+      <div class="ph-card-hd">
+        <div class="ph-card-name"><div class="ph-dot"></div>Planning</div>
+        <span class="ph-cnt">1</span>
+      </div>
+      <div class="ph-card-items">
+        <div class="ph-proj-row">Planning<div class="ph-proj-sub">Design &amp; Permits</div></div>
+      </div>
+    </div>
+
+    <div class="phase-card pc-exec">
+      <div class="ph-card-hd">
+        <div class="ph-card-name"><div class="ph-dot"></div>Execution</div>
+        <span class="ph-cnt">0</span>
+      </div>
+      <div class="ph-card-items">
+        <div class="ph-empty">◇<br/>No projects yet</div>
+      </div>
+    </div>
+
+    <div class="phase-card pc-close">
+      <div class="ph-card-hd">
+        <div class="ph-card-name"><div class="ph-dot"></div>Close-Out</div>
+        <span class="ph-cnt">1</span>
+      </div>
+      <div class="ph-card-items">
+        <div class="ph-proj-row">Close-Out<div class="ph-proj-sub">Final Handover</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- II. 4PH COMPLETION -->
+<div class="sec-hd">
+  <div class="sec-hd-left">
+    <div class="sec-bar"></div>
+    <div class="sec-title">II. 4PH Completion &amp; Acceptance</div>
+  </div>
+</div>
+<div class="card-wrap">
+  <div class="card">
+    <div class="card-hd" style="border-left-color: var(--black);">
+      <div>
+        <div class="card-title">4PH Project Completion &amp; Acceptance</div>
+        <div class="card-sub">Unit turnover status by project phase</div>
+      </div>
+    </div>
+    <div class="fourph-body">
+
+      <div class="fourph-item">
+        <div class="fourph-row"><span class="fourph-name">Phase 1 — Strevi Residences</span><span class="fourph-pct">67%</span></div>
+        <div class="fourph-units">80 of 120 units accepted</div>
+        <div class="bar-track"><div class="bar-fill bf-coral" style="width:67%"></div></div>
+        <div class="fourph-stats">
+          <div class="fstat accepted"><div class="fstat-val">80</div><div class="fstat-lbl">Accepted</div></div>
+          <div class="fstat pending"><div class="fstat-val">30</div><div class="fstat-lbl">Pending</div></div>
+          <div class="fstat defect"><div class="fstat-val">10</div><div class="fstat-lbl">Defects</div></div>
+        </div>
+      </div>
+
+      <hr class="fourph-divider"/>
+
+      <div class="fourph-item">
+        <div class="fourph-row"><span class="fourph-name">Phase 2 — Strevi Tower 1</span><span class="fourph-pct">30%</span></div>
+        <div class="fourph-units">60 of 200 units accepted</div>
+        <div class="bar-track"><div class="bar-fill bf-blue" style="width:30%"></div></div>
+        <div class="fourph-stats">
+          <div class="fstat accepted"><div class="fstat-val">60</div><div class="fstat-lbl">Accepted</div></div>
+          <div class="fstat pending"><div class="fstat-val">120</div><div class="fstat-lbl">Pending</div></div>
+          <div class="fstat defect"><div class="fstat-val">20</div><div class="fstat-lbl">Defects</div></div>
+        </div>
+      </div>
+
+      <hr class="fourph-divider"/>
+
+      <div class="fourph-item">
+        <div class="fourph-row"><span class="fourph-name">Phase 3 — Planning Commons</span><span class="fourph-pct">67%</span></div>
+        <div class="fourph-units">107 of 160 units accepted</div>
+        <div class="bar-track"><div class="bar-fill bf-amber" style="width:67%"></div></div>
+        <div class="fourph-stats">
+          <div class="fstat accepted"><div class="fstat-val">107</div><div class="fstat-lbl">Accepted</div></div>
+          <div class="fstat pending"><div class="fstat-val">40</div><div class="fstat-lbl">Pending</div></div>
+          <div class="fstat defect"><div class="fstat-val">13</div><div class="fstat-lbl">Defects</div></div>
+        </div>
+      </div>
+
+      <hr class="fourph-divider"/>
+
+      <div class="fourph-item">
+        <div class="fourph-row"><span class="fourph-name">Phase 4 — Newest Development</span><span class="fourph-pct">0%</span></div>
+        <div class="fourph-units">0 of 80 units accepted</div>
+        <div class="bar-track"><div class="bar-fill bf-gray" style="width:2%"></div></div>
+        <div class="fourph-stats">
+          <div class="fstat accepted"><div class="fstat-val">0</div><div class="fstat-lbl">Accepted</div></div>
+          <div class="fstat pending"><div class="fstat-val">80</div><div class="fstat-lbl">Pending</div></div>
+          <div class="fstat defect"><div class="fstat-val">0</div><div class="fstat-lbl">Defects</div></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="fourph-summary">
+      <div>
+        <div class="fs-label">Overall Completion</div>
+        <div class="fs-value">247 <span style="font-size:11px;color:#555;font-weight:400;">of 560 units</span></div>
+      </div>
+      <div style="text-align:right;">
+        <div class="fs-pct">44% accepted</div>
+        <div style="font-size:9px;color:#555;margin-top:2px;">Q2 FY2026</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- III. ISSUES -->
+<div class="sec-hd">
+  <div class="sec-hd-left">
+    <div class="sec-bar"></div>
+    <div class="sec-title">III. Issues &amp; Concerns</div>
+  </div>
+  <span class="sec-action">+ Log Issue</span>
+</div>
+<div class="card-wrap">
+  <div class="card">
+    <div class="card-hd">
+      <div>
+        <div class="card-title">Issues &amp; Concerns Register</div>
+        <div class="card-sub">Project-level issues for management action</div>
+      </div>
+      <button class="card-btn">+ Add</button>
+    </div>
+    <div class="issues-filters">
+      <div class="filter-chip active">All Statuses</div>
+      <div class="filter-chip">Open</div>
+      <div class="filter-chip">Closed</div>
+      <div class="filter-chip">All Projects</div>
+      <div class="filter-chip">All Groups</div>
+    </div>
+
+    <div class="issue-item">
+      <div class="issue-top">
+        <span class="issue-proj">Newest</span>
+        <span class="badge b-open">Open</span>
+      </div>
+      <div class="issue-desc">DADSASDJAJI — Site access delay affecting mobilization schedule</div>
+      <div class="issue-meta">
+        <span class="issue-meta-item"><strong>Group:</strong> Commercial</span>
+        <span class="issue-meta-item"><strong>Raised:</strong> 10 May 2026</span>
+      </div>
+    </div>
+
+    <div class="issue-item">
+      <div class="issue-top">
+        <span class="issue-proj">—</span>
+        <span class="badge b-open">Open</span>
+      </div>
+      <div class="issue-desc">ANDSJKANDJADA — Contractor non-compliance with safety protocols</div>
+      <div class="issue-meta">
+        <span class="issue-meta-item"><strong>By:</strong> M. Reyes</span>
+        <span class="issue-meta-item"><strong>Raised:</strong> 14 May 2026</span>
+      </div>
+    </div>
+
+    <div class="issue-item">
+      <div class="issue-top">
+        <span class="issue-proj">Planning</span>
+        <span class="badge b-open">Open</span>
+      </div>
+      <div class="issue-desc">AAAAA — Projected budget overrun requires board-level approval</div>
+      <div class="issue-meta">
+        <span class="issue-meta-item"><strong>By:</strong> B. Cruz</span>
+        <span class="issue-meta-item"><strong>Raised:</strong> 20 May 2026</span>
+      </div>
+    </div>
+
+    <div class="card-footer">
+      <span>3 of 3 issues</span>
+      <span>Last updated: 28 May 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- IV. COMPLIANCE -->
+<div class="sec-hd">
+  <div class="sec-hd-left">
+    <div class="sec-bar"></div>
+    <div class="sec-title">IV. Compliance &amp; Permits</div>
+  </div>
+</div>
+<div class="card-wrap">
+  <div class="card">
+    <div class="card-hd">
+      <div>
+        <div class="card-title">Compliance &amp; Permits Monitoring</div>
+        <div class="card-sub">Permit status across all active projects</div>
+      </div>
+    </div>
+
+    <div class="compliance-item">
+      <div class="comp-left">
+        <div class="comp-proj">Strevi</div>
+        <div class="comp-permit">Building Permit</div>
+        <div class="comp-remark">—</div>
+      </div>
+      <span class="badge b-ongoing">Ongoing</span>
+    </div>
+
+    <div class="compliance-item">
+      <div class="comp-left">
+        <div class="comp-proj">Newest</div>
+        <div class="comp-permit">Environmental Clearance</div>
+        <div class="comp-remark">fifty</div>
+      </div>
+      <span class="badge b-ongoing">Ongoing</span>
+    </div>
+
+    <div class="card-footer">
+      <span>2 of 2 active permits</span>
+      <span>No expired permits</span>
+    </div>
+  </div>
+</div>
+
+<div class="section-gap"></div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-btn active">
+    <div class="nav-indicator"></div>
+    <div class="nav-btn-icon">⊞</div>
+    <div class="nav-btn-label" style="color:var(--coral);">Dashboard</div>
+  </div>
+  <div class="nav-btn">
+    <div class="nav-indicator"></div>
+    <div class="nav-btn-icon">📁</div>
+    <div class="nav-btn-label">Projects</div>
+  </div>
+  <div class="nav-btn">
+    <div class="nav-indicator"></div>
+    <div class="nav-btn-icon">⚠️</div>
+    <div class="nav-btn-label">Issues</div>
+  </div>
+  <div class="nav-btn">
+    <div class="nav-indicator"></div>
+    <div class="nav-btn-icon">🛡️</div>
+    <div class="nav-btn-label">Compliance</div>
+  </div>
+  <div class="nav-btn">
+    <div class="nav-indicator"></div>
+    <div class="nav-btn-icon">📊</div>
+    <div class="nav-btn-label">Reports</div>
+  </div>
+</div>
+
+</body>
+</html>

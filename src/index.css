@@ -1,0 +1,82 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  background: #F8F7F5;
+}
+
+.date-picker-wrapper {
+  flex: 1;
+  width: 100%;
+}
+
+/* Input focus ring — charcoal brand */
+input:focus, select:focus, textarea:focus {
+  border-color: #3F3F3F !important;
+  box-shadow: 0 0 0 3px rgba(63, 63, 63, 0.12) !important;
+}
+
+/* Button press feedback */
+button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 0.1s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Table row hover */
+tbody tr {
+  transition: background 0.15s;
+}
+
+/* Card hover lift */
+.card-hover:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+  transform: translateY(-1px);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+/* Sidebar nav item hover */
+nav button:hover {
+  background: rgba(255,255,255,0.08) !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+
+/* Modal enter animation */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-backdrop {
+  animation: backdrop-in 0.15s ease-out both;
+}
+
+/* Animate the first (panel) child of any backdrop */
+.modal-backdrop > div {
+  animation: modal-in 0.18s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D0CEC9; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #A09D97; }

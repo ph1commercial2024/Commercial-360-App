@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RFA Summary & Recommendation — Layout Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #F3F4F6; color: #111; }
+
+  /* ── App Shell (simulated top bar) ── */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px; background: #E05C47;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #fff; }
+  .topbar-left span { opacity: 0.7; }
+  .topbar-left strong { font-weight: 700; }
+  .status-badge { background: #D1FAE5; color: #065F46; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .topbar-right { display: flex; gap: 8px; }
+  .btn { padding: 6px 16px; border-radius: 7px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-ghost { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+  .btn-danger { background: #FEE2E2; color: #B91C1C; }
+  .btn-success { background: #D1FAE5; color: #065F46; }
+
+  /* ── Tab bar ── */
+  .tabbar {
+    position: sticky; top: 52px; background: #fff; border-bottom: 1px solid #E5E7EB;
+    padding: 8px 20px; display: flex; gap: 4px; z-index: 90;
+  }
+  .tab { padding: 6px 16px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: #9CA3AF; }
+  .tab.active { background: #E05C47; color: #fff; }
+
+  /* ── Page body ── */
+  .page { max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; margin-top: 104px; }
+
+  /* ── Review banner ── */
+  .review-banner {
+    background: #EEF2FF; border: 1px solid #C7D2FE; border-radius: 10px;
+    padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .review-banner-text { font-size: 12px; font-weight: 700; color: #3730A3; margin-bottom: 2px; }
+  .review-banner-sub  { font-size: 11px; color: #4338CA; }
+  .btn-outline-indigo { background: #fff; color: #4338CA; border: 1px solid #C7D2FE; padding: 6px 14px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; }
+
+  /* ══ FORMAL DOCUMENT ══ */
+  .doc {
+    background: #fff; border: 1px solid #E5E7EB; border-radius: 14px;
+    overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+
+  /* ── Letterhead ── */
+  .letterhead {
+    padding: 24px 32px 20px;
+    border-bottom: 2px solid #E05C47;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center;
+  }
+  .logo-box {
+    width: 52px; height: 52px; border-radius: 10px; background: #E05C47;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: #fff; letter-spacing: -0.03em; line-height: 1.1; text-align: center;
+  }
+  .doc-title { text-align: center; }
+  .doc-title h1 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #111; }
+  .doc-title p  { font-size: 11px; color: #6B7280; margin-top: 2px; }
+  .doc-meta { text-align: right; font-size: 11px; color: #374151; line-height: 1.8; }
+  .doc-meta strong { font-family: monospace; font-weight: 700; color: #E05C47; }
+
+  /* ── Document sections ── */
+  .doc-section { padding: 18px 32px; border-bottom: 1px solid #F3F4F6; }
+  .doc-section:last-child { border-bottom: none; }
+  .section-label {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #9CA3AF; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: #F3F4F6; }
+  .section-num { background: #E05C47; color: #fff; font-size: 9px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* ── Section 1: Project Info ── */
+  .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .info-cell label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; display: block; margin-bottom: 3px; }
+  .info-cell span  { font-size: 12px; font-weight: 500; color: #111; }
+  .info-cell .mono { font-family: monospace; font-weight: 700; color: #E05C47; }
+  .info-cell.wide { grid-column: span 2; }
+
+  /* ── Section 2: Strategy ── */
+  .strategy-pill { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #FEF3C7; color: #92400E; margin-bottom: 8px; }
+  .strategy-just { font-size: 12px; color: #374151; line-height: 1.6; background: #F9FAFB; padding: 10px 14px; border-radius: 8px; border-left: 3px solid #E05C47; }
+
+  /* ── Section 3: Vendor Table ── */
+  .vendor-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .vendor-table th { background: #F9FAFB; padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #6B7280; border-bottom: 2px solid #E5E7EB; }
+  .vendor-table th.rec { background: #FFF5F4; color: #E05C47; border-bottom: 2px solid #E05C47; }
+  .vendor-table td { padding: 9px 12px; border-bottom: 1px solid #F3F4F6; color: #374151; vertical-align: top; }
+  .vendor-table tr:last-child td { border-bottom: none; }
+  .vendor-table td.crit { font-weight: 600; color: #6B7280; font-size: 10px; text-transform: uppercase; background: #F9FAFB; }
+  .vendor-table td.rec-col { background: #FFF8F7; }
+  .rec-star { color: #E05C47; font-size: 10px; font-weight: 700; display: block; }
+  .amount { font-family: monospace; font-weight: 700; font-size: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+  .badge-green { background: #D1FAE5; color: #065F46; }
+  .badge-amber { background: #FEF3C7; color: #92400E; }
+  .badge-blue  { background: #DBEAFE; color: #1D4ED8; }
+  .diff-better { color: #059669; font-size: 10px; font-weight: 600; }
+  .diff-worse  { color: #DC2626; font-size: 10px; font-weight: 600; }
+
+  /* ── Section 4: Recommendation ── */
+  .rec-box {
+    border: 1.5px solid #E05C47; border-radius: 10px; overflow: hidden;
+  }
+  .rec-box-header {
+    background: #FFF5F4; padding: 12px 18px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #FECACA;
+  }
+  .rec-box-header h3 { font-size: 13px; font-weight: 700; color: #E05C47; }
+  .rec-box-header .vendor-name { font-size: 14px; font-weight: 800; color: #111; margin-left: 4px; }
+  .rec-box-body { padding: 14px 18px; }
+  .rec-facts { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 14px; }
+  .rec-fact label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; display: block; margin-bottom: 3px; }
+  .rec-fact span  { font-size: 13px; font-weight: 700; color: #111; }
+  .rec-fact .mono { font-family: monospace; color: #E05C47; }
+  .rec-reason { font-size: 12px; color: #374151; line-height: 1.7; background: #F9FAFB; padding: 10px 14px; border-radius: 8px; }
+  .risk-none { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #059669; background: #D1FAE5; padding: 8px 14px; border-radius: 8px; margin-top: 10px; }
+  .risk-warn { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #92400E; background: #FEF3C7; padding: 8px 14px; border-radius: 8px; margin-top: 6px; }
+
+  /* ── Section 5: Signature block ── */
+  .sig-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+  .sig-cell { text-align: center; }
+  .sig-line { border-top: 1.5px solid #374151; margin: 0 8px 6px; padding-top: 6px; }
+  .sig-name  { font-size: 12px; font-weight: 700; color: #111; }
+  .sig-role  { font-size: 10px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+  .sig-label { font-size: 10px; color: #9CA3AF; margin-bottom: 28px; }
+
+  /* ── Footer note ── */
+  .doc-footer {
+    padding: 10px 32px; background: #F9FAFB; border-top: 1px solid #E5E7EB;
+    font-size: 10px; color: #9CA3AF; display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<!-- Simulated app top bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span>Recommendations for Award</span>
+    <span>›</span>
+    <strong>RFA-2026-0004</strong>
+    <span class="status-badge">Submitted</span>
+  </div>
+  <div class="topbar-right">
+    <button class="btn btn-ghost">Save Changes</button>
+    <button class="btn btn-danger">↩ Return</button>
+    <button class="btn btn-success">✓ Approve</button>
+  </div>
+</div>
+
+<!-- Tab bar -->
+<div class="tabbar">
+  <button class="tab">📋 Detailed Proposal</button>
+  <button class="tab active">⭐ Summary & Recommendation</button>
+</div>
+
+<!-- Page content -->
+<div class="page">
+
+  <!-- CM Review Banner -->
+  <div class="review-banner">
+    <div>
+      <div class="review-banner-text">📋 Reviewing RFA for Approval</div>
+      <div class="review-banner-sub">Review the recommendation summary below, then approve or return using the buttons above.</div>
+    </div>
+    <button class="btn-outline-indigo">View Full Details →</button>
+  </div>
+
+  <!-- ══ FORMAL DOCUMENT ══ -->
+  <div class="doc">
+
+    <!-- Letterhead -->
+    <div class="letterhead">
+      <div class="logo-box">PH<br>WORLD</div>
+      <div class="doc-title">
+        <h1>Recommendation for Award</h1>
+        <p>Commercial & Contract Management System &nbsp;·&nbsp; Internal Approval Document</p>
+      </div>
+      <div class="doc-meta">
+        <div><strong>RFA-2026-0004</strong></div>
+        <div>Date: June 13, 2026</div>
+        <div>PR Ref: <strong>PR-2026-0016</strong></div>
+      </div>
+    </div>
+
+    <!-- ① Project Background -->
+    <div class="doc-section">
+      <div class="section-label"><span class="section-num">1</span> Project Background</div>
+      <div class="info-grid">
+        <div class="info-cell wide">
+          <label>Project</label>
+          <span>4PH Lancaster</span>
+        </div>
+        <div class="info-cell">
+          <label>Business Unit</label>
+          <span>PH1L</span>
+        </div>
+        <div class="info-cell">
+          <label>Project Code</label>
+          <span class="mono">4PH-Lan</span>
+        </div>
+        <div class="info-cell wide">
+          <label>Scope / Work Description</label>
+          <span>Supply and installation of ceiling works — Test 1</span>
+        </div>
+        <div class="info-cell">
+          <label>Start Date</label>
+          <span>Jun 30, 2026</span>
+        </div>
+        <div class="info-cell">
+          <label>End Date</label>
+          <span>Jul 3, 2026</span>
+        </div>
+        <div class="info-cell">
+          <label>Budget Status</label>
+          <span><span class="badge badge-green">Budgeted</span></span>
+        </div>
+        <div class="info-cell">
+          <label>Budget Code</label>
+          <span class="mono">SR-UB-2026-001</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② Procurement Strategy -->
+    <div class="doc-section">
+      <div class="section-label"><span class="section-num">2</span> Procurement Strategy</div>
+      <div class="strategy-pill">Negotiated</div>
+      <div class="strategy-just">
+        Rush — timeline constraint requires direct negotiation with qualified contractor to meet project end date.
+      </div>
+    </div>
+
+    <!-- ③ Vendor Comparison -->
+    <div class="doc-section">
+      <div class="section-label"><span class="section-num">3</span> Vendor Comparison</div>
+      <table class="vendor-table">
+        <thead>
+          <tr>
+            <th style="width:150px">Criteria</th>
+            <th class="rec">★ Vendor 1 — ABC Construction <span style="font-size:9px;font-weight:400;opacity:0.7">(Recommended)</span></th>
+            <th>Vendor 2 — XYZ Builders</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="crit">Accreditation</td>
+            <td class="rec-col"><span class="badge badge-green">Class A</span></td>
+            <td><span class="badge badge-blue">Class B</span></td>
+          </tr>
+          <tr>
+            <td class="crit">Contract Amount</td>
+            <td class="rec-col">
+              <div class="amount">₱ 806,400.00</div>
+              <div class="diff-better">▼ 8.3% below highest bid</div>
+            </td>
+            <td>
+              <div class="amount">₱ 880,000.00</div>
+            </td>
+          </tr>
+          <tr>
+            <td class="crit">Payment Terms</td>
+            <td class="rec-col">Full Turnkey</td>
+            <td>Progress Billing</td>
+          </tr>
+          <tr>
+            <td class="crit">Downpayment</td>
+            <td class="rec-col">20% · ₱ 161,280</td>
+            <td>30% · ₱ 264,000</td>
+          </tr>
+          <tr>
+            <td class="crit">Retention</td>
+            <td class="rec-col">10% · ₱ 80,640</td>
+            <td>10% · ₱ 88,000</td>
+          </tr>
+          <tr>
+            <td class="crit">Target Completion</td>
+            <td class="rec-col">Aug 27, 2026</td>
+            <td>Sep 15, 2026 <span class="diff-worse">▲ 19d longer</span></td>
+          </tr>
+          <tr>
+            <td class="crit">Price Validity</td>
+            <td class="rec-col"><span class="badge badge-green">✓ 45d remaining</span></td>
+            <td><span class="badge badge-amber">⚠ 12d remaining</span></td>
+          </tr>
+          <tr>
+            <td class="crit">Surety Bond</td>
+            <td class="rec-col">₱ 161,280</td>
+            <td>₱ 176,000</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ④ Recommendation -->
+    <div class="doc-section">
+      <div class="section-label"><span class="section-num">4</span> Award Recommendation</div>
+      <div class="rec-box">
+        <div class="rec-box-header">
+          <span style="font-size:20px">🏆</span>
+          <div>
+            <h3>Recommended Vendor</h3>
+            <span class="vendor-name">ABC Construction, Inc.</span>
+          </div>
+        </div>
+        <div class="rec-box-body">
+          <div class="rec-facts">
+            <div class="rec-fact">
+              <label>Contract Amount</label>
+              <span class="mono">₱ 806,400.00</span>
+            </div>
+            <div class="rec-fact">
+              <label>Payment Terms</label>
+              <span>Full Turnkey</span>
+            </div>
+            <div class="rec-fact">
+              <label>Target Completion</label>
+              <span>Aug 27, 2026</span>
+            </div>
+          </div>
+          <div class="rec-reason">
+            ABC Construction, Inc. is recommended for award based on the lowest evaluated bid (₱ 806,400.00), earliest completion date (Aug 27, 2026), and Class A accreditation status. Payment terms are favorable with a standard 20% downpayment and full turnkey arrangement aligned with project requirements.
+          </div>
+          <div class="risk-none">✓ No risk flags — all compliance criteria met</div>
+          <!-- Example warning (comment out risk-none and uncomment this to preview):
+          <div class="risk-warn">⚠ Downpayment 35% exceeds the 30% standard maximum</div>
+          -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ Signatories -->
+    <div class="doc-section">
+      <div class="section-label"><span class="section-num">5</span> Signatories</div>
+      <div class="sig-grid">
+        <div class="sig-cell">
+          <div class="sig-label">Prepared by</div>
+          <div class="sig-line">
+            <div class="sig-name">Bernadette Cunanan</div>
+            <div class="sig-role">Commercial Officer</div>
+          </div>
+        </div>
+        <div class="sig-cell">
+          <div class="sig-label">Reviewed & Recommended by</div>
+          <div class="sig-line">
+            <div class="sig-name">________________________</div>
+            <div class="sig-role">Commercial Manager</div>
+          </div>
+        </div>
+        <div class="sig-cell">
+          <div class="sig-label">Approved by</div>
+          <div class="sig-line">
+            <div class="sig-name">________________________</div>
+            <div class="sig-role">D&C Head</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Document footer -->
+    <div class="doc-footer">
+      <span>RFA-2026-0004 &nbsp;·&nbsp; Commercial & Contract Management System</span>
+      <span>Generated Jun 13, 2026 &nbsp;·&nbsp; CONFIDENTIAL — FOR INTERNAL USE ONLY</span>
+    </div>
+
+  </div><!-- end .doc -->
+
+</div><!-- end .page -->
+
+</body>
+</html>

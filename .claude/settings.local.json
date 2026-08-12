@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls \"C:\\\\Users\\\\Bernadette Bongar\\\\.claude\\\\plugins\\\\marketplaces\\\\claude-plugins-official\" 2>&1)",
+      "Read(//c/Users/Bernadette Bongar/.claude/plugins/marketplaces/claude-plugins-official/**)",
+      "Bash(npm install *)",
+      "WebSearch"
+    ]
+  }
+}

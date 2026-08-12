@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>End User Concurrence — Sample</title>
+<style>
+  * { box-sizing: border-box; font-family: Arial, sans-serif; }
+  html { background: #7a7a7a; margin: 0; padding: 28px 0; }
+  body { margin: 0; padding: 0; background: #7a7a7a; }
+  .pg {
+    width: 210mm; min-height: 297mm; padding: 16mm 14mm 20mm;
+    background: #fff; margin: 0 auto;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+    font-size: 9.5px; color: #111;
+    position: relative;
+  }
+  .letterhead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 10px; border-bottom: 2px solid #ED6055; margin-bottom: 20px;
+  }
+  .logo-placeholder {
+    width: 88px; height: 38px; border: 1.5px dashed #ED6055;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7px; color: #ED6055; letter-spacing: 0.07em; text-transform: uppercase;
+    font-weight: 700;
+  }
+  .lh-right { text-align: right; font-size: 8.5px; color: #555; line-height: 1.6; }
+  .lh-right strong { font-size: 9px; color: #111; }
+  .doc-title {
+    text-align: center; margin-bottom: 6px;
+    font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .doc-subtitle { text-align: center; font-size: 9px; color: #777; margin-bottom: 20px; }
+  .intent-box {
+    background: #FFF7F6; border-left: 3px solid #ED6055;
+    padding: 9px 14px; margin-bottom: 16px; font-size: 9px;
+    line-height: 1.7; color: #444; text-align: justify;
+  }
+  table.info { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 9px; }
+  table.info td { padding: 4px 8px; vertical-align: top; }
+  table.info td.lbl { font-weight: 700; width: 38%; background: #fafafa; color: #555; }
+  table.scope { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 9px; }
+  table.scope th { background: #ED6055; color: #fff; padding: 5px 8px; text-align: left; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  table.scope td { border: 1px solid #ddd; padding: 5px 8px; vertical-align: top; }
+  table.scope tr:nth-child(even) td { background: #fafafa; }
+  .section-hdr {
+    font-weight: 700; font-size: 9.5px; text-transform: uppercase;
+    border-bottom: 1.5px solid #ED6055; padding-bottom: 3px;
+    margin: 14px 0 8px; letter-spacing: 0.04em; color: #ED6055;
+  }
+  .ack-box {
+    border: 1px solid #ccc; border-radius: 4px;
+    padding: 10px 14px; margin: 14px 0; font-size: 9px;
+    line-height: 1.8; color: #333; text-align: justify;
+  }
+  .ack-box strong { color: #111; }
+  table.sig { width: 100%; border-collapse: collapse; margin-top: 28px; }
+  table.sig td { text-align: center; padding: 5px 10px; vertical-align: top; }
+  .sig-role { font-size: 8.5px; color: #555; margin-bottom: 2px; }
+  .sig-line { border-top: 1px solid #333; margin: 30px 10px 4px; }
+  .sig-name { font-weight: 700; font-size: 9.5px; }
+  .sig-title { font-size: 8px; color: #555; }
+  .footer-strip {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 36px;
+    background: #ED6055; opacity: 0.12;
+  }
+  .watermark {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-30deg);
+    font-size: 60px; font-weight: 900; color: rgba(237,96,85,0.06);
+    text-transform: uppercase; letter-spacing: 0.1em; white-space: nowrap; pointer-events: none;
+  }
+  .note { font-size: 8px; color: #888; font-style: italic; margin-top: 4px; }
+  .badge {
+    display: inline-block; font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; padding: 2px 7px; border-radius: 10px;
+    background: #FEF3C7; color: #92400E; margin-left: 6px; vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<div class="pg">
+
+  <div class="watermark">Sample</div>
+
+  <!-- Letterhead -->
+  <div class="letterhead">
+    <div class="logo-placeholder">PH1</div>
+    <div class="lh-right">
+      <div><strong>Plushomes Communities, Inc.</strong></div>
+      <div>June 17, 2026</div>
+      <div>RFA-2026-0005</div>
+    </div>
+  </div>
+
+  <!-- Document Title -->
+  <div class="doc-title">End User Concurrence Form</div>
+  <div class="doc-subtitle">South Road Development &mdash; Road Concreting Works</div>
+
+  <!-- Intent -->
+  <div class="intent-box">
+    This form confirms that the undersigned PR User / End User has been fully briefed on, and is in agreement with, the scope of works, selected vendor, and payment terms that the Commercial team intends to award as part of the above-referenced procurement.
+  </div>
+
+  <!-- Reference Info -->
+  <div class="section-hdr">1. Reference Information</div>
+  <table class="info">
+    <tr><td class="lbl">RFA No.</td><td>RFA-2026-0005</td></tr>
+    <tr><td class="lbl">Project</td><td>South Road Development</td></tr>
+    <tr><td class="lbl">Description</td><td>Road Concreting Works — Phase 1</td></tr>
+    <tr><td class="lbl">Recommended Vendor</td><td><strong>R. Abalos Construction Co.</strong></td></tr>
+    <tr><td class="lbl">Contract Price</td><td><strong>Php 4,250,000.00</strong> (VAT Inclusive, Fixed Lumpsum)</td></tr>
+    <tr><td class="lbl">Procurement Type</td><td>Competitive Bid</td></tr>
+  </table>
+
+  <!-- Scope of Works -->
+  <div class="section-hdr">2. Scope of Works to be Awarded</div>
+  <table class="scope">
+    <thead><tr><th style="width:36px">#</th><th>Item Description</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Mobilization and site preparation</td></tr>
+      <tr><td>2</td><td>Subgrade preparation and compaction</td></tr>
+      <tr><td>3</td><td>Gravel base course laying (150mm thick)</td></tr>
+      <tr><td>4</td><td>Portland cement concrete pavement (200mm thick, 28-day strength)</td></tr>
+      <tr><td>5</td><td>Drainage works — catch basins and culverts</td></tr>
+      <tr><td>6</td><td>Road markings and signages</td></tr>
+      <tr><td>7</td><td>Demobilization and site clearing</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Payment Terms -->
+  <div class="section-hdr">3. Payment Terms</div>
+  <table class="info">
+    <tr><td class="lbl">Payment Type</td><td>Progress Billing</td></tr>
+    <tr><td class="lbl">Down Payment</td><td>20% of Contract Amount — Php 850,000.00 (Recoupable)</td></tr>
+    <tr><td class="lbl">Progress Billing</td><td>Based on approved accomplishment report</td></tr>
+    <tr><td class="lbl">Retention</td><td>10% per billing, released upon completion and acceptance</td></tr>
+    <tr><td class="lbl">Performance Bond</td><td>30% of Contract Amount — Php 1,275,000.00</td></tr>
+    <tr><td class="lbl">Construction Period</td><td>90 calendar days from Notice to Proceed</td></tr>
+    <tr><td class="lbl">Liquidated Damages</td><td>Per contract standard terms</td></tr>
+  </table>
+
+  <!-- Acknowledgment -->
+  <div class="section-hdr">4. Acknowledgment</div>
+  <div class="ack-box">
+    I, the undersigned, confirm that:
+    <ol style="margin: 6px 0 0; padding-left: 18px; line-height: 2;">
+      <li>I have reviewed and agree with the <strong>scope of works</strong> listed above.</li>
+      <li>I confirm the selected vendor, <strong>R. Abalos Construction Co.</strong>, is technically compliant with the project requirements.</li>
+      <li>I am aware of and agree to the <strong>payment terms</strong> specified above.</li>
+      <li>I have no outstanding objections to the award of this contract as described herein.</li>
+    </ol>
+  </div>
+  <p class="note">* This signed form must be uploaded to the RFA before it can be submitted for Commercial Manager review.</p>
+
+  <!-- Signatures -->
+  <div class="section-hdr">5. Signatories</div>
+  <table class="sig">
+    <tr>
+      <td>
+        <div class="sig-role">Prepared by (Commercial Officer)</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">________________________</div>
+        <div class="sig-title">Commercial Officer</div>
+        <div class="sig-title">Plushomes Communities, Inc.</div>
+      </td>
+      <td>
+        <div class="sig-role">Confirmed by (PR User / End User)</div>
+        <div class="sig-line"></div>
+        <div class="sig-name">________________________</div>
+        <div class="sig-title">Project / End User Representative</div>
+        <div class="sig-title">Date: _______________</div>
+      </td>
+    </tr>
+  </table>
+
+</div>
+</body>
+</html>

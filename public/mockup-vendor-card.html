@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vendor Card Options</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', Arial, sans-serif; background: #F2F1EF; padding: 32px; color: #1A1917; }
+
+  .page-title { font-size: 11px; font-weight: 700; color: #A09D97; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+  .section-label {
+    font-size: 11px; font-weight: 700; color: #6B6860;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin: 32px 0 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: #E5E3DF; }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+
+  /* ─── SHARED ELEMENTS ─── */
+  select {
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+    cursor: pointer; font-family: inherit;
+  }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+  .badge-green { background: #EAF3DE; color: #3B6D11; }
+  .badge-green-inv { background: rgba(56,193,114,0.25); color: #6EE7B7; }
+  .badge-gray { background: #F1F0EE; color: #5F5E5A; }
+  .badge-amber { background: #FEF3E2; color: #92580A; }
+  .dot-row { display: flex; align-items: center; gap: 4px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ─── CURRENT (reference) ─── */
+  .current-card {
+    background: #EF5F50; border-radius: 10px; padding: 12px 14px;
+  }
+  .c-slot { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: .07em; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .c-addbtn { background: rgba(255,255,255,0.2); border: none; border-radius: 5px; color: white; font-size: 11px; padding: 2px 8px; cursor: pointer; }
+  .c-select { width: 100%; padding: 6px 28px 6px 9px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.15); color: white; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+  .c-status-row { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+  .c-slabel { font-size: 9px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: .04em; }
+  .c-sselect { flex: 1; padding: 2px 22px 2px 6px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.18); color: white; font-size: 10px; font-weight: 700; }
+  .c-infobox { background: rgba(0,0,0,0.15); border-radius: 6px; padding: 5px 8px; margin-bottom: 5px; }
+  .c-inforow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+  .c-itext { font-size: 10px; color: rgba(255,255,255,0.72); }
+  .c-addr { font-size: 10px; color: rgba(255,255,255,0.55); }
+  .c-dot { background: rgba(255,255,255,0.25); }
+  .c-dotlbl { font-size: 10px; color: rgba(255,255,255,0.6); margin-left: 2px; }
+
+  /* ─── OPTION A — White card + coral accent ─── */
+  .a-card {
+    background: white; border-radius: 10px;
+    border: 1px solid #E5E3DF;
+    border-left: 4px solid #EF5F50;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .a-header {
+    padding: 8px 14px;
+    background: #FDF1F0;
+    border-bottom: 1px solid #F5D5D1;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .a-slot { font-size: 10px; font-weight: 700; color: #D44F41; text-transform: uppercase; letter-spacing: .07em; }
+  .a-addbtn { background: #EF5F50; border: none; border-radius: 5px; color: white; font-size: 11px; padding: 2px 8px; cursor: pointer; }
+  .a-body { padding: 10px 14px; }
+  .a-vendor-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .a-select { flex: 1; padding: 6px 28px 6px 9px; border-radius: 7px; border: 1px solid #E5E3DF; background: white; color: #1A1917; font-size: 12px; font-weight: 600; }
+  .a-dual { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .a-accred { display: flex; align-items: center; gap: 5px; }
+  .a-adot { width: 6px; height: 6px; border-radius: 50%; background: #3B6D11; }
+  .a-atext { font-size: 11px; font-weight: 600; color: #3B6D11; }
+  .a-divider { width: 1px; height: 18px; background: #E5E3DF; }
+  .a-plabel { font-size: 10px; color: #A09D97; margin-right: 4px; }
+  .a-pselect { padding: 3px 22px 3px 7px; border-radius: 5px; border: 1px solid #E5E3DF; background: #F8F7F5; color: #1A1917; font-size: 11px; font-weight: 600; }
+  .a-contact { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; flex-wrap: wrap; }
+  .a-citem { font-size: 11px; color: #6B6860; display: flex; align-items: center; gap: 4px; }
+  .a-nocontact { font-size: 11px; color: #A09D97; font-style: italic; margin-bottom: 5px; }
+  .a-addr { font-size: 11px; color: #A09D97; display: flex; gap: 3px; margin-bottom: 8px; }
+  .a-dot { background: #F5D5D1; }
+  .a-dotlbl { font-size: 10px; color: #A09D97; margin-left: 2px; }
+
+  /* ─── OPTION B — Light coral tint ─── */
+  .b-card {
+    background: #FDF1F0; border-radius: 10px;
+    border: 1px solid #F5D5D1;
+    box-shadow: 0 1px 4px rgba(239,95,80,0.08);
+    overflow: hidden;
+  }
+  .b-header {
+    padding: 8px 14px;
+    background: rgba(239,95,80,0.12);
+    border-bottom: 1px solid #F5D5D1;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .b-slot { font-size: 10px; font-weight: 700; color: #D44F41; text-transform: uppercase; letter-spacing: .07em; }
+  .b-addbtn { background: #EF5F50; border: none; border-radius: 5px; color: white; font-size: 11px; padding: 2px 8px; cursor: pointer; }
+  .b-body { padding: 10px 14px; }
+  .b-select { width: 100%; padding: 6px 28px 6px 9px; border-radius: 7px; border: 1px solid #F5D5D1; background: white; color: #1A1917; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .b-dual { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .b-accred { display: flex; align-items: center; gap: 5px; background: #EAF3DE; padding: 3px 9px; border-radius: 6px; }
+  .b-adot { width: 6px; height: 6px; border-radius: 50%; background: #3B6D11; }
+  .b-atext { font-size: 11px; font-weight: 600; color: #3B6D11; }
+  .b-divider { width: 1px; height: 18px; background: #F5D5D1; }
+  .b-plabel { font-size: 10px; color: #A09D97; margin-right: 4px; }
+  .b-pselect { padding: 3px 22px 3px 7px; border-radius: 5px; border: 1px solid #F5D5D1; background: white; color: #1A1917; font-size: 11px; font-weight: 600; }
+  .b-contact { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; flex-wrap: wrap; }
+  .b-citem { font-size: 11px; color: #6B6860; display: flex; align-items: center; gap: 4px; }
+  .b-nocontact { font-size: 11px; color: #A09D97; font-style: italic; margin-bottom: 5px; }
+  .b-addr { font-size: 11px; color: #A09D97; display: flex; gap: 3px; margin-bottom: 8px; }
+  .b-dot { background: rgba(239,95,80,0.2); }
+  .b-dotlbl { font-size: 10px; color: #A09D97; margin-left: 2px; }
+
+  /* ─── OPTION C — Dark header + white body ─── */
+  .c2-card {
+    background: white; border-radius: 10px;
+    border: 1px solid #E5E3DF;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .c2-header {
+    padding: 9px 14px;
+    background: #2C2A27;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .c2-slot { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 8px; }
+  .c2-vendorname { font-size: 12px; font-weight: 600; color: white; }
+  .c2-addbtn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: rgba(255,255,255,0.8); font-size: 11px; padding: 2px 8px; cursor: pointer; }
+  .c2-body { padding: 10px 14px; }
+  .c2-select { width: 100%; padding: 6px 28px 6px 9px; border-radius: 7px; border: 1px solid #E5E3DF; background: white; color: #1A1917; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .c2-dual { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .c2-accred { display: flex; align-items: center; gap: 5px; background: #EAF3DE; padding: 3px 9px; border-radius: 6px; }
+  .c2-adot { width: 6px; height: 6px; border-radius: 50%; background: #3B6D11; }
+  .c2-atext { font-size: 11px; font-weight: 600; color: #3B6D11; }
+  .c2-divider { width: 1px; height: 18px; background: #E5E3DF; }
+  .c2-plabel { font-size: 10px; color: #A09D97; margin-right: 4px; }
+  .c2-pselect { padding: 3px 22px 3px 7px; border-radius: 5px; border: 1px solid #E5E3DF; background: #F8F7F5; color: #1A1917; font-size: 11px; font-weight: 600; }
+  .c2-contact { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; flex-wrap: wrap; }
+  .c2-citem { font-size: 11px; color: #6B6860; display: flex; align-items: center; gap: 4px; }
+  .c2-nocontact { font-size: 11px; color: #A09D97; font-style: italic; margin-bottom: 5px; }
+  .c2-addr { font-size: 11px; color: #A09D97; display: flex; gap: 3px; margin-bottom: 8px; }
+  .c2-dot { background: #F2F1EF; }
+  .c2-dotlbl { font-size: 10px; color: #A09D97; margin-left: 2px; }
+
+  .option-tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 99px; margin-left: 8px;
+    background: #1A1917; color: white; vertical-align: middle;
+  }
+  .rec { background: #EF5F50 !important; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Vendor Card Design Options</div>
+
+<div class="section-label">Current <span style="font-size:10px;font-weight:400;color:#A09D97;text-transform:none;letter-spacing:0">(for reference)</span></div>
+<div style="max-width:380px">
+  <div class="current-card">
+    <div class="c-slot">Vendor 1 <button class="c-addbtn">+ Add</button></div>
+    <select class="c-select"><option>Megawide Construction Corporation</option></select>
+    <div class="c-status-row">
+      <span class="c-slabel">Status:</span>
+      <select class="c-sselect"><option>Submitted</option></select>
+    </div>
+    <div class="c-infobox">
+      <div class="c-inforow">
+        <span class="c-itext">👤 —</span>
+        <span class="c-itext">📞 —</span>
+        <span class="badge badge-green-inv">Accredited</span>
+      </div>
+      <div class="c-addr">📍 No. 20 N. Domingo, Quezon City</div>
+    </div>
+    <div class="dot-row">
+      <div class="dot c-dot"></div><div class="dot c-dot"></div><div class="dot c-dot"></div><div class="dot c-dot"></div><div class="dot c-dot"></div>
+      <span class="c-dotlbl">0/5 done</span>
+    </div>
+  </div>
+</div>
+
+<div class="section-label">Option A — White card with coral accent <span class="option-tag rec">Recommended</span></div>
+<div class="grid-3">
+  <!-- With contact info -->
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">With contact info</div>
+    <div class="a-card">
+      <div class="a-header">
+        <span class="a-slot">Vendor 1</span>
+        <button class="a-addbtn">+ Add</button>
+      </div>
+      <div class="a-body">
+        <select class="a-select"><option>Megawide Construction Corporation</option></select>
+        <div class="a-dual">
+          <div class="a-accred">
+            <div class="a-adot"></div>
+            <span class="a-atext">Accredited</span>
+          </div>
+          <div class="a-divider"></div>
+          <span class="a-plabel">Participation:</span>
+          <select class="a-pselect"><option>Submitted</option></select>
+        </div>
+        <div class="a-contact">
+          <span class="a-citem">👤 Juan Dela Cruz · Manager</span>
+          <span class="a-citem">📞 0917-123-4567</span>
+        </div>
+        <div class="a-addr">📍 <span>No. 20 N. Domingo, Quezon City</span></div>
+        <div class="dot-row">
+          <div class="dot a-dot"></div><div class="dot a-dot"></div><div class="dot a-dot"></div><div class="dot a-dot"></div><div class="dot a-dot"></div>
+          <span class="a-dotlbl">0/5 done</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- No contact -->
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">No contact info</div>
+    <div class="a-card">
+      <div class="a-header">
+        <span class="a-slot">Vendor 1</span>
+        <button class="a-addbtn">+ Add</button>
+      </div>
+      <div class="a-body">
+        <select class="a-select"><option>Megawide Construction Corporation</option></select>
+        <div class="a-dual">
+          <div class="a-accred">
+            <div class="a-adot"></div>
+            <span class="a-atext">Accredited</span>
+          </div>
+          <div class="a-divider"></div>
+          <span class="a-plabel">Participation:</span>
+          <select class="a-pselect"><option>Submitted</option></select>
+        </div>
+        <div class="a-nocontact">No contact info on file</div>
+        <div class="a-addr">📍 <span>No. 20 N. Domingo, Quezon City</span></div>
+        <div class="dot-row">
+          <div class="dot a-dot"></div><div class="dot a-dot"></div><div class="dot a-dot"></div><div class="dot a-dot"></div><div class="dot a-dot"></div>
+          <span class="a-dotlbl">0/5 done</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Non-responsive -->
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">Non-responsive vendor</div>
+    <div class="a-card" style="border-left-color:#A09D97; opacity:.85">
+      <div class="a-header" style="background:#F8F7F5; border-bottom-color:#E5E3DF;">
+        <span class="a-slot" style="color:#A09D97">Vendor 2</span>
+      </div>
+      <div class="a-body">
+        <select class="a-select" style="color:#A09D97"><option>Shinerise Manpower Services</option></select>
+        <div class="a-dual">
+          <div class="a-accred" style="background:#F1F0EE">
+            <div class="a-adot" style="background:#A09D97"></div>
+            <span class="a-atext" style="color:#6B6860">Accredited</span>
+          </div>
+          <div class="a-divider"></div>
+          <span class="a-plabel">Participation:</span>
+          <select class="a-pselect" style="color:#B91C1C;background:#FDEDED;border-color:#FCA5A5"><option>Non-Responsive</option></select>
+        </div>
+        <div style="text-align:center;padding:10px;background:#F8F7F5;border-radius:7px;font-size:11px;color:#A09D97;font-style:italic">
+          — No proposal submitted —
+        </div>
+        <div class="dot-row" style="margin-top:8px">
+          <div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div>
+          <span class="a-dotlbl">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-label">Option B — Light coral tint</div>
+<div class="grid-3">
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">With contact info</div>
+    <div class="b-card">
+      <div class="b-header">
+        <span class="b-slot">Vendor 1</span>
+        <button class="b-addbtn">+ Add</button>
+      </div>
+      <div class="b-body">
+        <select class="b-select"><option>Megawide Construction Corporation</option></select>
+        <div class="b-dual">
+          <div class="b-accred">
+            <div class="b-adot"></div>
+            <span class="b-atext">Accredited</span>
+          </div>
+          <div class="b-divider"></div>
+          <span class="b-plabel">Participation:</span>
+          <select class="b-pselect"><option>Submitted</option></select>
+        </div>
+        <div class="b-contact">
+          <span class="b-citem">👤 Juan Dela Cruz · Manager</span>
+          <span class="b-citem">📞 0917-123-4567</span>
+        </div>
+        <div class="b-addr">📍 <span>No. 20 N. Domingo, Quezon City</span></div>
+        <div class="dot-row">
+          <div class="dot b-dot"></div><div class="dot b-dot"></div><div class="dot b-dot"></div><div class="dot b-dot"></div><div class="dot b-dot"></div>
+          <span class="b-dotlbl">0/5 done</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">No contact info</div>
+    <div class="b-card">
+      <div class="b-header">
+        <span class="b-slot">Vendor 1</span>
+        <button class="b-addbtn">+ Add</button>
+      </div>
+      <div class="b-body">
+        <select class="b-select"><option>Megawide Construction Corporation</option></select>
+        <div class="b-dual">
+          <div class="b-accred">
+            <div class="b-adot"></div>
+            <span class="b-atext">Accredited</span>
+          </div>
+          <div class="b-divider"></div>
+          <span class="b-plabel">Participation:</span>
+          <select class="b-pselect"><option>Submitted</option></select>
+        </div>
+        <div class="b-nocontact">No contact info on file</div>
+        <div class="b-addr">📍 <span>No. 20 N. Domingo, Quezon City</span></div>
+        <div class="dot-row">
+          <div class="dot b-dot"></div><div class="dot b-dot"></div><div class="dot b-dot"></div><div class="dot b-dot"></div><div class="dot b-dot"></div>
+          <span class="b-dotlbl">0/5 done</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">Non-responsive vendor</div>
+    <div class="b-card" style="border-color:#E5E3DF;opacity:.85">
+      <div class="b-header" style="background:#F8F7F5;border-bottom-color:#E5E3DF">
+        <span class="b-slot" style="color:#A09D97">Vendor 2</span>
+      </div>
+      <div class="b-body">
+        <select class="b-select" style="color:#A09D97"><option>Shinerise Manpower Services</option></select>
+        <div class="b-dual">
+          <div class="b-accred" style="background:#F1F0EE">
+            <div class="b-adot" style="background:#A09D97"></div>
+            <span class="b-atext" style="color:#6B6860">Accredited</span>
+          </div>
+          <div class="b-divider"></div>
+          <span class="b-plabel">Participation:</span>
+          <select class="b-pselect" style="color:#B91C1C;background:#FDEDED;border-color:#FCA5A5"><option>Non-Responsive</option></select>
+        </div>
+        <div style="text-align:center;padding:10px;background:#F8F7F5;border-radius:7px;font-size:11px;color:#A09D97;font-style:italic">
+          — No proposal submitted —
+        </div>
+        <div class="dot-row" style="margin-top:8px">
+          <div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div>
+          <span class="b-dotlbl">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-label">Option C — Dark header + white body</div>
+<div class="grid-3">
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">With contact info</div>
+    <div class="c2-card">
+      <div class="c2-header">
+        <div class="c2-slot">Vendor 1 <span class="c2-vendorname">Megawide Construction Corp.</span></div>
+        <button class="c2-addbtn">+ Add</button>
+      </div>
+      <div class="c2-body">
+        <select class="c2-select"><option>Megawide Construction Corporation</option></select>
+        <div class="c2-dual">
+          <div class="c2-accred">
+            <div class="c2-adot"></div>
+            <span class="c2-atext">Accredited</span>
+          </div>
+          <div class="c2-divider"></div>
+          <span class="c2-plabel">Participation:</span>
+          <select class="c2-pselect"><option>Submitted</option></select>
+        </div>
+        <div class="c2-contact">
+          <span class="c2-citem">👤 Juan Dela Cruz · Manager</span>
+          <span class="c2-citem">📞 0917-123-4567</span>
+        </div>
+        <div class="c2-addr">📍 <span>No. 20 N. Domingo, Quezon City</span></div>
+        <div class="dot-row">
+          <div class="dot c2-dot"></div><div class="dot c2-dot"></div><div class="dot c2-dot"></div><div class="dot c2-dot"></div><div class="dot c2-dot"></div>
+          <span class="c2-dotlbl">0/5 done</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">No contact info</div>
+    <div class="c2-card">
+      <div class="c2-header">
+        <div class="c2-slot">Vendor 1 <span class="c2-vendorname">Megawide Construction Corp.</span></div>
+        <button class="c2-addbtn">+ Add</button>
+      </div>
+      <div class="c2-body">
+        <select class="c2-select"><option>Megawide Construction Corporation</option></select>
+        <div class="c2-dual">
+          <div class="c2-accred">
+            <div class="c2-adot"></div>
+            <span class="c2-atext">Accredited</span>
+          </div>
+          <div class="c2-divider"></div>
+          <span class="c2-plabel">Participation:</span>
+          <select class="c2-pselect"><option>Submitted</option></select>
+        </div>
+        <div class="c2-nocontact">No contact info on file</div>
+        <div class="c2-addr">📍 <span>No. 20 N. Domingo, Quezon City</span></div>
+        <div class="dot-row">
+          <div class="dot c2-dot"></div><div class="dot c2-dot"></div><div class="dot c2-dot"></div><div class="dot c2-dot"></div><div class="dot c2-dot"></div>
+          <span class="c2-dotlbl">0/5 done</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;color:#A09D97;margin-bottom:6px">Non-responsive vendor</div>
+    <div class="c2-card" style="opacity:.85">
+      <div class="c2-header" style="background:#3D3A36">
+        <div class="c2-slot">Vendor 2 <span class="c2-vendorname" style="color:rgba(255,255,255,0.5)">Shinerise Manpower Services</span></div>
+      </div>
+      <div class="c2-body">
+        <select class="c2-select" style="color:#A09D97"><option>Shinerise Manpower Services</option></select>
+        <div class="c2-dual">
+          <div class="c2-accred">
+            <div class="c2-adot"></div>
+            <span class="c2-atext">Accredited</span>
+          </div>
+          <div class="c2-divider"></div>
+          <span class="c2-plabel">Participation:</span>
+          <select class="c2-pselect" style="color:#B91C1C;background:#FDEDED;border-color:#FCA5A5"><option>Non-Responsive</option></select>
+        </div>
+        <div style="text-align:center;padding:10px;background:#F8F7F5;border-radius:7px;font-size:11px;color:#A09D97;font-style:italic">
+          — No proposal submitted —
+        </div>
+        <div class="dot-row" style="margin-top:8px">
+          <div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div><div class="dot" style="background:#F1F0EE"></div>
+          <span class="c2-dotlbl">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:48px"></div>
+</body>
+</html>

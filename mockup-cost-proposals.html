@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cost Proposals — Option A Mockup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, Arial, sans-serif; background: #F3F4F6; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 32px 16px; }
+
+  .coral   { color: #E8604C; }
+  .muted   { color: #9CA3AF; }
+  .label   { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; }
+
+  /* ── Card ─────────────────────────────── */
+  .card {
+    background: #fff;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 920px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    overflow: hidden;
+  }
+
+  /* ── Card header ──────────────────────── */
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #E5E7EB;
+    background: #FAFAFA;
+  }
+  .card-header .icon-wrap {
+    width: 30px; height: 30px;
+    background: #FEE8E5;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .card-header h2 { font-size: 13px; font-weight: 700; color: #111; }
+  .card-header p  { font-size: 11px; color: #6B7280; margin-top: 1px; }
+  .collapse-btn {
+    margin-left: auto;
+    font-size: 11px; font-weight: 600; color: #6B7280;
+    background: none; border: 1px solid #E5E7EB;
+    border-radius: 6px; padding: 4px 10px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .collapse-btn:hover { background: #F9FAFB; }
+
+  /* ── Vendor tabs row ─────────────────── */
+  .vendor-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 12px 16px 0;
+    border-bottom: 1px solid #E5E7EB;
+    background: #fff;
+    overflow-x: auto;
+  }
+  .v-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 14px 10px;
+    border-radius: 8px 8px 0 0;
+    border: 1px solid #E5E7EB;
+    border-bottom: none;
+    cursor: pointer;
+    background: #F9FAFB;
+    min-width: 150px;
+    position: relative;
+    bottom: -1px;
+    transition: background .15s;
+  }
+  .v-tab:hover { background: #F3F4F6; }
+  .v-tab.active {
+    background: #fff;
+    border-top: 2px solid #E8604C;
+  }
+  .v-tab .v-name  { font-size: 12px; font-weight: 700; color: #111; }
+  .v-tab .v-sub   { font-size: 10px; color: #6B7280; margin-top: 1px; }
+  .v-tab .v-total { font-size: 11px; font-weight: 700; color: #E8604C; margin-top: 3px; }
+  .v-tab .v-total.empty { color: #D1D5DB; }
+  .v-tab.active .v-name { color: #E8604C; }
+  .v-tab .awarded-badge {
+    display: inline-block;
+    background: #FEF3C7; color: #92400E;
+    font-size: 9px; font-weight: 700;
+    border-radius: 99px; padding: 1px 6px;
+    margin-left: 5px; vertical-align: middle;
+  }
+
+  /* ── Panel body ───────────────────────── */
+  .panel-body { padding: 16px; }
+
+  /* ── Copy banner (for V2/V3) ─────────── */
+  .copy-banner {
+    display: flex; align-items: center; gap: 8px;
+    background: #F0FDF4; border: 1px solid #BBF7D0;
+    border-radius: 7px; padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 11px; color: #166534;
+  }
+  .copy-btn {
+    margin-left: auto;
+    font-size: 11px; font-weight: 600;
+    background: #fff; color: #166534;
+    border: 1px solid #BBF7D0; border-radius: 5px;
+    padding: 3px 10px; cursor: pointer;
+  }
+  .copy-btn:hover { background: #DCFCE7; }
+
+  /* ── Proposal version tabs ───────────── */
+  .prop-tabs {
+    display: flex; align-items: center; gap: 0;
+    border-bottom: 1.5px solid #E5E7EB;
+    margin-bottom: 12px;
+  }
+  .p-tab {
+    font-size: 11px; font-weight: 600; color: #6B7280;
+    padding: 5px 12px 6px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1.5px;
+    cursor: pointer;
+    white-space: nowrap;
+    background: none; border-top: none; border-left: none; border-right: none;
+  }
+  .p-tab.active { color: #E8604C; border-bottom-color: #E8604C; }
+  .p-tab:hover:not(.active) { color: #374151; }
+  .p-tab.add { color: #E8604C; font-weight: 500; }
+  .prop-date {
+    margin-left: auto;
+    font-size: 11px; color: #6B7280;
+    border: 1px solid #E5E7EB; border-radius: 6px;
+    padding: 3px 8px;
+    background: none;
+    display: flex; align-items: center; gap: 5px;
+    cursor: pointer;
+  }
+
+  /* ── Line items table ─────────────────── */
+  .items-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 2px; }
+  .items-table th {
+    text-align: left; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: #9CA3AF; padding: 0 6px 5px;
+    border-bottom: 1px solid #E5E7EB;
+  }
+  .items-table th.r { text-align: right; }
+  .items-table td { padding: 5px 6px; vertical-align: middle; }
+  .items-table tr:not(:last-child) td { border-bottom: 1px solid #F3F4F6; }
+  .items-table .desc-input {
+    width: 100%; font-size: 11.5px; color: #111;
+    border: 1px solid transparent; border-radius: 4px;
+    padding: 3px 5px; background: none;
+  }
+  .items-table .desc-input:focus { border-color: #E8604C; outline: none; background: #FFF5F4; }
+  .items-table .num-input {
+    width: 100%; font-size: 11.5px; color: #111; text-align: right;
+    border: 1px solid transparent; border-radius: 4px;
+    padding: 3px 5px; background: none;
+  }
+  .items-table .num-input:focus { border-color: #E8604C; outline: none; background: #FFF5F4; }
+  .items-table .amount-cell { text-align: right; font-family: monospace; font-weight: 600; color: #111; white-space: nowrap; }
+  .items-table .remove-btn { background: none; border: none; color: #D1D5DB; cursor: pointer; font-size: 14px; padding: 0 3px; }
+  .items-table .remove-btn:hover { color: #E8604C; }
+  .add-item-link { font-size: 11px; color: #E8604C; background: none; border: none; cursor: pointer; padding: 5px 6px; display: block; }
+
+  /* ── Subtotal / Taxes / Total ─────────── */
+  .totals-section { border-top: 1px solid #E5E7EB; margin-top: 4px; padding-top: 8px; }
+  .subtotal-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; color: #6B7280; padding: 2px 6px;
+  }
+  .taxes-header { display: flex; align-items: center; gap: 8px; padding: 6px 6px 3px; }
+  .taxes-header .lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; }
+  .tax-row {
+    display: grid;
+    grid-template-columns: 1fr 56px 88px 20px;
+    gap: 5px; align-items: center;
+    padding: 3px 6px;
+    font-size: 11.5px;
+  }
+  .tax-name-input {
+    border: 1px solid #E5E7EB; border-radius: 5px;
+    padding: 3px 6px; font-size: 11.5px; color: #111;
+    background: #FAFAFA; width: 100%;
+  }
+  .tax-name-input:focus { border-color: #E8604C; outline: none; background: #FFF5F4; }
+  .tax-rate-wrap {
+    display: flex; align-items: center; gap: 2px;
+    border: 1px solid #E5E7EB; border-radius: 5px;
+    background: #FAFAFA; padding: 0 5px;
+  }
+  .tax-rate-input { border: none; background: none; width: 30px; font-size: 11.5px; text-align: right; outline: none; padding: 3px 0; }
+  .tax-rate-wrap span { font-size: 10px; color: #9CA3AF; }
+  .tax-amount { text-align: right; font-family: monospace; font-weight: 600; color: #16A34A; font-size: 11.5px; }
+  .tax-remove { background: none; border: none; color: #D1D5DB; cursor: pointer; font-size: 13px; }
+  .tax-remove:hover { color: #E8604C; }
+  .add-tax-link { font-size: 11px; color: #E8604C; background: none; border: none; cursor: pointer; padding: 3px 6px; display: inline-block; }
+  .total-row {
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1.5px solid #E5E7EB;
+    margin-top: 6px; padding: 8px 6px 4px;
+    font-size: 13px; font-weight: 700;
+  }
+  .total-row .amount { font-family: monospace; color: #E8604C; }
+
+  /* ── Notes + Attachment ──────────────── */
+  .extras { padding: 10px 6px 0; }
+  .extras .lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; margin-bottom: 4px; display: block; }
+  .notes-textarea {
+    width: 100%; font-size: 11.5px; color: #374151;
+    border: 1px solid #E5E7EB; border-radius: 6px;
+    padding: 6px 8px; resize: vertical; min-height: 48px;
+    font-family: inherit; background: #FAFAFA;
+  }
+  .notes-textarea:focus { border-color: #E8604C; outline: none; background: #FFF5F4; }
+  .attach-btn {
+    margin-top: 8px;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600; color: #374151;
+    background: #fff; border: 1px solid #E5E7EB; border-radius: 7px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  .attach-btn:hover { background: #F9FAFB; border-color: #D1D5DB; }
+
+  /* ── Empty state ──────────────────────── */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 36px 20px; color: #9CA3AF; text-align: center;
+  }
+  .empty-state .big-icon { font-size: 32px; margin-bottom: 8px; opacity: .4; }
+  .empty-state p { font-size: 12px; margin-bottom: 12px; }
+  .add-proposal-btn {
+    background: #E8604C; color: #fff;
+    border: none; border-radius: 7px;
+    padding: 7px 16px; font-size: 12px; font-weight: 700;
+    cursor: pointer;
+  }
+  .add-proposal-btn:hover { background: #D4503E; }
+
+  /* ── Note box at bottom ──────────────── */
+  .note-box {
+    margin: 12px 16px 16px;
+    background: #FFFBEB; border: 1px solid #FDE68A;
+    border-radius: 7px; padding: 8px 12px;
+    font-size: 11px; color: #92400E;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- ── Card Header ── -->
+  <div class="card-header">
+    <div class="icon-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8604C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <div>
+      <h2>Cost Proposals</h2>
+      <p>Bill of Quantities with unit prices and applicable taxes</p>
+    </div>
+    <button class="collapse-btn" onclick="toggleCollapse()">▲ Collapse</button>
+  </div>
+
+  <div id="main-content">
+
+    <!-- ── Vendor Tabs ── -->
+    <div class="vendor-tabs">
+      <div class="v-tab active" onclick="switchVendor(1, this)">
+        <span class="v-name">
+          ABC Construction
+          <span class="awarded-badge">★ Awarded</span>
+        </span>
+        <span class="v-sub">Vendor 1 (V1)</span>
+        <span class="v-total">₱ 22,400.00</span>
+      </div>
+      <div class="v-tab" onclick="switchVendor(2, this)">
+        <span class="v-name">XYZ Builders</span>
+        <span class="v-sub">Vendor 2 (V2)</span>
+        <span class="v-total empty">₱ 0.00</span>
+      </div>
+      <div class="v-tab" onclick="switchVendor(3, this)">
+        <span class="v-name">Prime Contractors</span>
+        <span class="v-sub">Vendor 3 (V3)</span>
+        <span class="v-total empty">₱ 0.00</span>
+      </div>
+    </div>
+
+    <!-- ── Vendor 1 Panel ── -->
+    <div id="panel-1" class="panel-body">
+
+      <!-- Proposal version tabs + date -->
+      <div class="prop-tabs">
+        <button class="p-tab active">Proposal 1</button>
+        <button class="p-tab" style="color:#9CA3AF;font-weight:500">Proposal 2 (BAFO)</button>
+        <button class="p-tab add">+ Add proposal</button>
+        <div class="prop-date">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          05/28/2026
+        </div>
+      </div>
+
+      <!-- Line items -->
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width:40%">Description</th>
+            <th class="r" style="width:8%">Qty</th>
+            <th style="width:10%">Unit</th>
+            <th class="r" style="width:16%">Unit Price</th>
+            <th class="r" style="width:16%">Amount</th>
+            <th style="width:4%"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input class="desc-input" value="Painting works — all floors" /></td>
+            <td><input class="num-input" style="width:48px" value="1" /></td>
+            <td><input class="desc-input" value="lot" style="max-width:60px" /></td>
+            <td><input class="num-input" value="20,000" /></td>
+            <td class="amount-cell">20,000.00</td>
+            <td><button class="remove-btn">×</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="add-item-link">+ Add item</button>
+
+      <!-- Totals -->
+      <div class="totals-section">
+        <div class="subtotal-row">
+          <span>Subtotal</span>
+          <span style="font-family:monospace">₱ 20,000.00</span>
+        </div>
+
+        <div style="padding: 4px 6px 2px">
+          <span class="label">Taxes</span>
+        </div>
+
+        <div class="tax-row">
+          <input class="tax-name-input" value="VAT" />
+          <div class="tax-rate-wrap"><input class="tax-rate-input" value="12" /><span>%</span></div>
+          <div class="tax-amount">+ ₱ 2,400.00</div>
+          <button class="tax-remove">×</button>
+        </div>
+        <button class="add-tax-link">+ Add tax</button>
+
+        <div class="total-row">
+          <span>Total</span>
+          <span class="amount">₱ 22,400.00</span>
+        </div>
+      </div>
+
+      <!-- Notes + Attachment -->
+      <div class="extras">
+        <label class="lbl">Notes</label>
+        <textarea class="notes-textarea" placeholder="Optional notes…"></textarea>
+        <div style="margin-top:8px">
+          <span class="label">Vendor Proposal Attachment</span>
+        </div>
+        <button class="attach-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          Attach Vendor Proposal
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Vendor 2 Panel (hidden) ── -->
+    <div id="panel-2" class="panel-body" style="display:none">
+      <div class="copy-banner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        No proposal yet. You can copy line items from another vendor to start.
+        <button class="copy-btn">Copy from V1</button>
+      </div>
+
+      <div class="prop-tabs">
+        <button class="p-tab add" style="color:#9CA3AF">No proposals yet</button>
+        <button class="p-tab add">+ Add proposal</button>
+        <div class="prop-date" style="color:#D1D5DB; cursor:default">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          mm/dd/yyyy
+        </div>
+      </div>
+
+      <div class="empty-state">
+        <div class="big-icon">📋</div>
+        <p>No proposals added for this vendor yet.<br>Add a proposal to enter their pricing.</p>
+        <button class="add-proposal-btn">+ Add Proposal</button>
+      </div>
+    </div>
+
+    <!-- ── Vendor 3 Panel (hidden) ── -->
+    <div id="panel-3" class="panel-body" style="display:none">
+      <div class="copy-banner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        No proposal yet. You can copy line items from another vendor to start.
+        <button class="copy-btn" onclick="this.closest('.copy-banner').innerHTML = '✅ &nbsp;Items copied from V1 — edit unit prices below'">Copy from V1</button>
+      </div>
+
+      <div class="prop-tabs">
+        <button class="p-tab add" style="color:#9CA3AF">No proposals yet</button>
+        <button class="p-tab add">+ Add proposal</button>
+        <div class="prop-date" style="color:#D1D5DB; cursor:default">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          mm/dd/yyyy
+        </div>
+      </div>
+
+      <div class="empty-state">
+        <div class="big-icon">📋</div>
+        <p>No proposals added for this vendor yet.<br>Add a proposal to enter their pricing.</p>
+        <button class="add-proposal-btn">+ Add Proposal</button>
+      </div>
+    </div>
+
+    <!-- ── Bottom note ── -->
+    <div class="note-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r=".5" fill="#D97706"/></svg>
+      <span>Withholding Tax is <strong>not included</strong> in the contract amount shown above. It is a payment deduction handled separately in billing.</span>
+    </div>
+
+  </div><!-- /main-content -->
+
+</div><!-- /card -->
+
+<script>
+  function switchVendor(n, el) {
+    // Update tabs
+    document.querySelectorAll('.v-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    // Update panels
+    document.querySelectorAll('[id^="panel-"]').forEach(p => p.style.display = 'none');
+    document.getElementById('panel-' + n).style.display = 'block';
+  }
+
+  let collapsed = false;
+  function toggleCollapse() {
+    collapsed = !collapsed;
+    document.getElementById('main-content').style.display = collapsed ? 'none' : 'block';
+    document.querySelector('.collapse-btn').textContent = collapsed ? '▼ Expand' : '▲ Collapse';
+  }
+</script>
+
+</body>
+</html>

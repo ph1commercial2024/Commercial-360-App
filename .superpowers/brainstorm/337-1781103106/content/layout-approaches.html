@@ -1,0 +1,226 @@
+<h2>Layout Approach — 3 Options</h2>
+<p class="subtitle">All fix the empty state, add a print button, and give contract terms more room. They differ in how the layout is restructured.</p>
+
+<style>
+  .demo { font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; color: #1A1917; }
+  .demo-header { padding: 10px 16px; background: #F8F7F5; border-bottom: 1px solid #E5E3DF; display: flex; align-items: center; gap: 8px; }
+  .demo-footer { padding: 8px 16px; border-top: 1px solid #E5E3DF; background: #F8F7F5; display: flex; align-items: center; gap: 6px; font-size: 10px; color: #A09D97; }
+  .slabel { font-size: 9px; font-weight: 700; color: #A09D97; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+  .vcard { padding: 10px 12px; border-radius: 8px; background: #F2F1EF; border: 1px solid #E5E3DF; }
+  .terms { border: 1px solid #E5E3DF; border-radius: 8px; overflow: hidden; }
+  .terms-hdr { padding: 7px 12px; background: #FDF1F0; border-bottom: 1px solid rgba(237,96,85,0.15); display: flex; justify-content: space-between; }
+  .terms-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; background: #fff; }
+  .terms-col { padding: 8px 10px; }
+  .terms-col:not(:last-child) { border-right: 1px solid #E5E3DF; }
+  .green-banner { padding: 6px 16px; background: #E6F4EF; border-bottom: 1px solid rgba(15,110,86,0.2); font-size: 10px; font-weight: 600; color: #0F6E56; }
+  .textarea-mock { border: 1px solid #E5E3DF; border-radius: 7px; padding: 8px 10px; font-size: 10px; color: #6B6860; line-height: 1.5; background: #fff; min-height: 56px; }
+</style>
+
+<div class="cards">
+
+  <!-- OPTION A: Recommended -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>Option A — Contract terms full-width below <span style="font-size:10px;background:#EAF3DE;color:#3B6D11;padding:2px 7px;border-radius:20px;font-weight:600;margin-left:6px;">Recommended</span></h3>
+      <p>Keep the 2-column top section (vendor card left, justification right). Pull contract terms out of the right column and put them full-width below the split. Both columns become equal-height, and terms get full horizontal space.</p>
+    </div>
+    <div class="card-image" style="padding:10px;background:#F8F7F5;">
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:9px;overflow:hidden;background:#fff;">
+        <div class="demo-header">
+          <span style="font-weight:700;font-size:11px;">🏆 Award Recommendation</span>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid #E5E3DF;background:#F8F7F5;color:#6B6860;font-size:10px;font-weight:600;cursor:default;font-family:inherit;">🖨 Print</button>
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:10px;font-weight:700;cursor:default;font-family:inherit;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+        <div class="green-banner">✓ No risk flags — all criteria met</div>
+        <!-- 2-col: vendor + justification only, equal height -->
+        <div style="display:grid;grid-template-columns:1fr 1.4fr;border-bottom:1px solid #E5E3DF;">
+          <div style="padding:12px 14px;border-right:1px solid #E5E3DF;">
+            <div class="slabel">Recommended Vendor</div>
+            <div class="vcard">
+              <div style="font-size:8px;font-weight:700;color:#ED6055;text-transform:uppercase;margin-bottom:4px;">★ Recommended</div>
+              <div style="font-size:13px;font-weight:700;color:#1A1917;margin-bottom:2px;">ABC Construction Co.</div>
+              <div style="font-size:12px;font-family:monospace;font-weight:700;color:#ED6055;margin-bottom:6px;">₱ 2,500,000.00</div>
+              <span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;">Progress Billing</span>
+            </div>
+          </div>
+          <div style="padding:12px 14px;">
+            <div class="slabel">Award Justification *</div>
+            <div class="textarea-mock">Vendor meets all Class A accreditation requirements. Quote of ₱2,500,000 is the lowest compliant bid. Price validity extends to July 15, 2026…</div>
+          </div>
+        </div>
+        <!-- Full-width contract terms below -->
+        <div style="padding:12px 14px;background:#FAFAF9;">
+          <div class="slabel" style="margin-bottom:8px;">Recommended Contract Terms</div>
+          <div class="terms">
+            <div class="terms-hdr">
+              <span style="font-size:10px;font-weight:600;color:#6B6860;">Total Contract Amount</span>
+              <span style="font-size:13px;font-weight:700;font-family:monospace;color:#ED6055;">₱ 2,500,000.00</span>
+            </div>
+            <div class="terms-cols">
+              <div class="terms-col">
+                <div class="slabel">Payment Schedule</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;"><span>● Downpayment (15%)</span><span style="font-family:monospace;">₱ 375,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>● Progress (net ret.)</span><span style="font-family:monospace;">₱ 1,912,500</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>● Retention release</span><span style="font-family:monospace;">₱ 212,500</span></div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Required Bonds</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;"><span>Performance Bond</span><span style="font-family:monospace;">₱ 250,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>Warranty Bond</span><span style="font-family:monospace;">₱ 125,000</span></div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Timeline</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:4px;">
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Commencement</div><div style="font-weight:600;color:#1A1917;">Upon NTP issuance</div></div>
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Duration</div><div style="font-weight:600;color:#1A1917;">60 Calendar Days</div></div>
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Warranty / DLP</div><div style="font-weight:600;color:#1A1917;">12 month(s)</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>Option B — Vendor card in header, fully stacked</h3>
+      <p>Remove the 2-column grid entirely. Vendor card moves into the header bar. Below: justification textarea full-width, then contract terms full-width. Simpler, more linear reading flow.</p>
+    </div>
+    <div class="card-image" style="padding:10px;background:#F8F7F5;">
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:9px;overflow:hidden;background:#fff;">
+        <div class="demo-header" style="flex-wrap:wrap;gap:6px;">
+          <span style="font-weight:700;font-size:11px;">🏆 Award Recommendation</span>
+          <!-- Vendor inline in header -->
+          <div style="padding:4px 10px;border-radius:7px;background:#F2F1EF;border:1px solid #E5E3DF;display:flex;align-items:center;gap:8px;">
+            <div>
+              <div style="font-size:8px;font-weight:700;color:#ED6055;text-transform:uppercase;">★ Recommended</div>
+              <div style="font-size:11px;font-weight:700;color:#1A1917;">ABC Construction Co.</div>
+            </div>
+            <div style="font-size:12px;font-family:monospace;font-weight:700;color:#ED6055;">₱ 2,500,000.00</div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid #E5E3DF;background:#F8F7F5;color:#6B6860;font-size:10px;font-weight:600;cursor:default;font-family:inherit;">🖨 Print</button>
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:10px;font-weight:700;cursor:default;font-family:inherit;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+        <div class="green-banner">✓ No risk flags — all criteria met</div>
+        <div style="padding:12px 14px;border-bottom:1px solid #E5E3DF;">
+          <div class="slabel">Award Justification *</div>
+          <div class="textarea-mock">Vendor meets all Class A requirements. Quote of ₱2,500,000 is the lowest compliant bid…</div>
+        </div>
+        <div style="padding:12px 14px;background:#FAFAF9;">
+          <div class="slabel" style="margin-bottom:8px;">Recommended Contract Terms</div>
+          <div class="terms">
+            <div class="terms-hdr">
+              <span style="font-size:10px;font-weight:600;color:#6B6860;">Total Contract Amount</span>
+              <span style="font-size:13px;font-weight:700;font-family:monospace;color:#ED6055;">₱ 2,500,000.00</span>
+            </div>
+            <div class="terms-cols">
+              <div class="terms-col">
+                <div class="slabel">Payment Schedule</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;"><span>● Downpayment (15%)</span><span style="font-family:monospace;">₱ 375,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>● Progress (net ret.)</span><span style="font-family:monospace;">₱ 1,912,500</span></div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Required Bonds</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;"><span>Performance Bond</span><span style="font-family:monospace;">₱ 250,000</span></div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Timeline</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:4px;">
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Duration</div><div style="font-weight:600;color:#1A1917;">60 Calendar Days</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>Option C — Equal 50/50 columns, terms span full width</h3>
+      <p>Change column ratio to 1fr 1fr (equal halves). Left keeps the vendor card. Right keeps the justification only. Contract terms span the full width in a dedicated row below the split using CSS grid.</p>
+    </div>
+    <div class="card-image" style="padding:10px;background:#F8F7F5;">
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:9px;overflow:hidden;background:#fff;">
+        <div class="demo-header">
+          <span style="font-weight:700;font-size:11px;">🏆 Award Recommendation</span>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid #E5E3DF;background:#F8F7F5;color:#6B6860;font-size:10px;font-weight:600;cursor:default;font-family:inherit;">🖨 Print</button>
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:10px;font-weight:700;cursor:default;font-family:inherit;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+        <div class="green-banner">✓ No risk flags — all criteria met</div>
+        <!-- Equal columns, only top half -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #E5E3DF;">
+          <div style="padding:12px 14px;border-right:1px solid #E5E3DF;">
+            <div class="slabel">Recommended Vendor</div>
+            <div class="vcard">
+              <div style="font-size:8px;font-weight:700;color:#ED6055;text-transform:uppercase;margin-bottom:4px;">★ Recommended</div>
+              <div style="font-size:13px;font-weight:700;color:#1A1917;margin-bottom:2px;">ABC Construction Co.</div>
+              <div style="font-size:12px;font-family:monospace;font-weight:700;color:#ED6055;margin-bottom:6px;">₱ 2,500,000.00</div>
+              <span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;">Progress Billing</span>
+            </div>
+          </div>
+          <div style="padding:12px 14px;">
+            <div class="slabel">Award Justification *</div>
+            <div class="textarea-mock">Vendor meets all Class A accreditation requirements. Quote of ₱2,500,000 is the lowest compliant bid…</div>
+          </div>
+        </div>
+        <!-- Full-width terms spanning both columns -->
+        <div style="padding:12px 14px;background:#FAFAF9;">
+          <div class="slabel" style="margin-bottom:8px;">Recommended Contract Terms</div>
+          <div class="terms">
+            <div class="terms-hdr">
+              <span style="font-size:10px;font-weight:600;color:#6B6860;">Total Contract Amount</span>
+              <span style="font-size:13px;font-weight:700;font-family:monospace;color:#ED6055;">₱ 2,500,000.00</span>
+            </div>
+            <div class="terms-cols">
+              <div class="terms-col">
+                <div class="slabel">Payment Schedule</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;"><span>● Downpayment (15%)</span><span style="font-family:monospace;">₱ 375,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>● Progress (net ret.)</span><span style="font-family:monospace;">₱ 1,912,500</span></div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Required Bonds</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;"><span>Performance Bond</span><span style="font-family:monospace;">₱ 250,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>Warranty Bond</span><span style="font-family:monospace;">₱ 125,000</span></div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Timeline</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:4px;">
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Commencement</div><div style="font-weight:600;color:#1A1917;">Upon NTP issuance</div></div>
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Duration</div><div style="font-weight:600;color:#1A1917;">60 Calendar Days</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+  </div>
+
+</div>

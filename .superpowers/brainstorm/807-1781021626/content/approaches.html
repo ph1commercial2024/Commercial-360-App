@@ -1,0 +1,148 @@
+<h2>3 Redesign Approaches</h2>
+<p class="subtitle">All fix the button color, vendor card hierarchy, and risk flag prominence. They differ in layout structure.</p>
+
+<style>
+  .demo { font-family: 'DM Sans', system-ui, sans-serif; font-size: 13px; }
+  .demo-header { padding: 11px 20px; background: #F8F7F5; border-bottom: 1px solid #E5E3DF; display: flex; align-items: center; gap: 8px; }
+  .demo-title { font-size: 12px; font-weight: 700; color: #1A1917; }
+  .demo-badge { font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+  .demo-footer { padding: 10px 20px; border-top: 1px solid #E5E3DF; background: #F8F7F5; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #A09D97; }
+  .demo-footer strong { color: #6B6860; }
+  .section-label { font-size: 10px; font-weight: 700; color: #A09D97; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .vendor-name { font-size: 15px; font-weight: 700; color: #1A1917; }
+  .vendor-amount { font-size: 15px; font-weight: 700; font-family: monospace; color: #ED6055; }
+  .mock-textarea { border: 1px solid #E5E3DF; border-radius: 8px; padding: 10px; background: #fff; min-height: 80px; font-size: 11px; color: #6B6860; line-height: 1.6; }
+  .risk-ok { font-size: 11px; padding: 7px 12px; background: #EAFAF3; border-radius: 7px; color: #0F6E56; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .risk-warn { font-size: 11px; padding: 7px 12px; background: #FEF3E2; border-radius: 7px; color: #92580A; font-weight: 600; display: flex; align-items: center; gap: 6px; border: 1px solid rgba(146,88,10,0.2); }
+</style>
+
+<div class="cards">
+
+  <!-- OPTION A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>Option A — Risk Banner on Top <span style="font-size:10px;background:#EAF3DE;color:#3B6D11;padding:2px 8px;border-radius:20px;font-weight:600;margin-left:6px;">Recommended</span></h3>
+      <p>Risk flags live in a strip between the header and the body. When no issues, it's a slim green bar. When warnings exist, they expand inline — impossible to miss. The two-column body is rebalanced to 1:1.6 (more space for justification).</p>
+    </div>
+    <div class="card-image" style="padding:12px;background:#F8F7F5;">
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:10px;overflow:hidden;background:#fff;">
+        <div class="demo-header">
+          <span class="demo-title">🏆 Award Recommendation</span>
+          <span class="demo-badge" style="background:#FDF1F0;color:#ED6055;border:1px solid rgba(237,96,85,0.25);">ABC Construction Co.</span>
+          <div style="margin-left:auto;">
+            <button style="padding:4px 11px;border-radius:7px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:11px;font-weight:700;cursor:default;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+        <!-- Risk banner -->
+        <div style="padding:7px 20px;background:#EAFAF3;border-bottom:1px solid #B6E8D4;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:#0F6E56;font-weight:600;">✓ No risk flags — all criteria met</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1.6fr;">
+          <!-- Left -->
+          <div style="padding:14px 16px;border-right:1px solid #E5E3DF;">
+            <div class="section-label">Recommended Vendor</div>
+            <div style="padding:12px;border-radius:9px;background:#F8F7F5;border:1px solid #E5E3DF;">
+              <div style="font-size:9px;font-weight:700;color:#ED6055;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">★ Recommended</div>
+              <div class="vendor-name" style="margin-bottom:4px;">ABC Construction</div>
+              <div class="vendor-amount" style="margin-bottom:6px;">₱ 2,500,000.00</div>
+              <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;font-weight:600;">Progress Billing</span>
+            </div>
+          </div>
+          <!-- Right -->
+          <div style="padding:14px 16px;">
+            <div class="section-label">Award Justification *</div>
+            <div class="mock-textarea">Vendor meets all Class A accreditation requirements. Quote of ₱2,500,000 is the lowest compliant bid...</div>
+          </div>
+        </div>
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>Option B — Risk Inline, Vendor Card Emphasized</h3>
+      <p>Vendor card gets a stronger visual treatment (white card with coral border, not tinted background). Risk flags stay in the left column but sit above the vendor card, so they're seen first. Layout stays at the current 1:1.4 ratio.</p>
+    </div>
+    <div class="card-image" style="padding:12px;background:#F8F7F5;">
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:10px;overflow:hidden;background:#fff;">
+        <div class="demo-header">
+          <span class="demo-title">🏆 Award Recommendation</span>
+          <span class="demo-badge" style="background:#FDF1F0;color:#ED6055;border:1px solid rgba(237,96,85,0.25);">ABC Construction Co.</span>
+          <div style="margin-left:auto;">
+            <button style="padding:4px 11px;border-radius:7px;border:none;background:#ED6055;color:#fff;font-size:11px;font-weight:700;cursor:default;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1.4fr;">
+          <!-- Left: risk first, then vendor -->
+          <div style="padding:14px 16px;border-right:1px solid #E5E3DF;display:flex;flex-direction:column;gap:12px;">
+            <div class="risk-ok">✓ No risk flags</div>
+            <div>
+              <div class="section-label">Recommended Vendor</div>
+              <div style="padding:12px;border-radius:9px;background:#fff;border:2px solid #ED6055;">
+                <div style="font-size:9px;font-weight:700;color:#A09D97;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">★ Recommended</div>
+                <div class="vendor-name" style="margin-bottom:3px;">ABC Construction</div>
+                <div class="vendor-amount" style="margin-bottom:6px;">₱ 2,500,000.00</div>
+                <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;font-weight:600;">Progress Billing</span>
+              </div>
+            </div>
+          </div>
+          <!-- Right -->
+          <div style="padding:14px 16px;">
+            <div class="section-label">Award Justification *</div>
+            <div class="mock-textarea">Vendor meets all Class A accreditation requirements...</div>
+          </div>
+        </div>
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>Option C — Three Rows, Full Width Sections</h3>
+      <p>Breaks the two-column layout entirely. Each section is full-width in a vertical stack: (1) vendor + risk side by side in a compact bar, (2) full-width justification textarea, (3) full-width contract terms. More breathing room, easier to read on narrow screens.</p>
+    </div>
+    <div class="card-image" style="padding:12px;background:#F8F7F5;">
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:10px;overflow:hidden;background:#fff;">
+        <div class="demo-header">
+          <span class="demo-title">🏆 Award Recommendation</span>
+          <div style="margin-left:auto;">
+            <button style="padding:4px 11px;border-radius:7px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:11px;font-weight:700;cursor:default;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+        <!-- Row 1: vendor + risk compact bar -->
+        <div style="padding:12px 16px;border-bottom:1px solid #E5E3DF;display:flex;align-items:center;gap:12px;background:#fff;">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;">
+            <div style="padding:8px 12px;border-radius:8px;background:#FDF1F0;border:1px solid rgba(237,96,85,0.25);display:flex;align-items:center;gap:10px;">
+              <div>
+                <div style="font-size:9px;color:#ED6055;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">★ Recommended</div>
+                <div style="font-size:13px;font-weight:700;color:#1A1917;">ABC Construction Co.</div>
+              </div>
+              <div style="font-size:13px;font-family:monospace;font-weight:700;color:#ED6055;">₱ 2,500,000.00</div>
+            </div>
+          </div>
+          <div class="risk-ok" style="flex-shrink:0;">✓ No risk flags</div>
+        </div>
+        <!-- Row 2: justification -->
+        <div style="padding:12px 16px;border-bottom:1px solid #E5E3DF;">
+          <div class="section-label">Award Justification *</div>
+          <div class="mock-textarea">Vendor meets all Class A accreditation requirements. Quote of ₱2,500,000 is the lowest compliant bid. Price validity extends to July 15, 2026...</div>
+        </div>
+        <!-- Row 3: contract terms compact -->
+        <div style="padding:10px 16px;background:#FFFBFA;">
+          <div class="section-label" style="margin-bottom:8px;">Contract Terms</div>
+          <div style="display:flex;gap:24px;font-size:11px;">
+            <div><div style="font-size:9px;color:#A09D97;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Duration</div><div style="font-weight:600;color:#1A1917;">60 Calendar Days</div></div>
+            <div><div style="font-size:9px;color:#A09D97;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Commencement</div><div style="font-weight:600;color:#1A1917;">Upon NTP</div></div>
+            <div><div style="font-size:9px;color:#A09D97;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Payment</div><div style="font-weight:600;color:#1A1917;">Progress Billing</div></div>
+          </div>
+        </div>
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,70 @@
+<h2>Formatting Toolbar</h2>
+<p class="subtitle">When editing the document body, should there be formatting buttons available?</p>
+
+<div class="split" style="gap:24px">
+
+  <!-- Option A: No toolbar -->
+  <div class="mockup" data-choice="no-toolbar" onclick="toggleSelect(this)" style="cursor:pointer;flex:1">
+    <div class="mockup-header">A — No toolbar</div>
+    <div class="mockup-body" style="padding:16px;font-size:11px">
+      <!-- Tab bar -->
+      <div style="display:flex;border-bottom:2px solid #e0e0e0;background:#f7f7f7;border-radius:4px 4px 0 0">
+        <div style="padding:6px 10px;background:#fff;border-bottom:2px solid #e05c44;color:#e05c44;font-weight:700;margin-bottom:-2px;font-size:9px">NOA/NTP</div>
+        <div style="padding:6px 10px;color:#888;font-size:9px">Contract</div>
+        <div style="padding:6px 10px;color:#888;font-size:9px">Term Sheet</div>
+      </div>
+      <!-- Body content (no toolbar above) -->
+      <div style="border:1px solid #e0e0e0;border-top:none;padding:12px;min-height:140px;background:#fff">
+        <!-- Locked letterhead -->
+        <div style="background:#f8f8f8;border-radius:3px;padding:6px 8px;margin-bottom:10px;border-left:2px solid #ddd;font-size:8px;color:#888">🔒 Letterhead (locked)</div>
+        <!-- Editable body -->
+        <div style="outline:1.5px dashed #e05c4455;border-radius:4px;padding:8px">
+          <div style="font-weight:700;font-size:9px;text-align:center;border-bottom:1px solid #e05c44;padding-bottom:4px;margin-bottom:7px;text-transform:uppercase">NOTICE OF AWARD AND NOTICE TO PROCEED</div>
+          <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:4px"></div>
+          <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:4px;width:82%"></div>
+          <div style="height:5px;background:#eee;border-radius:2px;width:68%"></div>
+        </div>
+        <div style="margin-top:8px;font-size:8px;color:#bbb;font-style:italic">Native browser editing — Ctrl+B for bold, etc.</div>
+      </div>
+    </div>
+    <div style="padding:10px 14px;font-size:11px;color:#555;border-top:1px solid #eee">
+      <strong>Simpler UI.</strong> Browser handles formatting natively (Ctrl+B bold, Ctrl+I italic). Less clutter in the modal.
+    </div>
+  </div>
+
+  <!-- Option B: Basic toolbar -->
+  <div class="mockup" data-choice="toolbar" onclick="toggleSelect(this)" style="cursor:pointer;flex:1">
+    <div class="mockup-header">B — Basic toolbar (Bold · Italic · Underline)</div>
+    <div class="mockup-body" style="padding:16px;font-size:11px">
+      <!-- Tab bar -->
+      <div style="display:flex;border-bottom:2px solid #e0e0e0;background:#f7f7f7;border-radius:4px 4px 0 0">
+        <div style="padding:6px 10px;background:#fff;border-bottom:2px solid #e05c44;color:#e05c44;font-weight:700;margin-bottom:-2px;font-size:9px">NOA/NTP</div>
+        <div style="padding:6px 10px;color:#888;font-size:9px">Contract</div>
+        <div style="padding:6px 10px;color:#888;font-size:9px">Term Sheet</div>
+      </div>
+      <!-- Toolbar -->
+      <div style="display:flex;gap:4px;padding:5px 8px;background:#fafafa;border:1px solid #e0e0e0;border-top:none;border-bottom:none;align-items:center">
+        <button style="padding:2px 7px;border:1px solid #ddd;border-radius:3px;background:#fff;font-weight:700;font-size:10px;cursor:pointer">B</button>
+        <button style="padding:2px 7px;border:1px solid #ddd;border-radius:3px;background:#fff;font-style:italic;font-size:10px;cursor:pointer">I</button>
+        <button style="padding:2px 7px;border:1px solid #ddd;border-radius:3px;background:#fff;text-decoration:underline;font-size:10px;cursor:pointer">U</button>
+        <div style="width:1px;height:14px;background:#ddd;margin:0 2px"></div>
+        <button style="padding:2px 7px;border:1px solid #ddd;border-radius:3px;background:#fff;font-size:9px;cursor:pointer">Undo</button>
+        <button style="padding:2px 7px;border:1px solid #ddd;border-radius:3px;background:#fff;font-size:9px;cursor:pointer">Redo</button>
+      </div>
+      <!-- Body content -->
+      <div style="border:1px solid #e0e0e0;border-top:none;padding:12px;min-height:120px;background:#fff">
+        <div style="background:#f8f8f8;border-radius:3px;padding:6px 8px;margin-bottom:10px;border-left:2px solid #ddd;font-size:8px;color:#888">🔒 Letterhead (locked)</div>
+        <div style="outline:1.5px dashed #e05c4455;border-radius:4px;padding:8px">
+          <div style="font-weight:700;font-size:9px;text-align:center;border-bottom:1px solid #e05c44;padding-bottom:4px;margin-bottom:7px;text-transform:uppercase">NOTICE OF AWARD AND NOTICE TO PROCEED</div>
+          <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:4px"></div>
+          <div style="height:5px;background:#eee;border-radius:2px;margin-bottom:4px;width:82%"></div>
+          <div style="height:5px;background:#eee;border-radius:2px;width:68%"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:10px 14px;font-size:11px;color:#555;border-top:1px solid #eee">
+      <strong>Explicit controls.</strong> Bold, Italic, Underline buttons + Undo/Redo. Useful for emphasizing specific terms or amounts in the letter.
+    </div>
+  </div>
+
+</div>

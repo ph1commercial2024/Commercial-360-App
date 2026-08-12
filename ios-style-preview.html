@@ -1,0 +1,772 @@
+<title>iOS Style Preview — Before vs After</title>
+<style>
+/* ── Design tokens ── */
+:root {
+  --bg: #ECEEF4;
+  --bg-alt: #E2E4EC;
+  --surface: #FFFFFF;
+  --surface-raised: #F6F6FA;
+  --border: rgba(0,0,0,0.09);
+  --text-pri: #14141C;
+  --text-sec: #60607A;
+  --text-ter: #9090A8;
+  --accent: #ED6055;
+  --accent-dim: rgba(237,96,85,0.1);
+  --col-before: #8080A0;
+  --col-after: #ED6055;
+  --tag-bg: rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 4px 14px rgba(0,0,0,0.05);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0D0D14;
+    --bg-alt: #131320;
+    --surface: #1A1A26;
+    --surface-raised: #20202E;
+    --border: rgba(255,255,255,0.07);
+    --text-pri: #F0F0F8;
+    --text-sec: #8888AA;
+    --text-ter: #55556A;
+    --accent: #FF6B5E;
+    --accent-dim: rgba(237,96,85,0.14);
+    --col-before: #666688;
+    --col-after: #FF6B5E;
+    --tag-bg: rgba(255,255,255,0.06);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 4px 14px rgba(0,0,0,0.3);
+    --shadow-lg: 0 2px 8px rgba(0,0,0,0.5), 0 16px 40px rgba(0,0,0,0.4);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D0D14;
+  --bg-alt: #131320;
+  --surface: #1A1A26;
+  --surface-raised: #20202E;
+  --border: rgba(255,255,255,0.07);
+  --text-pri: #F0F0F8;
+  --text-sec: #8888AA;
+  --text-ter: #55556A;
+  --accent: #FF6B5E;
+  --accent-dim: rgba(237,96,85,0.14);
+  --col-before: #666688;
+  --col-after: #FF6B5E;
+  --tag-bg: rgba(255,255,255,0.06);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 4px 14px rgba(0,0,0,0.3);
+  --shadow-lg: 0 2px 8px rgba(0,0,0,0.5), 0 16px 40px rgba(0,0,0,0.4);
+}
+:root[data-theme="light"] {
+  --bg: #ECEEF4;
+  --bg-alt: #E2E4EC;
+  --surface: #FFFFFF;
+  --surface-raised: #F6F6FA;
+  --border: rgba(0,0,0,0.09);
+  --text-pri: #14141C;
+  --text-sec: #60607A;
+  --text-ter: #9090A8;
+  --accent: #ED6055;
+  --accent-dim: rgba(237,96,85,0.1);
+  --col-before: #8080A0;
+  --col-after: #ED6055;
+  --tag-bg: rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 4px 14px rgba(0,0,0,0.05);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.1);
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text-pri);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+button { cursor: pointer; font-family: inherit; }
+input { font-family: inherit; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--tag-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* ── Sticky legend header ── */
+.legend {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr;
+}
+.legend-spacer {
+  padding: 14px 20px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-ter);
+  display: flex; align-items: center;
+}
+.legend-col {
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 8px;
+  border-left: 1px solid var(--border);
+}
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.legend-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.legend-desc { font-size: 11px; color: var(--text-ter); margin-top: 1px; }
+
+/* ── Page intro ── */
+.intro { padding: 48px 40px 32px; max-width: 760px; }
+.intro-eyebrow {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-ter); margin-bottom: 10px;
+}
+.intro h1 {
+  font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
+  color: var(--text-pri); line-height: 1.2; text-wrap: balance; margin-bottom: 10px;
+}
+.intro p { font-size: 13px; color: var(--text-sec); line-height: 1.65; max-width: 520px; }
+
+/* ── Section rows ── */
+.section-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr;
+  border-top: 1px solid var(--border);
+  align-items: start;
+}
+.section-meta { padding: 28px 20px; position: sticky; top: 49px; }
+.section-eyebrow {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-ter); margin-bottom: 4px;
+}
+.section-name { font-size: 12px; font-weight: 600; color: var(--text-sec); line-height: 1.4; }
+.panel { padding: 20px; border-left: 1px solid var(--border); }
+.panel-frame { border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-lg); }
+.panel-frame.cur-frame { background: #F8F7F5; }
+.panel-frame.ios-frame { background: #F2F2F7; }
+
+/* ── Change log under each panel ── */
+.changes {
+  margin-top: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.change-item {
+  display: flex; gap: 6px; align-items: baseline;
+  font-size: 10px; color: var(--text-sec); line-height: 1.5;
+}
+.change-item .prop { color: var(--text-pri); font-weight: 600; flex-shrink: 0; min-width: 64px; }
+.change-item .from { color: var(--text-ter); text-decoration: line-through; }
+.change-item .to { color: var(--accent); font-weight: 600; }
+
+/* ── CURRENT style internals ── */
+.c-nav {
+  background: linear-gradient(135deg, #ED6055, #C94A3F);
+  height: 50px; display: flex; align-items: center; padding: 0 14px; gap: 10px;
+  box-shadow: 0 2px 8px rgba(201,74,63,0.4);
+}
+.c-nav-logo { font-size: 12px; font-weight: 700; color: #fff; }
+.c-nav-crumb { font-size: 10px; color: rgba(255,255,255,0.62); margin-left: auto; }
+.c-topbar {
+  background: #fff; height: 46px; display: flex; align-items: center;
+  padding: 0 14px; border-bottom: 1px solid #E5E3DF;
+  justify-content: space-between; gap: 10px;
+}
+.c-topbar-title { font-size: 13px; font-weight: 600; color: #1A1917; }
+.c-content { background: #F8F7F5; padding: 12px; }
+.c-card {
+  background: #fff; border: 1px solid #E5E3DF;
+  border-radius: 12px; padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.c-card-title {
+  font-size: 11px; font-weight: 600; color: #1A1917;
+  padding-bottom: 10px; border-bottom: 1px solid #E5E3DF; margin-bottom: 11px;
+}
+.c-label { display: block; font-size: 10px; font-weight: 500; color: #6B6860; margin-bottom: 3px; }
+.c-input {
+  width: 100%; padding: 7px 10px; font-size: 12px;
+  border: 1px solid #E5E3DF; border-radius: 7px;
+  background: #fff; color: #1A1917; outline: none; margin-bottom: 8px;
+}
+.c-btn-row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
+.c-btn-pri {
+  background: linear-gradient(135deg, #ED6055, #C94A3F); color: #fff;
+  border: none; border-radius: 7px; padding: 6px 12px;
+  font-size: 11px; font-weight: 500; box-shadow: 0 2px 6px rgba(237,96,85,0.35);
+}
+.c-btn-sec {
+  background: #fff; color: #6B6860; border: 1px solid #E5E3DF;
+  border-radius: 7px; padding: 6px 10px; font-size: 11px; font-weight: 500;
+}
+.c-btn-danger {
+  background: #FDEDED; color: #B91C1C; border: 1px solid #FCA5A5;
+  border-radius: 7px; padding: 6px 10px; font-size: 11px; font-weight: 500;
+}
+
+/* ── iOS style internals ── */
+.i-nav {
+  background: rgba(237,96,85,0.88);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  height: 50px; display: flex; align-items: center; padding: 0 14px; gap: 10px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.1);
+}
+.i-nav-logo { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+.i-nav-crumb { font-size: 10px; color: rgba(255,255,255,0.68); margin-left: auto; }
+.i-topbar {
+  background: rgba(255,255,255,0.82);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  height: 46px; display: flex; align-items: center; padding: 0 14px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  justify-content: space-between; gap: 10px;
+}
+.i-topbar-title { font-size: 15px; font-weight: 600; color: #1C1C1E; letter-spacing: -0.3px; }
+.i-content { background: #F2F2F7; padding: 12px; }
+.i-sec-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.07em; color: #8E8E93; padding: 0 3px; margin-bottom: 5px;
+}
+.i-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 0 rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.05); }
+.i-form-pad { padding: 10px 14px 14px; }
+.i-label { display: block; font-size: 10px; font-weight: 500; color: #8E8E93; margin-bottom: 3px; letter-spacing: 0.02em; }
+.i-input {
+  width: 100%; padding: 8px 11px; font-size: 13px;
+  border: 1px solid rgba(0,0,0,0.1); border-radius: 9px;
+  background: #F9F9F9; color: #1C1C1E; outline: none; margin-bottom: 8px;
+}
+.i-btn-row { display: flex; gap: 7px; justify-content: flex-end; margin-top: 2px; }
+.i-btn-pri {
+  background: #ED6055; color: #fff; border: none; border-radius: 20px;
+  padding: 7px 15px; font-size: 11px; font-weight: 600; letter-spacing: -0.1px;
+  box-shadow: 0 3px 9px rgba(237,96,85,0.4);
+}
+.i-btn-sec {
+  background: transparent; color: #ED6055;
+  border: 1.5px solid #ED6055; border-radius: 20px;
+  padding: 6px 13px; font-size: 11px; font-weight: 600;
+}
+.i-btn-danger {
+  background: #FF3B30; color: #fff; border: none; border-radius: 20px;
+  padding: 7px 13px; font-size: 11px; font-weight: 600;
+  box-shadow: 0 3px 9px rgba(255,59,48,0.36);
+}
+
+/* ── Shared list ── */
+.avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+}
+.badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 600; }
+.badge-amber { background: #FEF3E2; color: #92580A; }
+.badge-green { background: #EAF3DE; color: #3B6D11; }
+.badge-gray  { background: #F1F0EE; color: #5F5E5A; }
+.badge-blue  { background: #EEF2FF; color: #4338CA; }
+.badge-red   { background: #FDEDED; color: #B91C1C; }
+
+/* current list */
+.c-list { background: #fff; border: 1px solid #E5E3DF; border-radius: 10px; overflow: hidden; }
+.c-list-row { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-bottom: 1px solid #E5E3DF; }
+.c-list-row:last-child { border-bottom: none; }
+.c-row-name { font-size: 11px; font-weight: 600; color: #1A1917; }
+.c-row-sub { font-size: 10px; color: #A09D97; margin-top: 1px; }
+
+/* iOS list */
+.i-list { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 0 rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.05); }
+.i-list-sep { height: 1px; background: rgba(0,0,0,0.08); margin-left: 52px; }
+.i-list-row { display: flex; align-items: center; gap: 9px; padding: 10px 12px; }
+.i-row-name { font-size: 12px; font-weight: 600; color: #1C1C1E; letter-spacing: -0.2px; }
+.i-row-sub { font-size: 10px; color: #8E8E93; margin-top: 1px; }
+.i-chevron { color: #C7C7CC; font-size: 13px; margin-left: auto; flex-shrink: 0; }
+
+/* nav */
+.c-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.28); padding: 10px 12px 4px; }
+.c-nav-item { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 6px; margin: 1px 5px; }
+.c-nav-item.active { background: rgba(237,96,85,0.18); border-left: 3px solid #ED6055; padding-left: 7px; }
+.c-nav-item-text { font-size: 11px; color: rgba(255,255,255,0.45); }
+.c-nav-item.active .c-nav-item-text { font-weight: 600; color: #fff; }
+
+.i-nav-section { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 12px 14px 4px; }
+.i-nav-item { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-radius: 10px; margin: 2px 6px; }
+.i-nav-item.active { background: rgba(237,96,85,0.16); }
+.i-nav-item-text { font-size: 12px; color: rgba(255,255,255,0.42); letter-spacing: -0.1px; }
+.i-nav-item.active .i-nav-item-text { font-weight: 600; color: rgba(255,255,255,0.95); }
+.i-nav-pip { width: 6px; height: 6px; border-radius: 50%; background: #ED6055; margin-left: auto; flex-shrink: 0; }
+
+/* scope items */
+.c-scope-card { background: #fff; border: 1px solid #E5E3DF; border-radius: 10px; overflow: hidden; }
+.c-scope-group { font-size: 10px; font-weight: 600; color: #A09D97; padding: 6px 12px 4px; background: #FAFAF9; border-bottom: 1px solid #EDEBE7; letter-spacing: 0.04em; text-transform: uppercase; }
+.c-scope-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #F0EEE9; }
+.c-scope-row:last-child { border-bottom: none; }
+.c-scope-label { font-size: 11px; color: #1A1917; flex: 1; }
+.c-scope-pill { display: flex; background: #F1F0EE; border-radius: 5px; padding: 1px; gap: 1px; }
+.c-scope-btn { padding: 3px 7px; border-radius: 4px; border: none; font-size: 9px; font-weight: 500; background: transparent; color: #A09D97; }
+.c-scope-btn.req { background: #fff; color: #16A34A; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.c-scope-btn.nr { background: #fff; color: #DC2626; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+.i-scope-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 0 rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.05); }
+.i-scope-group { font-size: 10px; font-weight: 600; color: #8E8E93; padding: 7px 12px 4px; background: #F9F9F9; border-bottom: 1px solid rgba(0,0,0,0.06); letter-spacing: 0.02em; }
+.i-scope-row { display: flex; align-items: center; gap: 8px; padding: 9px 12px; }
+.i-scope-sep { height: 1px; background: rgba(0,0,0,0.07); margin-left: 12px; }
+.i-scope-label { font-size: 12px; color: #1C1C1E; flex: 1; line-height: 1.3; }
+.i-scope-pill { display: flex; background: #E5E5EA; border-radius: 7px; padding: 2px; gap: 1px; }
+.i-scope-btn { padding: 3px 8px; border-radius: 5px; border: none; font-size: 9px; font-weight: 600; background: transparent; color: #8E8E93; }
+.i-scope-btn.req { background: #fff; color: #34C759; box-shadow: 0 1px 3px rgba(0,0,0,0.14); }
+.i-scope-btn.nr { background: #fff; color: #FF3B30; box-shadow: 0 1px 3px rgba(0,0,0,0.14); }
+.i-remarks-wrap { padding: 0 12px 8px; }
+.i-remarks-wrap input { width: 100%; padding: 6px 9px; font-size: 11px; border-radius: 7px; border: 1px solid rgba(0,0,0,0.1); background: #F9F9F9; color: #1C1C1E; outline: none; }
+</style>
+
+<!-- Sticky legend -->
+<div class="legend">
+  <div class="legend-spacer">Section</div>
+  <div class="legend-col">
+    <div class="legend-dot" style="background:var(--col-before);opacity:0.7"></div>
+    <div>
+      <div class="legend-label" style="color:var(--col-before)">Current</div>
+      <div class="legend-desc">Warm neutrals · bordered cards · gradient nav</div>
+    </div>
+  </div>
+  <div class="legend-col">
+    <div class="legend-dot" style="background:var(--accent)"></div>
+    <div>
+      <div class="legend-label" style="color:var(--col-after)">iOS Style</div>
+      <div class="legend-desc">Cool system gray · shadow cards · pill buttons</div>
+    </div>
+  </div>
+</div>
+
+<!-- Intro -->
+<div class="intro">
+  <div class="intro-eyebrow">Option A — Global Style Tokens</div>
+  <h1>iOS-style reskin preview</h1>
+  <p>What the app looks like if we update the <code>C</code> color tokens and <code>styles</code> object. No structural changes — every page updates automatically.</p>
+</div>
+
+<!-- ══ 01 — Navigation + Page Header ══ -->
+<div class="section-row">
+  <div class="section-meta">
+    <div class="section-eyebrow">01</div>
+    <div class="section-name">App Nav&nbsp;+ Page Header</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame cur-frame">
+      <div class="c-nav">
+        <div class="c-nav-logo">☰ &nbsp;PH1 Commercial</div>
+        <div class="c-nav-crumb">Purchase Requests › PR-2026-0032</div>
+      </div>
+      <div class="c-topbar">
+        <div class="c-topbar-title">PR Detail</div>
+        <div style="display:flex;gap:5px">
+          <button class="c-btn-sec" style="padding:5px 10px;font-size:10px">Create RFA</button>
+          <button class="c-btn-pri" style="padding:5px 10px;font-size:10px">Submit</button>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Nav bg</span><span class="from">#ED6055→#C94A3F gradient + hard shadow</span></div>
+      <div class="change-item"><span class="prop">Page title</span><span class="from">13px / 600</span></div>
+      <div class="change-item"><span class="prop">Buttons</span><span class="from">radius 7px · gradient fill</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame ios-frame">
+      <div class="i-nav">
+        <div class="i-nav-logo">☰ &nbsp;PH1 Commercial</div>
+        <div class="i-nav-crumb">Purchase Requests › PR-2026-0032</div>
+      </div>
+      <div class="i-topbar">
+        <div class="i-topbar-title">PR Detail</div>
+        <div style="display:flex;gap:6px">
+          <button class="i-btn-sec" style="padding:5px 12px;font-size:10px">Create RFA</button>
+          <button class="i-btn-pri" style="padding:5px 12px;font-size:10px">Submit</button>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Nav bg</span><span class="to">rgba(237,96,85,0.88) + backdrop-blur</span></div>
+      <div class="change-item"><span class="prop">Page title</span><span class="to">15px / 600 / −0.3px tracking</span></div>
+      <div class="change-item"><span class="prop">Buttons</span><span class="to">radius 20px (pill) · flat fill</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 02 — Form Card ══ -->
+<div class="section-row">
+  <div class="section-meta">
+    <div class="section-eyebrow">02</div>
+    <div class="section-name">Form Card&nbsp;+ Inputs</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame cur-frame">
+      <div class="c-content">
+        <div class="c-card">
+          <div class="c-card-title">Project Information</div>
+          <label class="c-label">Project Name</label>
+          <input class="c-input" value="Modan Loft Ortigas Hills Tower 3" readonly />
+          <label class="c-label">Work Description</label>
+          <input class="c-input" value="Design and Build — Tower 3" readonly />
+          <label class="c-label">Estimated Amount</label>
+          <input class="c-input" value="₱ 280,000,000.00" readonly />
+          <div class="c-btn-row">
+            <button class="c-btn-sec">Cancel</button>
+            <button class="c-btn-pri">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Page bg</span><span class="from">#F8F7F5 (warm off-white)</span></div>
+      <div class="change-item"><span class="prop">Card</span><span class="from">border 1px #E5E3DF · radius 12px</span></div>
+      <div class="change-item"><span class="prop">Input</span><span class="from">12px · radius 7px · white fill</span></div>
+      <div class="change-item"><span class="prop">Card title</span><span class="from">11px / 600 inside card + divider</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame ios-frame">
+      <div class="i-content">
+        <div class="i-sec-label">Project Information</div>
+        <div class="i-card">
+          <div class="i-form-pad">
+            <label class="i-label">Project Name</label>
+            <input class="i-input" value="Modan Loft Ortigas Hills Tower 3" readonly />
+            <label class="i-label">Work Description</label>
+            <input class="i-input" value="Design and Build — Tower 3" readonly />
+            <label class="i-label">Estimated Amount</label>
+            <input class="i-input" value="₱ 280,000,000.00" readonly />
+            <div class="i-btn-row">
+              <button class="i-btn-sec">Cancel</button>
+              <button class="i-btn-pri">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Page bg</span><span class="to">#F2F2F7 (iOS cool system gray)</span></div>
+      <div class="change-item"><span class="prop">Card</span><span class="to">no border · shadow · radius 12px</span></div>
+      <div class="change-item"><span class="prop">Input</span><span class="to">13px · radius 9px · #F9F9F9 fill</span></div>
+      <div class="change-item"><span class="prop">Card title</span><span class="to">uppercase label above card (grouped)</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 03 — List Rows ══ -->
+<div class="section-row">
+  <div class="section-meta">
+    <div class="section-eyebrow">03</div>
+    <div class="section-name">List&nbsp;Rows</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame cur-frame">
+      <div class="c-content">
+        <div class="c-list">
+          <div class="c-list-row">
+            <div class="avatar" style="background:linear-gradient(135deg,#ED6055,#C94A3F)">BB</div>
+            <div><div class="c-row-name">PR-2026-0032</div><div class="c-row-sub">Design and Build of Tower 3</div></div>
+            <span class="badge badge-amber" style="margin-left:auto">For Review</span>
+          </div>
+          <div class="c-list-row">
+            <div class="avatar" style="background:linear-gradient(135deg,#0F6E56,#0a5240)">JD</div>
+            <div><div class="c-row-name">PR-2026-0031</div><div class="c-row-sub">Road Concreting Works Phase 1</div></div>
+            <span class="badge badge-green" style="margin-left:auto">Approved</span>
+          </div>
+          <div class="c-list-row">
+            <div class="avatar" style="background:linear-gradient(135deg,#4338CA,#3730A3)">MR</div>
+            <div><div class="c-row-name">PR-2026-0030</div><div class="c-row-sub">Structural Steel Works</div></div>
+            <span class="badge badge-gray" style="margin-left:auto">Draft</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Container</span><span class="from">border 1px · radius 10px</span></div>
+      <div class="change-item"><span class="prop">Separator</span><span class="from">full-width 1px rule</span></div>
+      <div class="change-item"><span class="prop">Text</span><span class="from">11px / #1A1917 · 10px / #A09D97</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame ios-frame">
+      <div class="i-content">
+        <div class="i-sec-label">Purchase Requests</div>
+        <div class="i-list">
+          <div class="i-list-row">
+            <div class="avatar" style="background:linear-gradient(135deg,#ED6055,#C94A3F)">BB</div>
+            <div><div class="i-row-name">PR-2026-0032</div><div class="i-row-sub">Design and Build of Tower 3</div></div>
+            <span class="badge badge-amber" style="margin-left:auto">For Review</span>
+            <span class="i-chevron">›</span>
+          </div>
+          <div class="i-list-sep"></div>
+          <div class="i-list-row">
+            <div class="avatar" style="background:linear-gradient(135deg,#0F6E56,#0a5240)">JD</div>
+            <div><div class="i-row-name">PR-2026-0031</div><div class="i-row-sub">Road Concreting Works Phase 1</div></div>
+            <span class="badge badge-green" style="margin-left:auto">Approved</span>
+            <span class="i-chevron">›</span>
+          </div>
+          <div class="i-list-sep"></div>
+          <div class="i-list-row">
+            <div class="avatar" style="background:linear-gradient(135deg,#4338CA,#3730A3)">MR</div>
+            <div><div class="i-row-name">PR-2026-0030</div><div class="i-row-sub">Structural Steel Works</div></div>
+            <span class="badge badge-gray" style="margin-left:auto">Draft</span>
+            <span class="i-chevron">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Container</span><span class="to">no border · shadow · radius 12px</span></div>
+      <div class="change-item"><span class="prop">Separator</span><span class="to">inset left-indented rule</span></div>
+      <div class="change-item"><span class="prop">Text</span><span class="to">12px / #1C1C1E · 10px / #8E8E93 + › chevron</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 04 — Sidebar Nav ══ -->
+<div class="section-row">
+  <div class="section-meta">
+    <div class="section-eyebrow">04</div>
+    <div class="section-name">Sidebar Navigation</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame" style="background:linear-gradient(180deg,#141414,#0A0A0A);padding:8px 0 12px">
+      <div class="c-nav-section">Procurement</div>
+      <div class="c-nav-item active"><span style="font-size:12px">📋</span><span class="c-nav-item-text">Purchase Requests</span></div>
+      <div class="c-nav-item"><span style="font-size:12px">📄</span><span class="c-nav-item-text">RFA</span></div>
+      <div class="c-nav-item"><span style="font-size:12px">📁</span><span class="c-nav-item-text">Contracts</span></div>
+      <div class="c-nav-section" style="margin-top:8px">Administration</div>
+      <div class="c-nav-item"><span style="font-size:12px">👥</span><span class="c-nav-item-text">Vendors</span></div>
+      <div class="c-nav-item"><span style="font-size:12px">⚙️</span><span class="c-nav-item-text">Settings</span></div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Active</span><span class="from">left accent border + coral tint bg</span></div>
+      <div class="change-item"><span class="prop">Item</span><span class="from">radius 6px · 7px padding</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame" style="background:linear-gradient(180deg,#1C1C1E,#0A0A0A);padding:8px 0 12px">
+      <div class="i-nav-section">Procurement</div>
+      <div class="i-nav-item active"><span style="font-size:14px">📋</span><span class="i-nav-item-text">Purchase Requests</span><span class="i-nav-pip"></span></div>
+      <div class="i-nav-item"><span style="font-size:14px">📄</span><span class="i-nav-item-text">RFA</span></div>
+      <div class="i-nav-item"><span style="font-size:14px">📁</span><span class="i-nav-item-text">Contracts</span></div>
+      <div class="i-nav-section" style="margin-top:8px">Administration</div>
+      <div class="i-nav-item"><span style="font-size:14px">👥</span><span class="i-nav-item-text">Vendors</span></div>
+      <div class="i-nav-item"><span style="font-size:14px">⚙️</span><span class="i-nav-item-text">Settings</span></div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Active</span><span class="to">no border · filled bg · small pip dot</span></div>
+      <div class="change-item"><span class="prop">Item</span><span class="to">radius 10px · 9px padding · larger icon</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 05 — Buttons & Badges ══ -->
+<div class="section-row">
+  <div class="section-meta">
+    <div class="section-eyebrow">05</div>
+    <div class="section-name">Buttons&nbsp;&amp; Status Badges</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame cur-frame">
+      <div class="c-content">
+        <div class="c-card">
+          <div class="c-card-title">Status Badges</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">
+            <span class="badge badge-green">Approved</span>
+            <span class="badge badge-amber">For Review</span>
+            <span class="badge badge-gray">Draft</span>
+            <span class="badge badge-blue">Under Review</span>
+            <span class="badge badge-red">Returned</span>
+          </div>
+          <div class="c-card-title" style="margin-top:10px">Action Buttons</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <button class="c-btn-pri">Generate NOA</button>
+            <button class="c-btn-sec">Save Draft</button>
+            <button class="c-btn-danger">Return PR</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Primary</span><span class="from">gradient coral · radius 7px</span></div>
+      <div class="change-item"><span class="prop">Secondary</span><span class="from">white + gray border · radius 7px</span></div>
+      <div class="change-item"><span class="prop">Danger</span><span class="from">red-tinted bg + red border</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame ios-frame">
+      <div class="i-content">
+        <div class="i-sec-label">Status Badges</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px">
+          <span class="badge badge-green">Approved</span>
+          <span class="badge badge-amber">For Review</span>
+          <span class="badge badge-gray">Draft</span>
+          <span class="badge badge-blue">Under Review</span>
+          <span class="badge badge-red">Returned</span>
+        </div>
+        <div class="i-sec-label">Action Buttons</div>
+        <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:4px">
+          <button class="i-btn-pri">Generate NOA</button>
+          <button class="i-btn-sec">Save Draft</button>
+          <button class="i-btn-danger">Return PR</button>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Primary</span><span class="to">flat coral · radius 20px (pill)</span></div>
+      <div class="change-item"><span class="prop">Secondary</span><span class="to">transparent + coral border + text · pill</span></div>
+      <div class="change-item"><span class="prop">Danger</span><span class="to">solid iOS red pill · no border</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 06 — Scope of Works Checklist ══ -->
+<div class="section-row">
+  <div class="section-meta">
+    <div class="section-eyebrow">06</div>
+    <div class="section-name">Scope of Works Checklist</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame cur-frame">
+      <div class="c-content">
+        <div class="c-card" style="padding:0;overflow:hidden">
+          <div style="padding:10px 14px;border-bottom:1px solid #E5E3DF;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:600;color:#1A1917">Scope of Works <span style="color:#DC2626">*</span></span>
+            <button class="c-btn-pri" style="padding:4px 9px;font-size:10px">+ Add Work Type</button>
+          </div>
+          <div style="padding:8px 14px;border-bottom:1px solid #F0EEE9">
+            <span style="font-size:10px;font-weight:600;color:#6B6860">General Requirements</span>
+          </div>
+          <div class="c-scope-group">Site Management</div>
+          <div class="c-scope-row">
+            <span class="c-scope-label">Full-Time Safety Officer</span>
+            <div class="c-scope-pill"><button class="c-scope-btn req">✓ Required</button><button class="c-scope-btn">✕ Not Req.</button></div>
+          </div>
+          <div class="c-scope-row">
+            <span class="c-scope-label">Temporary Site Office</span>
+            <div class="c-scope-pill"><button class="c-scope-btn">✓ Required</button><button class="c-scope-btn nr">✕ Not Req.</button></div>
+          </div>
+          <div class="c-scope-row">
+            <span class="c-scope-label">Mobilization / Demobilization</span>
+            <div class="c-scope-pill"><button class="c-scope-btn">✓ Required</button><button class="c-scope-btn">✕ Not Req.</button></div>
+          </div>
+          <div class="c-scope-group">Insurance &amp; Permits</div>
+          <div class="c-scope-row">
+            <span class="c-scope-label">Construction Insurance (CARI)</span>
+            <div class="c-scope-pill"><button class="c-scope-btn">✓ Required</button><button class="c-scope-btn">✕ Not Req.</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Pill</span><span class="from">radius 4px · bg #F1F0EE · 500 weight</span></div>
+      <div class="change-item"><span class="prop">Group hdr</span><span class="from">warm #A09D97 on #FAFAF9</span></div>
+      <div class="change-item"><span class="prop">Layout</span><span class="from">title inside card with bottom border</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-frame ios-frame">
+      <div class="i-content">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-size:15px;font-weight:600;color:#1C1C1E;letter-spacing:-0.3px">Scope of Works <span style="color:#FF3B30">*</span></div>
+            <div style="font-size:10px;color:#8E8E93;margin-top:2px">Mark each item as Required or Not Required</div>
+          </div>
+          <button class="i-btn-pri" style="padding:6px 12px;font-size:10px;flex-shrink:0">+ Work Type</button>
+        </div>
+        <div style="font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#8E8E93;margin-bottom:5px">General Requirements <span style="color:#FF9500;font-weight:700">2 / 4</span></div>
+        <div class="i-scope-card">
+          <div class="i-scope-group">Site Management</div>
+          <div class="i-scope-row">
+            <span class="i-scope-label">Full-Time Safety Officer</span>
+            <div class="i-scope-pill"><button class="i-scope-btn req">✓ Required</button><button class="i-scope-btn">✕ Not Req.</button></div>
+          </div>
+          <div class="i-scope-sep"></div>
+          <div>
+            <div class="i-scope-row">
+              <span class="i-scope-label">Temporary Site Office</span>
+              <div class="i-scope-pill"><button class="i-scope-btn">✓ Required</button><button class="i-scope-btn nr">✕ Not Req.</button></div>
+            </div>
+            <div class="i-remarks-wrap"><input value="Covered by main contractor's GR" readonly /></div>
+          </div>
+          <div class="i-scope-sep"></div>
+          <div class="i-scope-row">
+            <span class="i-scope-label">Mobilization / Demobilization</span>
+            <div class="i-scope-pill"><button class="i-scope-btn">✓ Required</button><button class="i-scope-btn">✕ Not Req.</button></div>
+          </div>
+          <div class="i-scope-group">Insurance &amp; Permits</div>
+          <div class="i-scope-row">
+            <span class="i-scope-label">Construction Insurance (CARI)</span>
+            <div class="i-scope-pill"><button class="i-scope-btn">✓ Required</button><button class="i-scope-btn">✕ Not Req.</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="changes">
+      <div class="change-item"><span class="prop">Pill</span><span class="to">radius 5px · bg #E5E5EA · 600 weight</span></div>
+      <div class="change-item"><span class="prop">Group hdr</span><span class="to">cool #8E8E93 on #F9F9F9</span></div>
+      <div class="change-item"><span class="prop">Layout</span><span class="to">section label above card + progress count</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer summary -->
+<div style="border-top:1px solid var(--border);padding:36px 40px 48px;display:grid;grid-template-columns:140px 1fr;gap:20px">
+  <div></div>
+  <div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-ter);margin-bottom:16px">What changes with Option A</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-pri);margin-bottom:5px">Color tokens</div>
+        <div style="font-size:11px;color:var(--text-sec);line-height:1.6">Background shifts from warm <code>#F8F7F5</code> to cool <code>#F2F2F7</code>. Secondary text cools from <code>#6B6860</code> → <code>#8E8E93</code>.</div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-pri);margin-bottom:5px">Cards</div>
+        <div style="font-size:11px;color:var(--text-sec);line-height:1.6">Border removed. Box-shadow replaces it. Radius stays at 12px. Section labels appear above grouped cards.</div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-pri);margin-bottom:5px">Inputs</div>
+        <div style="font-size:11px;color:var(--text-sec);line-height:1.6">Font grows from 12px → 13px. Background becomes <code>#F9F9F9</code> — makes the field clearly distinct from the card.</div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-pri);margin-bottom:5px">Buttons</div>
+        <div style="font-size:11px;color:var(--text-sec);line-height:1.6">Gradient drops to flat <code>#ED6055</code>. Border-radius goes from 7px → 20px. Secondary flips to outlined coral instead of gray.</div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-pri);margin-bottom:5px">Nav bar</div>
+        <div style="font-size:11px;color:var(--text-sec);line-height:1.6">Global nav gains <code>backdrop-filter: blur</code> translucency. Page title grows to 15px / −0.3px tracking.</div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-pri);margin-bottom:5px">List separators</div>
+        <div style="font-size:11px;color:var(--text-sec);line-height:1.6">Full-width 1px rules become left-indented inset separators (iOS grouped style), with a disclosure chevron on each row.</div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:14px;padding:14px 16px;background:var(--accent-dim);border-radius:10px;border-left:3px solid var(--accent)">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px">No structural changes required</div>
+      <div style="font-size:11px;color:var(--text-sec);line-height:1.6">Option A updates only the <code>C</code> token object and <code>styles</code> helper at the top of <code>App.jsx</code>. Every page inherits the new look automatically — no component restructuring, no new files.</div>
+    </div>
+  </div>
+</div>

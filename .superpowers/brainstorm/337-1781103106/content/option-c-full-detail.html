@@ -1,0 +1,173 @@
+<h2>Option C — Full Design Detail</h2>
+<p class="subtitle">Two states: filled (vendor selected) and empty (no vendor). Does this look right?</p>
+
+<style>
+  .demo { font-family: 'DM Sans', system-ui, sans-serif; font-size: 12px; color: #1A1917; }
+  .demo-header { padding: 10px 16px; background: #F8F7F5; border-bottom: 1px solid #E5E3DF; display: flex; align-items: center; gap: 8px; }
+  .demo-footer { padding: 8px 16px; border-top: 1px solid #E5E3DF; background: #F8F7F5; display: flex; align-items: center; gap: 6px; font-size: 10px; color: #A09D97; }
+  .slabel { font-size: 9px; font-weight: 700; color: #A09D97; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+  .vcard { padding: 10px 12px; border-radius: 8px; background: #F2F1EF; border: 1px solid #E5E3DF; }
+  .terms { border: 1px solid #E5E3DF; border-radius: 9px; overflow: hidden; }
+  .terms-hdr { padding: 7px 12px; background: #FDF1F0; border-bottom: 1px solid rgba(237,96,85,0.15); display: flex; justify-content: space-between; align-items: center; }
+  .terms-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; background: #fff; }
+  .terms-col { padding: 8px 10px; }
+  .terms-col:not(:last-child) { border-right: 1px solid #E5E3DF; }
+  .green-banner { padding: 6px 16px; background: #E6F4EF; border-bottom: 1px solid rgba(15,110,86,0.2); font-size: 10px; font-weight: 600; color: #0F6E56; }
+  .textarea-mock { border: 1px solid #E5E3DF; border-radius: 7px; padding: 8px 10px; font-size: 10px; color: #6B6860; line-height: 1.5; background: #fff; min-height: 70px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  .change-tag { display: inline-block; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #EAF3DE; color: #3B6D11; margin-left: 6px; vertical-align: middle; }
+</style>
+
+<div style="max-width:920px;margin:0 auto;">
+
+  <div class="split">
+
+    <!-- STATE 1: Vendor selected -->
+    <div>
+      <h3 style="font-size:12px;margin-bottom:4px;">✓ Vendor selected</h3>
+      <p style="font-size:10px;color:#A09D97;margin:0 0 10px;">Equal columns on top, contract terms full-width below <span class="change-tag">CHANGED</span></p>
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:10px;overflow:hidden;">
+
+        <div class="demo-header">
+          <span style="font-weight:700;font-size:11px;">🏆 Award Recommendation</span>
+          <span style="font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px;background:#FDF1F0;color:#ED6055;border:1px solid rgba(237,96,85,0.3);">ABC Construction Co.</span>
+          <div style="margin-left:auto;">
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:10px;font-weight:700;cursor:default;font-family:inherit;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+
+        <div class="green-banner">✓ No risk flags — all criteria met</div>
+
+        <!-- Equal 1fr 1fr grid — top section only -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #E5E3DF;">
+          <!-- Left: vendor card only -->
+          <div style="padding:12px 14px;border-right:1px solid #E5E3DF;">
+            <div class="slabel">Recommended Vendor</div>
+            <div class="vcard">
+              <div style="font-size:8px;font-weight:700;color:#ED6055;text-transform:uppercase;margin-bottom:4px;">★ Recommended</div>
+              <div style="font-size:13px;font-weight:700;color:#1A1917;margin-bottom:2px;">ABC Construction Co.</div>
+              <div style="font-size:12px;font-family:monospace;font-weight:700;color:#ED6055;margin-bottom:6px;">₱ 2,500,000.00</div>
+              <span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;">Progress Billing</span>
+            </div>
+          </div>
+          <!-- Right: justification only, no contract terms here -->
+          <div style="padding:12px 14px;">
+            <div class="slabel">Award Justification *</div>
+            <div class="textarea-mock">Vendor meets all Class A accreditation requirements. Quote of ₱2,500,000.00 is the lowest compliant bid. Price validity extends to July 15, 2026. Estimated completion is within the PR deadline.</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:5px;padding:4px 8px;border-radius:5px;background:#FDF1F0;border:1px solid rgba(237,96,85,0.2);">
+              <span style="font-size:11px;">⚡</span>
+              <span style="font-size:9px;color:#C94A3F;font-weight:600;">Auto-generated — review and edit as needed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Full-width contract terms row — moved out of right column -->
+        <div style="padding:12px 14px;background:#FAFAF9;">
+          <div class="slabel" style="margin-bottom:8px;">Recommended Contract Terms <span class="change-tag">MOVED HERE</span></div>
+          <div class="terms">
+            <div class="terms-hdr">
+              <span style="font-size:10px;font-weight:600;color:#6B6860;">Total Contract Amount</span>
+              <span style="font-size:13px;font-weight:700;font-family:monospace;color:#ED6055;">₱ 2,500,000.00</span>
+            </div>
+            <div class="terms-cols">
+              <div class="terms-col">
+                <div class="slabel">Payment Schedule</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="width:5px;height:5px;border-radius:50%;background:#ED6055;display:inline-block;"></span>Downpayment (15%)</span>
+                    <span style="font-family:monospace;font-weight:600;">₱ 375,000</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="width:5px;height:5px;border-radius:50%;background:#6B6860;display:inline-block;"></span>Progress (net retention)</span>
+                    <span style="font-family:monospace;font-weight:600;">₱ 1,912,500</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="display:flex;align-items:center;gap:4px;"><span style="width:5px;height:5px;border-radius:50%;background:#0F6E56;display:inline-block;"></span>Retention release</span>
+                    <span style="font-family:monospace;font-weight:600;">₱ 212,500</span>
+                  </div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Required Bonds</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:3px;">
+                  <div style="display:flex;justify-content:space-between;"><span>Performance Bond</span><span style="font-family:monospace;font-weight:600;">₱ 250,000</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>Warranty Bond</span><span style="font-family:monospace;font-weight:600;">₱ 125,000</span></div>
+                </div>
+              </div>
+              <div class="terms-col">
+                <div class="slabel">Timeline</div>
+                <div style="font-size:10px;color:#6B6860;display:flex;flex-direction:column;gap:4px;">
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Commencement</div><div style="font-weight:600;color:#1A1917;">Upon NTP issuance</div></div>
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Duration</div><div style="font-weight:600;color:#1A1917;">60 Calendar Days</div></div>
+                  <div><div style="font-size:8px;color:#A09D97;text-transform:uppercase;">Warranty / DLP</div><div style="font-weight:600;color:#1A1917;">12 month(s)</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+    </div>
+
+    <!-- STATE 2: No vendor selected -->
+    <div>
+      <h3 style="font-size:12px;margin-bottom:4px;">○ No vendor selected</h3>
+      <p style="font-size:10px;color:#A09D97;margin:0 0 10px;">Single empty state in left, justification still editable, no redundant contract terms placeholder <span class="change-tag">CHANGED</span></p>
+      <div class="demo" style="border:1.5px solid #E5E3DF;border-radius:10px;overflow:hidden;">
+
+        <div class="demo-header">
+          <span style="font-weight:700;font-size:11px;">🏆 Award Recommendation</span>
+          <div style="margin-left:auto;">
+            <button style="padding:4px 10px;border-radius:6px;border:1px solid rgba(237,96,85,0.35);background:#FDF1F0;color:#C94A3F;font-size:10px;font-weight:700;cursor:default;font-family:inherit;">⚡ Auto-recommend</button>
+          </div>
+        </div>
+
+        <!-- No risk banner when no vendor -->
+
+        <!-- Equal grid — left has single prompt, right has justification -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;">
+          <!-- Left: single clean empty state -->
+          <div style="padding:12px 14px;border-right:1px solid #E5E3DF;">
+            <div class="slabel">Recommended Vendor</div>
+            <div style="padding:16px 12px;border-radius:9px;background:#F8F7F5;border:1.5px dashed #D4D2CE;text-align:center;">
+              <div style="font-size:16px;margin-bottom:5px;">☝️</div>
+              <div style="font-size:10px;font-weight:600;color:#6B6860;margin-bottom:3px;">No vendor selected</div>
+              <div style="font-size:9px;color:#A09D97;line-height:1.4;">Click a vendor column in the comparison table above to recommend</div>
+            </div>
+          </div>
+          <!-- Right: justification always accessible, no terms placeholder -->
+          <div style="padding:12px 14px;">
+            <div class="slabel">Award Justification *</div>
+            <div class="textarea-mock" style="color:#A09D97;">Explain why this vendor is recommended — e.g. lowest compliant bid, best value, technical score, track record…</div>
+          </div>
+        </div>
+        <!-- Contract terms section simply not rendered when no vendor -->
+
+        <div class="demo-footer">Prepared by <strong>Maria Santos</strong> · Jun 10, 2026</div>
+      </div>
+
+      <div style="margin-top:14px;padding:10px 14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;font-size:11px;color:#0369A1;line-height:1.5;">
+        <strong>What changed:</strong> The old redundant "☝️ Click a vendor column to see the recommended contract terms" box (right column, below the textarea) is removed. The contract terms section simply doesn't render when no vendor is selected — no placeholder needed.
+      </div>
+    </div>
+
+  </div>
+
+  <h3 style="font-size:12px;margin-bottom:8px;">Summary of changes</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:11px;">
+    <div style="padding:10px 12px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;">
+      <div style="font-weight:700;color:#0369A1;margin-bottom:4px;">① Layout</div>
+      <div style="color:#1A1917;line-height:1.5;">Column ratio <code>1fr 1.6fr</code> → <code>1fr 1fr</code>. Contract terms pulled out of right column and placed full-width below the split.</div>
+    </div>
+    <div style="padding:10px 12px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;">
+      <div style="font-weight:700;color:#0369A1;margin-bottom:4px;">② Empty state</div>
+      <div style="color:#1A1917;line-height:1.5;">Remove the duplicate "click a vendor" placeholder in the contract terms area. Left column's empty state is the only prompt.</div>
+    </div>
+    <div style="padding:10px 12px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;">
+      <div style="font-weight:700;color:#0369A1;margin-bottom:4px;">③ Contract terms room</div>
+      <div style="color:#1A1917;line-height:1.5;">Full card width instead of cramped 1.6fr column. Payment labels no longer truncate. Auto-solved by ①.</div>
+    </div>
+  </div>
+
+</div>

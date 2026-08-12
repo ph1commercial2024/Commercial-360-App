@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Read(//c/Users/Bernadette Bongar/.claude/skills/brainstorming/**)",
+      "mcp__claude_ai_Supabase__list_organizations",
+      "mcp__claude_ai_Supabase__list_projects",
+      "Skill(run)",
+      "Skill(run:*)",
+      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\Bernadette Bongar\\\\Documents\\\\claude\\\\cc-app\\\\src\\\\VendorApp.jsx\" | Measure-Object -Line\\).Lines)",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Bernadette Bongar\\\\Documents\\\\claude\\\\cc-app\\\\src\\\\VendorApp.jsx'\\).Count\")",
+      "PowerShell(node \"C:\\\\Users\\\\BERNAD~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Bernadette-Bongar-Documents-claude-cc-app\\\\75a519e9-55b6-42d1-b68e-7c6e748039b3\\\\scratchpad\\\\fix-encoding.mjs\" 2>&1)",
+      "PowerShell(node \"C:\\\\Users\\\\BERNAD~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Bernadette-Bongar-Documents-claude-cc-app\\\\75a519e9-55b6-42d1-b68e-7c6e748039b3\\\\scratchpad\\\\fix2.mjs\" 2>&1)"
+    ]
+  }
+}
