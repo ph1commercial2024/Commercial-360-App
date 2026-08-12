@@ -352,60 +352,113 @@ function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.offWhite, display: "flex", flexDirection: "column", fontFamily: "'DM Sans', 'Helvetica Neue', Arial, sans-serif" }}>
-      <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "14px 28px", display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 28, height: 28, background: C.coral, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-          </svg>
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'DM Sans', 'Helvetica Neue', Arial, sans-serif" }}>
+      <style>{`
+        /* ── Mahbowal card style (standard colors) ── */
+        .lf-card {
+          max-width: 380px; width: 100%;
+          background: linear-gradient(0deg, rgb(255,255,255) 0%, rgb(244,247,251) 100%);
+          border-radius: 40px;
+          padding: 28px 35px 32px;
+          border: 5px solid rgb(255,255,255);
+          box-shadow: rgba(0,0,0,0.10) 0px 30px 30px -20px;
+        }
+        .lf-card-heading {
+          text-align: center; font-weight: 900; font-size: 26px; color: #1a1a1a;
+        }
+        .lf-form { margin-top: 18px; }
+        .lf-input {
+          width: 100%; background: white; border: none;
+          padding: 15px 20px; border-radius: 20px; margin-top: 15px;
+          box-shadow: rgba(0,0,0,0.08) 0px 10px 10px -5px;
+          border-inline: 2px solid transparent;
+          font-size: 14px; font-family: inherit; color: #333;
+          box-sizing: border-box; outline: none;
+          transition: border-color 0.2s;
+        }
+        .lf-input::placeholder { color: rgb(170,170,170); }
+        .lf-input:focus { border-inline: 2px solid #E05C45; }
+        .lf-forgot { display: block; margin-top: 10px; margin-left: 10px; }
+        .lf-forgot a { font-size: 11px; color: #E05C45; text-decoration: none; }
+        .lf-btn {
+          display: block; width: 100%; font-weight: bold;
+          background: linear-gradient(45deg, #E05C45 0%, #f07d5a 100%);
+          color: white; padding-block: 15px; margin: 20px auto 0;
+          border-radius: 20px;
+          box-shadow: rgba(224,92,69,0.5) 0px 20px 10px -15px;
+          border: none; cursor: pointer; font-family: inherit; font-size: 14px;
+          transition: all 0.2s ease-in-out;
+        }
+        .lf-btn:hover { transform: scale(1.03); box-shadow: rgba(224,92,69,0.5) 0px 23px 10px -20px; }
+        .lf-btn:active { transform: scale(0.95); box-shadow: rgba(224,92,69,0.5) 0px 15px 10px -10px; }
+        .lf-btn:disabled { opacity: 0.65; cursor: default; transform: none; }
+        .lf-social-wrap { margin-top: 22px; }
+        .lf-social-title { display: block; text-align: center; font-size: 10px; color: rgb(170,170,170); }
+        .lf-socials { width: 100%; display: flex; justify-content: center; gap: 15px; margin-top: 8px; }
+        .lf-social-btn {
+          background: linear-gradient(45deg, rgb(30,30,30) 0%, rgb(100,100,100) 100%);
+          border: 5px solid white; padding: 5px; border-radius: 50%;
+          width: 40px; aspect-ratio: 1; display: grid; place-content: center;
+          box-shadow: rgba(0,0,0,0.18) 0px 12px 10px -8px;
+          transition: all 0.2s ease-in-out; cursor: pointer;
+        }
+        .lf-social-btn:hover { transform: scale(1.2); }
+        .lf-social-btn:active { transform: scale(0.9); }
+        .lf-agreement { display: block; text-align: center; margin-top: 15px; }
+        .lf-agreement a { text-decoration: none; color: #E05C45; font-size: 9px; }
+        .lf-error {
+          display: flex; align-items: center; gap: 8px;
+          background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 10px;
+          padding: 10px 12px; margin-bottom: 8px; font-size: 12px; color: #dc2626;
+        }
+        .lf-right-panel {
+          flex: 1;
+          background:
+            linear-gradient(170deg, rgba(220,70,35,0.72) 0%, rgba(180,35,15,0.78) 50%, rgba(100,15,5,0.82) 100%),
+            url('/city-bg.jpg') center/cover no-repeat;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          padding: 60px 48px; text-align: center; position: relative; overflow: hidden;
+        }
+        .lf-right-panel > * { position: relative; z-index: 1; }
+      `}</style>
+
+      {/* ── Left panel: form ── */}
+      <div style={{ flex: "0 0 45%", background: "#f0f2f5", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 32px" }}>
+        {/* Eyebrow + app name above card */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#aaa", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>WELCOME TO</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 24, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.5px" }}>Commercial 360</span>
+          </div>
         </div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.textPri, lineHeight: 1.1 }}>Commercial &amp; Contract</div>
-          <div style={{ fontSize: 10, color: C.textTer, letterSpacing: "0.04em", textTransform: "uppercase" }}>Management System</div>
+
+        {/* Card */}
+        <div className="lf-card">
+          <div className="lf-card-heading">Sign In</div>
+          <form className="lf-form" onSubmit={handleSubmit}>
+            {error && (
+              <div className="lf-error">
+                <Icon name="alert" size={13} color="#dc2626" />{error}
+              </div>
+            )}
+            <input className="lf-input" placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input className="lf-input" placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+            <span className="lf-forgot"><a href="#">Forgot Password?</a></span>
+            <button className="lf-btn" type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
+          </form>
+
+          <span className="lf-agreement"><a href="#">Having trouble? Contact your administrator for access.</a></span>
         </div>
       </div>
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
-        <div style={{ width: "100%", maxWidth: 400 }}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ width: 52, height: 52, background: C.coral, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-              </svg>
-            </div>
-            <h1 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 600, color: C.textPri, letterSpacing: "-0.02em" }}>Welcome back</h1>
-            <p style={{ margin: 0, fontSize: 13, color: C.textSec }}>Sign in with your organizational account</p>
-          </div>
-          <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: "32px 28px" }}>
-            <form onSubmit={handleSubmit}>
-              {error && (
-                <div style={{ background: C.redBg, border: `1px solid #FCA5A5`, borderRadius: 8, padding: "10px 12px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.redText }}>
-                  <Icon name="alert" size={13} color={C.redText} />{error}
-                </div>
-              )}
-              <div style={{ marginBottom: 16 }}>
-                <label style={styles.label}>Email address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@organization.com" style={styles.input}
-                  onFocus={e => e.target.style.borderColor = C.coral} onBlur={e => e.target.style.borderColor = C.border} />
-              </div>
-              <div style={{ marginBottom: 22 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                  <label style={styles.label}>Password</label>
-                  <a href="#" style={{ fontSize: 12, color: C.coral, textDecoration: "none" }}>Forgot password?</a>
-                </div>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={styles.input}
-                  onFocus={e => e.target.style.borderColor = C.coral} onBlur={e => e.target.style.borderColor = C.border} />
-              </div>
-              <button type="submit" disabled={loading} style={{ ...styles.btnPrimary, width: "100%", padding: "11px 0", fontSize: 14, opacity: loading ? 0.75 : 1 }}>
-                {loading ? "Signing in…" : "Sign in"}
-              </button>
-            </form>
-          </div>
-          <p style={{ textAlign: "center", fontSize: 12, color: C.textTer, marginTop: 20 }}>Contact your administrator if you need access</p>
+
+      {/* ── Right panel: branding ── */}
+      <div className="lf-right-panel">
+        <img src="/ph1-logo.png" alt="PH1 World Developers" style={{ height: 64, objectFit: "contain", marginBottom: 24, filter: "brightness(0) invert(1)" }} />
+        <div style={{ fontSize: 36, fontWeight: 800, color: "#fff", letterSpacing: "-0.5px", marginBottom: 16 }}>Commercial 360</div>
+        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.8)", lineHeight: 1.8, maxWidth: 320 }}>
+          Your end-to-end platform for purchase requests, vendor accreditation, RFQ management, and contract processing — all in one place.
         </div>
-      </div>
-      <div style={{ padding: "14px 28px", textAlign: "center" }}>
-        <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>© 2026 Commercial &amp; Contract Management System</p>
+        <div style={{ marginTop: 40, fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em", textTransform: "uppercase" }}>PH1 World Developers Inc.</div>
       </div>
     </div>
   );
