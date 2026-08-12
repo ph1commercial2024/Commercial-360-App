@@ -12,15 +12,14 @@ serve(async (req) => {
   }
 
   try {
-    // Create admin client using service role key
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     )
 
-    const { email, password, full_name, role } = await req.json()
+    const { email, password, full_name, position, is_admin } = await req.json()
 
-    if (!email || !password || !full_name || !role) {
+    if (!email || !password || !full_name) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -36,10 +35,15 @@ serve(async (req) => {
 
     if (authError) throw authError
 
-    // Update their profile with name and role
+    // Update profile with name, email, position and admin flag
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update({ full_name, role })
+      .update({
+        full_name,
+        email,
+        position: position || "Supervisor",
+        is_admin: is_admin ?? false,
+      })
       .eq("id", authData.user.id)
 
     if (profileError) throw profileError

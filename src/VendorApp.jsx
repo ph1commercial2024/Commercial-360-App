@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./lib/supabase";
 import { resolveVendorFromTokens } from "./lib/vendorDeduplication";
+import { venCode } from "./lib/vendorCode";
 
 const C = {
   coral:      "#3F3F3F",
@@ -2101,17 +2102,21 @@ function VendorAccreditationPage({ token }) {
       if (!tRow) { setNotFound(true); setLoading(false); return; }
       setTokenRow(tRow);
 
-      // Step 2: if token already linked to a vendor, fetch it separately
+      // Step 2: if token already linked to a vendor, fetch it by integer id.
+      // vendor_code in DB may be NULL (pre-accreditation); parse the id from
+      // the VEN code stored in the token (e.g. "VEN-000001" → id 1).
       if (tRow.vendor_id) {
+        const parsedId = parseInt(tRow.vendor_id.replace(/^VEN-/, ""), 10);
         const { data: vRow } = await supabase
           .from("vendors")
           .select("id, vendor_code, accreditation_status, return_notes, vendor_company_info(*)")
-          .eq("vendor_code", tRow.vendor_id)
+          .eq("id", parsedId)
           .maybeSingle();
 
         if (vRow) {
-          const v = vRow;
-          const ci = v.vendor_company_info;
+          // Ensure vendor_code is set in state even when null in DB (pre-accreditation)
+          const v = { ...vRow, vendor_code: vRow.vendor_code || tRow.vendor_id };
+          const ci = vRow.vendor_company_info;
         setExistingVendor(v);
         setIsReturned(v.accreditation_status === "Returned");
         setReturnNotes(v.return_notes || "");
@@ -2361,13 +2366,17 @@ function VendorAccreditationPage({ token }) {
       let vendorForState;
 
       if (resolvedVendorCode) {
-        // 2a. Existing vendor found — fetch it and link this token to it
+        // 2a. Existing vendor found — fetch by integer id (vendor_code may be NULL pre-accreditation)
+        const parsedId = parseInt(resolvedVendorCode.replace(/^VEN-/, ""), 10);
         const { data: existingVRow } = await supabase
           .from("vendors")
           .select("id, vendor_code, accreditation_status")
-          .eq("vendor_code", resolvedVendorCode)
+          .eq("id", parsedId)
           .maybeSingle();
-        vendorForState = existingVRow || { vendor_code: resolvedVendorCode, accreditation_status: "Draft" };
+        // Ensure vendor_code is set in state even when null in DB
+        vendorForState = existingVRow
+          ? { ...existingVRow, vendor_code: existingVRow.vendor_code || resolvedVendorCode }
+          : { id: parsedId, vendor_code: resolvedVendorCode, accreditation_status: "Draft" };
       } else {
         // 2b. No existing vendor — create a fresh draft
         const { data: vRow, error: vErr } = await supabase
@@ -2377,12 +2386,14 @@ function VendorAccreditationPage({ token }) {
           .single();
         if (vErr || !vRow) { console.error("Draft create failed:", vErr); setStarted(true); return; }
 
+        // vendor_code is now NULL in DB until accreditation; compute it from integer id
+        const computedCode = venCode(vRow.id);
         await supabase.from("vendor_company_info").insert({
-          vendor_id: vRow.vendor_code,
+          vendor_id: computedCode,
           company_name: "",
           rfq_email: invitedEmail || "",
         });
-        vendorForState = { ...vRow, accreditation_status: "Draft" };
+        vendorForState = { ...vRow, vendor_code: computedCode, accreditation_status: "Draft" };
       }
 
       // 3. Link this token to the resolved vendor
@@ -2463,7 +2474,7 @@ function VendorAccreditationPage({ token }) {
           alert("Submission failed: " + (vErr?.message || "unknown error"));
           return;
         }
-        vendorId = vRow.vendor_code;
+        vendorId = vRow.vendor_code || venCode(vRow.id);
       } else if (isAccredited) {
         // Accredited vendor updating their profile — keep status, flag as pending update
         await supabase.from("vendors").update({

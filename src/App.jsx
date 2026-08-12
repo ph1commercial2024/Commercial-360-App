@@ -5690,10 +5690,13 @@ function VendorsPage({ profile }) {
   const [inviteEmail, setInviteEmail]         = useState("");
   const [inviteLink, setInviteLink]           = useState("");
   const [inviteLoading, setInviteLoading]     = useState(false);
+  const [inviteCount, setInviteCount]         = useState(0);
 
   useEffect(() => {
     fetchVendors();
     fetchClassRules();
+    supabase.from("vendor_accreditation_tokens").select("*", { count: "exact", head: true })
+      .then(({ count }) => setInviteCount(count || 0));
     supabase.from("trade_categories").select("name").eq("is_approved", true).order("display_order").order("name")
       .then(({ data }) => setTradeCatOptions((data || []).map(t => t.name)));
   }, []);
@@ -5760,7 +5763,7 @@ function VendorsPage({ profile }) {
     supabase.from("vendor_hseq").select("*").eq("vendor_id", vcode).maybeSingle(),
     supabase.from("vendor_registration").select("*").eq("vendor_id", vcode).maybeSingle(),
     supabase.from("vendor_documents").select("*").eq("vendor_id", vcode),
-    supabase.from("profiles").select("id, full_name, position").eq("id", v.profile_id).single(),
+    v.profile_id ? supabase.from("profiles").select("id, full_name, position").eq("id", v.profile_id).single() : Promise.resolve({ data: null }),
     supabase.from("vendor_doc_expiry").select("*").eq("vendor_id", vcode),
   ]);
   const enriched = {
@@ -5789,6 +5792,8 @@ function VendorsPage({ profile }) {
       reviewed_by: profile.id,
       reviewed_at: new Date().toISOString(),
       accredited_at: status === "Accredited" ? new Date().toISOString() : null,
+      // Write the vendor_code to DB for the first time when accrediting
+      ...(status === "Accredited" ? { vendor_code: venCode(vendorId) } : {}),
       ...extra,
     }).eq("id", vendorId);
     fetchVendors();
@@ -5800,11 +5805,12 @@ function VendorsPage({ profile }) {
     const companyName = selectedVendor?.vendor_company_info?.company_name || "Vendor";
     if (vendorEmail && ["Accredited", "Returned", "Declined"].includes(status)) {
       // For returned vendors, look up their unique accreditation link.
-      // vendor_accreditation_tokens.vendor_id stores the vendor_code string (e.g. "VEN-001"),
-      // not the integer id — so query by vendor_code, not vendorId.
+      // vendor_accreditation_tokens.vendor_id stores the VEN code string (e.g. "VEN-000001"),
+      // not the integer id — so query by that code. Pre-accreditation, vendor_code in DB may
+      // be null, so fall back to computing it from the integer id.
       let accreditationUrl = null;
       if (status === "Returned") {
-        const vendorCode = selectedVendor?.vendor_code;
+        const vendorCode = selectedVendor?.vendor_code || venCode(vendorId);
         const { data: tokenRows } = await supabase
           .from("vendor_accreditation_tokens")
           .select("token")
@@ -6068,7 +6074,7 @@ function VendorsPage({ profile }) {
         {/* Summary cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 12 }}>
           {[
-            { label: "Total",        value: vendors.length,                                                                    color: C.textPri,  desc: "All registered vendors"   },
+            { label: "Total",        value: inviteCount,                                                                       color: C.textPri,  desc: "Total invited vendors"    },
             { label: "Submitted",    value: vendors.filter(v => v.accreditation_status === "Submitted").length,    color: "#0F6E56",  desc: "Applications received"    },
             { label: "Under Review", value: vendors.filter(v => v.accreditation_status === "Under Review").length, color: "#4338CA",  desc: "Being evaluated"           },
             { label: "Returned",     value: vendors.filter(v => v.accreditation_status === "Returned").length,     color: C.amberText,desc: "Returned for corrections"   },
@@ -6131,7 +6137,7 @@ function VendorsPage({ profile }) {
                     onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                     <td style={{ padding: "9px 14px" }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: C.textPri }}>{v.vendor_company_info?.company_name || v.profiles?.full_name || "—"}</div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: C.coral, marginTop: 1 }}>{v.vendor_code || venCode(v.id)}</div>
+                      {v.vendor_code && <div style={{ fontSize: 11, fontWeight: 600, color: C.coral, marginTop: 1 }}>{v.vendor_code}</div>}
                       {v.vendor_company_info?.registered_address && (
                         <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>📍 {v.vendor_company_info.registered_address}</div>
                       )}
@@ -6283,7 +6289,7 @@ function VendorsPage({ profile }) {
           <div style={{ position: "sticky", top: 0, zIndex: 10, background: C.white, borderBottom: `1px solid ${C.border}`, padding: "10px 20px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <button onClick={() => { setVendorFormPage(false); setFormActiveTab("hub"); }} style={{ ...styles.btnGhost, fontSize: 12, padding: "5px 12px", whiteSpace: "nowrap" }}>← Vendor List</button>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, overflow: "hidden" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.coral, letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{selectedVendor.vendor_code || venCode(selectedVendor.id)}</span>
+              {selectedVendor.vendor_code && <span style={{ fontSize: 11, fontWeight: 700, color: C.coral, letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{selectedVendor.vendor_code}</span>}
               <span style={{ fontSize: 14, fontWeight: 600, color: C.textPri, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ci.company_name || selectedVendor.profiles?.full_name || "Vendor"}</span>
               <span style={badge(selectedVendor.accreditation_status)}>{selectedVendor.accreditation_status}</span>
             </div>
@@ -6913,7 +6919,7 @@ function VendorsPage({ profile }) {
             {/* Modal header */}
             <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: C.white, zIndex: 10 }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.coral, letterSpacing: "0.05em", marginBottom: 2 }}>{selectedVendor.vendor_code || venCode(selectedVendor.id)}</div>
+                {selectedVendor.vendor_code && <div style={{ fontSize: 11, fontWeight: 700, color: C.coral, letterSpacing: "0.05em", marginBottom: 2 }}>{selectedVendor.vendor_code}</div>}
                 <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri }}>
                   {selectedVendor.vendor_company_info?.company_name || selectedVendor.profiles?.full_name || "Vendor"}
                 </div>
@@ -7659,8 +7665,23 @@ function UsersPage({ profile }) {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data } = await supabase.from("profiles").select("id, full_name, position, is_admin, is_active, created_at").order("full_name");
-    if (data) setUsers(data);
+    // Try with email column first
+    const { data, error: fetchErr } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, position, is_admin, is_active, created_at")
+      .order("full_name");
+    if (fetchErr) {
+      console.warn("profiles fetch (with email) failed:", fetchErr.message, "— retrying without email column");
+      // email column doesn't exist yet — fall back
+      const { data: fallback, error: fallbackErr } = await supabase
+        .from("profiles")
+        .select("id, full_name, position, is_admin, is_active, created_at")
+        .order("full_name");
+      if (fallbackErr) console.error("profiles fallback fetch also failed:", fallbackErr.message);
+      setUsers(fallback ?? []);
+    } else {
+      setUsers(data ?? []);
+    }
     setLoading(false);
   };
 
@@ -7718,6 +7739,7 @@ function UsersPage({ profile }) {
   };
 
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
   const filtered = users.filter(u =>
     (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -7740,48 +7762,95 @@ function UsersPage({ profile }) {
 
   return (
     <>
+      {/* ── Top bar ── */}
       <div style={styles.topBar}>
-                <div style={{ flex: 1 }} />
-        {canManage && <button style={styles.btnPrimary} onClick={openCreate}>+ New User</button>}
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, lineHeight: 1.2 }}>Users &amp; Roles</div>
+          <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>Manage system accounts and access levels</div>
+        </div>
+        <div style={{ flex: 1 }} />
+        {canManage && (
+          <button style={styles.btnPrimary} onClick={openCreate}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "middle" }}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New User
+          </button>
+        )}
       </div>
 
       <div style={styles.pageBody}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)" }}>
+
+        {/* ── KPI stat cards ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
           {[
-            { label: "Total Users", value: users.length, color: C.textPri },
-            { label: "Active", value: users.filter(u => u.is_active !== false).length, color: C.greenText },
-            { label: "Inactive", value: users.filter(u => u.is_active === false).length, color: C.grayText },
-            { label: "Admins", value: users.filter(u => u.is_admin === true).length, color: "#5B21B6" },
-          ].map((s, i, arr) => (
-            <React.Fragment key={s.label}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-                <span style={{ fontSize: 20, fontWeight: 700, color: s.color, letterSpacing: "-0.02em" }}>{s.value}</span>
-                <span style={{ fontSize: 11, fontWeight: 500, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</span>
+            { label: "Total Users",  value: users.length,                                    icon: "users",  color: C.textPri,  bg: C.offWhite,   iconColor: C.textSec },
+            { label: "Active",       value: users.filter(u => u.is_active !== false).length,  icon: "check",  color: C.greenText, bg: C.greenBg,   iconColor: C.greenText },
+            { label: "Inactive",     value: users.filter(u => u.is_active === false).length,  icon: "clock",  color: C.grayText,  bg: C.grayBg,    iconColor: C.grayText },
+            { label: "Admins",       value: users.filter(u => u.is_admin === true).length,    icon: "shield", color: "#5B21B6",   bg: "#EDE9FE",   iconColor: "#7C3AED" },
+          ].map(s => (
+            <div key={s.label} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name={s.icon} size={16} color={s.iconColor} />
               </div>
-              {i < arr.length - 1 && <div style={{ width: 1, height: 18, background: C.border }} />}
-            </React.Fragment>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 11, color: C.textTer, marginTop: 3, fontWeight: 500 }}>{s.label}</div>
+              </div>
+            </div>
           ))}
-          <div style={{ flex: 1 }} />
-          <div style={{ position: "relative", width: 280 }}>
-            <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={13} color={C.textTer} /></div>
-            <input placeholder="Search by name or position..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...styles.input, paddingLeft: 30, fontSize: 12 }} />
-          </div>
         </div>
 
-        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)" }}>
+        {/* ── Search bar ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ position: "relative", flex: 1, maxWidth: 320 }}>
+            <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={13} color={C.textTer} /></div>
+            <input placeholder="Search by name or position…" value={search} onChange={e => setSearch(e.target.value)} style={{ ...styles.input, paddingLeft: 30, fontSize: 12 }} />
+          </div>
+          <button onClick={fetchUsers} style={{ ...styles.btnGhost, fontSize: 11, padding: "6px 12px", display: "flex", alignItems: "center", gap: 5 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
 
+        {/* ── Table ── */}
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)" }}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ background: C.coralMid }}>
-                  {["User", "Position", "Admin", "Status", "Date Added", ""].map(h => (
+                  {["User", "Email", "Position", "Access", "Status", ""].map(h => (
                     <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={6} style={{ textAlign: "center", padding: "32px 0", color: C.textTer }}>Loading...</td></tr>}
-                {!loading && filtered.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", padding: "48px 0", color: C.textTer }}>No users found.</td></tr>}
+                {/* Loading state */}
+                {loading && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: "center", padding: "48px 0" }}>
+                      <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.coral} strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        <span style={{ fontSize: 12, color: C.textTer }}>Loading users…</span>
+                      </div>
+                      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                    </td>
+                  </tr>
+                )}
+                {/* Empty state */}
+                {!loading && filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: "52px 0", textAlign: "center" }}>
+                      <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 48, height: 48, borderRadius: 14, background: C.offWhite, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Icon name="users" size={22} color={C.textTer} />
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textSec }}>No users found</div>
+                        <div style={{ fontSize: 12, color: C.textTer }}>{search ? "Try a different search term" : "Add the first user to get started"}</div>
+                        {!search && canManage && <button style={{ ...styles.btnPrimary, marginTop: 4, fontSize: 12 }} onClick={openCreate}>+ New User</button>}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {/* Rows */}
                 {!loading && filtered.map((user, i) => {
                   const pc = positionColor(user.position, user.is_admin);
                   const isActive = user.is_active !== false;
@@ -7791,48 +7860,58 @@ function UsersPage({ profile }) {
                       style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", transition: "background 0.15s" }}
                       onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                       onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                      <td style={{ padding: "9px 14px" }}>
+                      {/* User */}
+                      <td style={{ padding: "10px 14px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ width: 34, height: 34, borderRadius: "50%", background: `linear-gradient(135deg, ${C.coral}, ${C.coralDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: C.white, flexShrink: 0 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg, ${C.coral}, ${C.coralDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: C.white, flexShrink: 0, letterSpacing: "0.02em" }}>
                             {initials}
                           </div>
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: C.textPri }}>{user.full_name || "---"}</div>
-                            <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>{user.id.slice(0, 8)}...</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>{user.full_name || "—"}</div>
+                            <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>Joined {fmtShort(user.created_at)}</div>
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: "9px 14px" }}>
+                      {/* Email */}
+                      <td style={{ padding: "10px 14px", fontSize: 12, color: C.textSec, whiteSpace: "nowrap" }}>
+                        {user.email || <span style={{ color: C.textTer }}>—</span>}
+                      </td>
+                      {/* Position */}
+                      <td style={{ padding: "10px 14px" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: pc.bg, color: pc.color }}>
                           {user.position || "—"}
                         </span>
                       </td>
-                      <td style={{ padding: "9px 14px" }}>
+                      {/* Access / Admin */}
+                      <td style={{ padding: "10px 14px" }}>
                         {user.is_admin ? (
-                          <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: "#EDE9FE", color: "#5B21B6" }}>Admin</span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: "#EDE9FE", color: "#5B21B6" }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            Admin
+                          </span>
                         ) : (
-                          <span style={{ fontSize: 11, color: C.textTer }}>—</span>
+                          <span style={{ fontSize: 11, color: C.textTer }}>Standard</span>
                         )}
                       </td>
-                      <td style={{ padding: "9px 14px" }}>
+                      {/* Status */}
+                      <td style={{ padding: "10px 14px" }}>
                         <span style={styles.badge(isActive ? "Approved" : "Draft")}>{isActive ? "Active" : "Inactive"}</span>
                       </td>
-                      <td style={{ padding: "9px 14px", fontSize: 12, color: C.textSec, whiteSpace: "nowrap" }}>{fmtShort(user.created_at)}</td>
-                      <td style={{ padding: "9px 14px", textAlign: "right", position: "relative" }}>
+                      {/* Actions */}
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>
                         {canManage && (
-                          <>
-                            <button onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === user.id ? null : user.id); }}
-                              style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, cursor: "pointer", padding: "3px 8px", fontSize: 15, color: C.textSec, lineHeight: 1 }}>
-                              ⋯
-                            </button>
-                            {openMenuId === user.id && (
-                              <div onClick={e => e.stopPropagation()} style={{ position: "absolute", right: 14, top: "100%", zIndex: 99, background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.12)", minWidth: 140, overflow: "hidden" }}>
-                                <button onClick={() => { openEdit(user); setOpenMenuId(null); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: 12, background: "none", border: "none", cursor: "pointer", color: C.textPri }}>✏️ Edit</button>
-                                <div style={{ height: 1, background: C.border }} />
-                                <button onClick={() => { toggleActive(user); setOpenMenuId(null); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: 12, background: "none", border: "none", cursor: "pointer", color: isActive ? C.redText : C.greenText }}>{isActive ? "🚫 Deactivate" : "✅ Activate"}</button>
-                              </div>
-                            )}
-                          </>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (openMenuId === user.id) { setOpenMenuId(null); return; }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                              setOpenMenuId(user.id);
+                            }}
+                            style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, cursor: "pointer", padding: "5px 8px", color: C.textSec, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                            title="More options">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -7843,11 +7922,42 @@ function UsersPage({ profile }) {
           </div>
 
           <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {users.length} users</span>
-            <button onClick={fetchUsers} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
+            <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {users.length} user{users.length !== 1 ? "s" : ""}</span>
           </div>
         </div>
       </div>
+
+      {/* ── Fixed-position action dropdown (escapes table overflow) ── */}
+      {openMenuId && (() => {
+        const user = filtered.find(u => u.id === openMenuId);
+        if (!user) return null;
+        const isActive = user.is_active !== false;
+        return (
+          <>
+            <div style={{ position: "fixed", inset: 0, zIndex: 149 }} onClick={() => setOpenMenuId(null)} />
+            <div style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 150, background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 4px 24px rgba(0,0,0,0.14)", minWidth: 160, overflow: "hidden" }}>
+              <button onClick={() => { openEdit(user); setOpenMenuId(null); }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 14px", fontSize: 12, background: "none", border: "none", cursor: "pointer", color: C.textPri }}
+                onMouseOver={e => e.currentTarget.style.background = C.offWhite}
+                onMouseOut={e => e.currentTarget.style.background = "none"}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit user
+              </button>
+              <div style={{ height: 1, background: C.border }} />
+              <button onClick={() => { toggleActive(user); setOpenMenuId(null); }}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 14px", fontSize: 12, background: "none", border: "none", cursor: "pointer", color: isActive ? C.redText : C.greenText }}
+                onMouseOver={e => e.currentTarget.style.background = C.offWhite}
+                onMouseOut={e => e.currentTarget.style.background = "none"}>
+                {isActive
+                  ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                  : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                }
+                {isActive ? "Deactivate" : "Activate"}
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       {showModal && (
         <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
@@ -7858,7 +7968,9 @@ function UsersPage({ profile }) {
                 <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri }}>{editingUser ? "Edit user" : "New user"}</div>
                 <div style={{ fontSize: 12, color: C.textTer, marginTop: 2 }}>{editingUser ? "Update name, position and access" : "Create a new account with a temporary password"}</div>
               </div>
-              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: C.textTer, fontSize: 18, padding: 4 }}>X</button>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", color: C.textTer, padding: 6, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }} title="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
             <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
@@ -7890,10 +8002,15 @@ function UsersPage({ profile }) {
                   {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: form.is_admin ? "#F5F3FF" : C.white }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: C.textPri }}>System Admin</div>
-                  <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>Full access to settings, users, and all data</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 8, border: `1px solid ${form.is_admin ? "#C4B5FD" : C.border}`, background: form.is_admin ? "#F5F3FF" : C.white, transition: "background 0.2s, border-color 0.2s" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: form.is_admin ? "#EDE9FE" : C.offWhite, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.2s" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={form.is_admin ? "#7C3AED" : C.textTer} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: C.textPri }}>System Admin</div>
+                    <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>Full access to settings, users, and all data</div>
+                  </div>
                 </div>
                 <label style={{ display: "flex", alignItems: "center", cursor: "pointer", gap: 8 }}>
                   <input type="checkbox" checked={form.is_admin} onChange={e => setForm(p => ({ ...p, is_admin: e.target.checked }))}
@@ -7907,7 +8024,7 @@ function UsersPage({ profile }) {
             <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 8, background: C.offWhite }}>
               <button style={styles.btnSecondary} onClick={closeModal}>Cancel</button>
               <button style={{ ...styles.btnPrimary, opacity: saving ? 0.75 : 1 }} disabled={saving} onClick={handleSave}>
-                {saving ? "Saving..." : editingUser ? "Save changes" : "Create user"}
+                {saving ? "Saving…" : editingUser ? "Save changes" : "Create user"}
               </button>
             </div>
           </div>
