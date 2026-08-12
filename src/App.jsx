@@ -6090,6 +6090,7 @@ function VendorsPage({ profile }) {
                   boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
                   cursor: "pointer", userSelect: "none",
                   transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
+                  textAlign: "center",
                 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
                 <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
