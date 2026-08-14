@@ -2427,12 +2427,39 @@ function VendorAccreditationPage({ token }) {
 
   const handleSubmit = async () => {
     if (submitting) return;
-    const required = ["company_name", "registered_address", "cell_number", "contact_person", "authorized_representative"];
-    const missing = required.filter(k => !form[k].trim());
-    if (!form.rfq_emails.some(e => e.trim())) missing.push("email address");
-    if (form.trade_categories.length === 0) missing.push("primary activity / trade");
+    const required = [
+      "company_name", "registered_address", "cell_number",
+      "contact_person", "contact_position",
+      "authorized_representative", "representative_title",
+      "tin",
+    ];
+    const missing = required.filter(k => !form[k]?.trim());
+    if (!form.rfq_emails.some(e => e.trim())) missing.push("Email address");
+    if (form.trade_categories.length === 0) missing.push("Primary activity / trade");
+
+    // Key Personnel — all five contacts required
+    const kc = form.key_contacts || {};
+    if (!kc.president?.name?.trim())          missing.push("Key Personnel: President (name)");
+    if (!kc.accounting_manager?.name?.trim()) missing.push("Key Personnel: Accounting Manager (name)");
+    if (!kc.sales_manager?.name?.trim())      missing.push("Key Personnel: Sales Manager (name)");
+    if (!kc.delivery_incharge?.name?.trim())  missing.push("Key Personnel: Delivery In-charge (name)");
+    if (!kc.technical_incharge?.name?.trim()) missing.push("Key Personnel: Technical In-charge (name)");
+
+    // Bank details — all four fields required
+    if (!form.bank_name?.trim())           missing.push("Bank name");
+    if (!form.bank_account_name?.trim())   missing.push("Bank account name");
+    if (!form.bank_account_number?.trim()) missing.push("Bank account number");
+    if (!form.bank_branch?.trim())         missing.push("Bank branch");
+
+    // Compliance — must select yes or no
+    if (!form.has_hs_adviser)     missing.push("H&S Adviser status (yes/no)");
+    if (!form.has_hs_policy)      missing.push("H&S Policy status (yes/no)");
+    if (!form.has_qms)            missing.push("Quality Management System (yes/no)");
+    if (form.has_qms === "yes" && !form.has_internal_qms) missing.push("Internal QMS status (yes/no)");
+    if (!form.has_env_management) missing.push("Environmental Management status (yes/no)");
+
     if (missing.length > 0) {
-      alert("Please fill in all required fields:\n• " + missing.map(k => k.replace(/_/g, " ")).join("\n• "));
+      alert("Please fill in all required fields:\n• " + missing.join("\n• "));
       return;
     }
     if (!isValidMobile(form.cell_number)) {
@@ -2445,25 +2472,12 @@ function VendorAccreditationPage({ token }) {
     const cfgMissing = [];
     if (fieldCfg.location_map_url && !form.location_map_url.trim()) cfgMissing.push("Location map URL");
     if (fieldCfg.telephone && !form.telephone.trim()) cfgMissing.push("Telephone");
-    if (fieldCfg.contact_position && !form.contact_position.trim()) cfgMissing.push("Contact position");
-    if (fieldCfg.representative_title && !form.representative_title.trim()) cfgMissing.push("Representative title");
     if (fieldCfg.satellite_address && !form.satellite_address.trim()) cfgMissing.push("Satellite / branch address");
     if (fieldCfg.num_employees && !form.num_employees) cfgMissing.push("Number of employees");
     if (fieldCfg.is_subsidiary && !form.is_subsidiary) cfgMissing.push("Subsidiary / ownership status");
-    if (fieldCfg["key_contacts.president"] && !form.key_contacts.president?.name?.trim()) cfgMissing.push("President (key contacts)");
-    if (fieldCfg["key_contacts.accounting_manager"] && !form.key_contacts.accounting_manager?.name?.trim()) cfgMissing.push("Accounting Manager (key contacts)");
-    if (fieldCfg["key_contacts.sales_manager"] && !form.key_contacts.sales_manager?.name?.trim()) cfgMissing.push("Sales Manager (key contacts)");
-    if (fieldCfg["key_contacts.delivery_incharge"] && !form.key_contacts.delivery_incharge?.name?.trim()) cfgMissing.push("Delivery In-charge (key contacts)");
-    if (fieldCfg["key_contacts.technical_incharge"] && !form.key_contacts.technical_incharge?.name?.trim()) cfgMissing.push("Technical In-charge (key contacts)");
-    if (fieldCfg.tin && !form.tin.trim()) cfgMissing.push("TIN (Tax Identification Number)");
     if (fieldCfg.tax_classification && !form.tax_classification) cfgMissing.push("Tax classification (VAT / Non-VAT)");
     if (fieldCfg.registration_type && !form.registration_type) cfgMissing.push("Registration type (DTI / SEC)");
     if (fieldCfg.ewt_entries && !form.ewt_entries.some(e => e.rate && e.description.trim())) cfgMissing.push("EWT entry (at least one)");
-    if (fieldCfg.bank_details && !["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => form[k]?.trim())) cfgMissing.push("Bank details (all four fields)");
-    if (fieldCfg["compliance.has_hs_adviser"] && !form.has_hs_adviser) cfgMissing.push("H&S adviser status");
-    if (fieldCfg["compliance.has_hs_policy"] && !form.has_hs_policy) cfgMissing.push("H&S policy status");
-    if (fieldCfg["compliance.has_qms"] && !form.has_qms) cfgMissing.push("QMS (quality management)");
-    if (fieldCfg["compliance.has_env_management"] && !form.has_env_management) cfgMissing.push("Environmental management status");
     if (fieldCfg.signatories && (!form.signatory_sales_manager.trim() || !form.signatory_president.trim())) cfgMissing.push("Declaration signatories (Sales Manager & President)");
     if (cfgMissing.length > 0) {
       alert("Your vendor type requires the following fields to be completed:\n• " + cfgMissing.join("\n• "));
@@ -3114,31 +3128,27 @@ function VendorAccreditationPage({ token }) {
 
           // Declaration unlocks when all always-required AND admin-configured required fields are filled.
           // Progress bars (pct) remain informational but no longer gate the declaration tab.
-          const _alwaysOk = ["company_name","registered_address","cell_number","contact_person","authorized_representative"]
-            .every(k => form[k]?.trim()) && form.rfq_emails.some(e => e.trim()) && form.trade_categories.length > 0;
+          const _kc = form.key_contacts || {};
+          const _alwaysOk =
+            ["company_name","registered_address","cell_number","contact_person","authorized_representative",
+             "contact_position","representative_title","tin"].every(k => form[k]?.trim()) &&
+            form.rfq_emails.some(e => e.trim()) && form.trade_categories.length > 0 &&
+            !!_kc.president?.name?.trim() && !!_kc.accounting_manager?.name?.trim() &&
+            !!_kc.sales_manager?.name?.trim() && !!_kc.delivery_incharge?.name?.trim() &&
+            !!_kc.technical_incharge?.name?.trim() &&
+            ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim()) &&
+            !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms && !!form.has_env_management &&
+            (form.has_qms !== "yes" || !!form.has_internal_qms);
           const _cfg = fieldReqs[form.vendor_type] || {};
           const _cfgOk =
             (!_cfg.satellite_address   || !!form.satellite_address.trim()) &&
             (!_cfg.location_map_url    || !!form.location_map_url.trim()) &&
             (!_cfg.telephone           || !!form.telephone.trim()) &&
-            (!_cfg.contact_position    || !!form.contact_position.trim()) &&
-            (!_cfg.representative_title || !!form.representative_title.trim()) &&
             (!_cfg.num_employees       || !!form.num_employees) &&
             (!_cfg.is_subsidiary       || !!form.is_subsidiary) &&
-            (!_cfg["key_contacts.president"]          || !!form.key_contacts.president?.name?.trim()) &&
-            (!_cfg["key_contacts.accounting_manager"] || !!form.key_contacts.accounting_manager?.name?.trim()) &&
-            (!_cfg["key_contacts.sales_manager"]      || !!form.key_contacts.sales_manager?.name?.trim()) &&
-            (!_cfg["key_contacts.delivery_incharge"]  || !!form.key_contacts.delivery_incharge?.name?.trim()) &&
-            (!_cfg["key_contacts.technical_incharge"] || !!form.key_contacts.technical_incharge?.name?.trim()) &&
-            (!_cfg.tin                 || !!form.tin.trim()) &&
             (!_cfg.tax_classification  || !!form.tax_classification) &&
             (!_cfg.registration_type   || !!form.registration_type) &&
             (!_cfg.ewt_entries         || form.ewt_entries.some(e => e.rate && e.description.trim())) &&
-            (!_cfg.bank_details        || ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim())) &&
-            (!_cfg["compliance.has_hs_adviser"]    || !!form.has_hs_adviser) &&
-            (!_cfg["compliance.has_hs_policy"]     || !!form.has_hs_policy) &&
-            (!_cfg["compliance.has_qms"]           || !!form.has_qms) &&
-            (!_cfg["compliance.has_env_management"] || !!form.has_env_management) &&
             (!_cfg.signatories         || (!!form.signatory_sales_manager.trim() && !!form.signatory_president.trim()));
           const declarationLocked = !_alwaysOk || !_cfgOk;
           const sectionsComplete  = Object.values(pct).filter(p => p >= 100).length;
@@ -3544,7 +3554,7 @@ function VendorAccreditationPage({ token }) {
                 <input value={form.contact_person} onChange={e => setField("contact_person", e.target.value)} style={S.input} placeholder="Day-to-day coordinator" />
               </div>
               <div>
-                <label style={S.label}>Contact Position {isFieldReq("contact_position") && <span style={S.required}>*</span>}</label>
+                <label style={S.label}>Contact Position <span style={S.required}>*</span></label>
                 <input value={form.contact_position} onChange={e => setField("contact_position", e.target.value)} style={S.input} placeholder="e.g. Project Coordinator" />
               </div>
             </div>
@@ -3554,7 +3564,7 @@ function VendorAccreditationPage({ token }) {
                 <input value={form.authorized_representative} onChange={e => setField("authorized_representative", e.target.value)} style={S.input} placeholder="Signs contracts and NOA" />
               </div>
               <div>
-                <label style={S.label}>Representative Title {isFieldReq("representative_title") && <span style={S.required}>*</span>}</label>
+                <label style={S.label}>Representative Title <span style={S.required}>*</span></label>
                 <input value={form.representative_title} onChange={e => setField("representative_title", e.target.value)} style={S.input} placeholder="e.g. General Manager" />
               </div>
             </div>
@@ -3695,7 +3705,7 @@ function VendorAccreditationPage({ token }) {
 
             {/* Key Personnel */}
             <div>
-              <label style={S.label}>Key Personnel {(isFieldReq("key_contacts.president") || isFieldReq("key_contacts.accounting_manager") || isFieldReq("key_contacts.sales_manager") || isFieldReq("key_contacts.delivery_incharge") || isFieldReq("key_contacts.technical_incharge")) && <span style={S.required}>*</span>}</label>
+              <label style={S.label}>Key Personnel <span style={S.required}>*</span></label>
               <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "auto", marginTop: 4 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 520 }}>
                   <thead>
@@ -3714,7 +3724,7 @@ function VendorAccreditationPage({ token }) {
                       ["technical_incharge", "Technical In-charge"],
                     ].map(([key, label], idx, arr) => (
                       <tr key={key} style={{ borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                        <td style={{ padding: "6px 10px", fontWeight: 600, color: C.textSec, fontSize: 12, whiteSpace: "nowrap", background: C.offWhite, borderRight: `1px solid ${C.border}` }}>{label}{isFieldReq(`key_contacts.${key}`) && <span style={{ color: C.coral, marginLeft: 2 }}>*</span>}</td>
+                        <td style={{ padding: "6px 10px", fontWeight: 600, color: C.textSec, fontSize: 12, whiteSpace: "nowrap", background: C.offWhite, borderRight: `1px solid ${C.border}` }}>{label}<span style={{ color: C.coral, marginLeft: 2 }}>*</span></td>
                         {["name","contact","nationality"].map(field => (
                           <td key={field} style={{ padding: "4px 6px" }}>
                             <input
@@ -3856,7 +3866,7 @@ function VendorAccreditationPage({ token }) {
 
           {/* TIN */}
           <div style={{ marginBottom: 18 }}>
-            <label style={S.label}>Tax Identification Number (TIN) {isFieldReq("tin") && <span style={S.required}>*</span>}</label>
+            <label style={S.label}>Tax Identification Number (TIN) <span style={S.required}>*</span></label>
             <input
               value={form.tin}
               onChange={e => setField("tin", e.target.value)}
@@ -4097,19 +4107,19 @@ function VendorAccreditationPage({ token }) {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div style={{ gridColumn: "1 / -1" }}>
-                <label style={S.label}>Bank Name {isFieldReq("bank_details") && <span style={{ color: C.coral }}>*</span>}</label>
+                <label style={S.label}>Bank Name <span style={{ color: C.coral }}>*</span></label>
                 <input value={form.bank_name} onChange={e => setField("bank_name", e.target.value)} placeholder="e.g. BDO Unibank" style={{ ...S.input, margin: 0 }} />
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
-                <label style={S.label}>Account Name {isFieldReq("bank_details") && <span style={{ color: C.coral }}>*</span>}</label>
+                <label style={S.label}>Account Name <span style={{ color: C.coral }}>*</span></label>
                 <input value={form.bank_account_name} onChange={e => setField("bank_account_name", e.target.value)} placeholder="Name on the bank account" style={{ ...S.input, margin: 0 }} />
               </div>
               <div>
-                <label style={S.label}>Account Number {isFieldReq("bank_details") && <span style={{ color: C.coral }}>*</span>}</label>
+                <label style={S.label}>Account Number <span style={{ color: C.coral }}>*</span></label>
                 <input value={form.bank_account_number} onChange={e => setField("bank_account_number", e.target.value)} placeholder="Account number" style={{ ...S.input, margin: 0, fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em" }} />
               </div>
               <div>
-                <label style={S.label}>Branch {isFieldReq("bank_details") && <span style={{ color: C.coral }}>*</span>}</label>
+                <label style={S.label}>Branch <span style={{ color: C.coral }}>*</span></label>
                 <input value={form.bank_branch} onChange={e => setField("bank_branch", e.target.value)} placeholder="Branch name / location" style={{ ...S.input, margin: 0 }} />
               </div>
             </div>
@@ -4255,7 +4265,7 @@ function VendorAccreditationPage({ token }) {
             </div>
             {/* H&S Adviser */}
             <div style={{ marginBottom: 16 }}>
-              <label style={S.label}>Do you employ a H&amp;S adviser or consultant? {isFieldReq("compliance.has_hs_adviser") && <span style={S.required}>*</span>}</label>
+              <label style={S.label}>Do you employ a H&amp;S adviser or consultant? <span style={S.required}>*</span></label>
               <p style={{ ...S.hint, marginBottom: 6 }}>If yes, please provide the name, qualifications and experience of the persons.</p>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 {["yes","no"].map(v => (
@@ -4279,7 +4289,7 @@ function VendorAccreditationPage({ token }) {
             </div>
             {/* H&S Policy */}
             <div>
-              <label style={S.label}>Do you have a H&amp;S policy manual? {isFieldReq("compliance.has_hs_policy") && <span style={S.required}>*</span>}</label>
+              <label style={S.label}>Do you have a H&amp;S policy manual? <span style={S.required}>*</span></label>
               <p style={{ ...S.hint, marginBottom: 6 }}>If yes, please supply a signed and dated copy of the H&amp;S policy statement.</p>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 {["yes","no"].map(v => (
@@ -4306,7 +4316,7 @@ function VendorAccreditationPage({ token }) {
             </div>
             {/* QMS */}
             <div style={{ marginBottom: 16 }}>
-              <label style={S.label}>Do you have a documented Quality Management System (QMS)? {isFieldReq("compliance.has_qms") && <span style={S.required}>*</span>}</label>
+              <label style={S.label}>Do you have a documented Quality Management System (QMS)? <span style={S.required}>*</span></label>
               <p style={{ ...S.hint, marginBottom: 6 }}>If yes, please submit a copy of the certificate.</p>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 {["yes","no"].map(v => (
@@ -4325,9 +4335,9 @@ function VendorAccreditationPage({ token }) {
               )}
             </div>
             {/* Internal QMS — only shown if no formal QMS */}
-            {form.has_qms === "no" && (
+            {form.has_qms === "yes" && (
               <div style={{ marginBottom: 16 }}>
-                <label style={S.label}>Do you operate your own internal QMS or Quality Assurance / Control Programs? {isFieldReq("compliance.has_qms") && <span style={S.required}>*</span>}</label>
+                <label style={S.label}>Do you also operate an internal QMS or Quality Assurance / Control Program? <span style={S.required}>*</span></label>
                 <p style={{ ...S.hint, marginBottom: 6 }}>If yes, please supply a copy of your in-house quality procedures / systems.</p>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   {["yes","no"].map(v => (
@@ -4348,7 +4358,7 @@ function VendorAccreditationPage({ token }) {
             )}
             {/* Environmental Management */}
             <div>
-              <label style={S.label}>Do you have a documented Environmental Management system? {isFieldReq("compliance.has_env_management") && <span style={S.required}>*</span>}</label>
+              <label style={S.label}>Do you have a documented Environmental Management system? <span style={S.required}>*</span></label>
               <p style={{ ...S.hint, marginBottom: 6 }}>If yes, submit a copy of your environmental policy and sustainable procurement policy.</p>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 {["yes","no"].map(v => (
