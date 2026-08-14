@@ -7687,6 +7687,7 @@ function UsersPage({ profile }) {
 
   const openCreate = () => {
     setEditingUser(null);
+    setSaving(false);
     setForm({ full_name: "", email: "", password: "", position: "Supervisor", is_admin: false });
     setShowModal(true);
   };
@@ -7697,7 +7698,7 @@ function UsersPage({ profile }) {
     setShowModal(true);
   };
 
-  const closeModal = () => { setShowModal(false); setEditingUser(null); };
+  const closeModal = () => { setShowModal(false); setEditingUser(null); setSaving(false); setForm({ full_name: "", email: "", password: "", position: "Supervisor", is_admin: false }); };
 
   const handleSave = async () => {
     if (!form.full_name) { alert("Full name is required."); return; }
@@ -7719,11 +7720,15 @@ function UsersPage({ profile }) {
         `${import.meta.env.VITE_SUPABASE_FUNCTIONS_URL}/create-user`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
           body: JSON.stringify({ email: form.email, password: form.password, full_name: form.full_name, position: form.position, is_admin: form.is_admin }),
         }
       );
-      const result = await response.json();
+      const result = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
       if (!response.ok) { alert("Error creating user: " + result.error); setSaving(false); return; }
     }
 
@@ -7976,7 +7981,7 @@ function UsersPage({ profile }) {
               <div>
                 <label style={styles.label}>Full name <span style={styles.required}>*</span></label>
                 <input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))}
-                  placeholder="e.g. Juan Dela Cruz" style={styles.input}
+                  placeholder="e.g. Juan Dela Cruz" style={styles.input} autoComplete="off"
                   onFocus={e => e.target.style.borderColor = C.coral} onBlur={e => e.target.style.borderColor = C.border} />
               </div>
               {!editingUser && (
@@ -7984,13 +7989,13 @@ function UsersPage({ profile }) {
                   <div>
                     <label style={styles.label}>Email address <span style={styles.required}>*</span></label>
                     <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                      placeholder="user@organization.com" style={styles.input}
+                      placeholder="user@organization.com" style={styles.input} autoComplete="off"
                       onFocus={e => e.target.style.borderColor = C.coral} onBlur={e => e.target.style.borderColor = C.border} />
                   </div>
                   <div>
                     <label style={styles.label}>Temporary password <span style={styles.required}>*</span></label>
                     <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                      placeholder="Min. 6 characters" style={styles.input}
+                      placeholder="Min. 6 characters" style={styles.input} autoComplete="new-password"
                       onFocus={e => e.target.style.borderColor = C.coral} onBlur={e => e.target.style.borderColor = C.border} />
                     <p style={styles.hint}>The user should change this after their first login</p>
                   </div>
