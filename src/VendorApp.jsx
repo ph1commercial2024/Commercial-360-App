@@ -2396,11 +2396,16 @@ function VendorAccreditationPage({ token }) {
         vendorForState = { ...vRow, vendor_code: computedCode, accreditation_status: "Draft" };
       }
 
-      // 3. Link this token to the resolved vendor
+      // 3. Link this token to the resolved vendor (ignore 409 = unique conflict,
+      //    the vendor is already linked elsewhere which is fine)
       if (tokenRow?.id) {
-        await supabase.from("vendor_accreditation_tokens")
+        const { error: tokenErr } = await supabase
+          .from("vendor_accreditation_tokens")
           .update({ vendor_id: vendorForState.vendor_code })
           .eq("id", tokenRow.id);
+        if (tokenErr && !tokenErr.message?.includes("409") && tokenErr.code !== "23505") {
+          console.error("Token link error:", tokenErr);
+        }
       }
 
       // 4. Set existingVendor so saveDraft can upsert from now on
