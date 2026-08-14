@@ -2107,16 +2107,23 @@ function VendorAccreditationPage({ token }) {
       // the VEN code stored in the token (e.g. "VEN-000001" → id 1).
       if (tRow.vendor_id) {
         const parsedId = parseInt(tRow.vendor_id.replace(/^VEN-/, ""), 10);
-        const { data: vRow } = await supabase
-          .from("vendors")
-          .select("id, vendor_code, accreditation_status, return_notes, vendor_company_info(*)")
-          .eq("id", parsedId)
-          .maybeSingle();
+        // Fetch vendor and company info separately — the FK was dropped so
+        // PostgREST can no longer auto-embed vendor_company_info(*).
+        const [{ data: vRow }, { data: ciRow }] = await Promise.all([
+          supabase.from("vendors")
+            .select("id, vendor_code, accreditation_status, return_notes")
+            .eq("id", parsedId)
+            .maybeSingle(),
+          supabase.from("vendor_company_info")
+            .select("*")
+            .eq("vendor_id", tRow.vendor_id)
+            .maybeSingle(),
+        ]);
 
         if (vRow) {
           // Ensure vendor_code is set in state even when null in DB (pre-accreditation)
-          const v = { ...vRow, vendor_code: vRow.vendor_code || tRow.vendor_id };
-          const ci = vRow.vendor_company_info;
+          const v = { ...vRow, vendor_code: vRow.vendor_code || tRow.vendor_id, vendor_company_info: ciRow };
+          const ci = ciRow;
         setExistingVendor(v);
         setIsReturned(v.accreditation_status === "Returned");
         setReturnNotes(v.return_notes || "");
