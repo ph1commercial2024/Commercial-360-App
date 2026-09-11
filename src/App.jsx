@@ -987,45 +987,61 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
 
           <div>
-  <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
               <thead>
-  <tr style={{ background: C.coralMid }}>
-    {["PR Number","Description","Project","Reviewer","Start Date","Status",""].map(h => (
-      <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
-    ))}
-  </tr>
-</thead>
+                <tr style={{ background: "#374151" }}>
+                  {["No.", "PR Number", "Description", "Project", "Reviewer", "Start Date", "Status", ""].map(h => (
+                    <th key={h} style={{
+                      textAlign: "left", padding: "11px 16px",
+                      fontWeight: 600, color: "#FFFFFF",
+                      fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
+                      borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
-                {loading && <tr><td colSpan={7} style={{ textAlign: "center", padding: "32px 0", color: C.textTer }}>Loading…</td></tr>}
+                {loading && <tr><td colSpan={8} style={{ textAlign: "center", padding: "32px 0", color: C.textTer }}>Loading…</td></tr>}
                 {!loading && filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "48px 0", color: C.textTer }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "48px 0", color: C.textTer }}>
                       No purchase requests found.{isCreator && <> <span style={{ color: C.coral, cursor: "pointer" }} onClick={() => setPage("create")}>Create one</span></>}
                     </td>
                   </tr>
                 )}
                 {!loading && filtered.map((pr, i) => (
                   <tr key={pr.pr_number} onClick={() => openPR(pr)}
-                    style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background 0.15s" }}
+                    style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
                     onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                     onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                    <td style={{ padding: "9px 14px", whiteSpace: "nowrap" }}>
+                    {/* No. */}
+                    <td style={{ padding: "11px 16px", whiteSpace: "nowrap", width: 40 }}>
+                      <span style={{ fontSize: 12, color: C.textTer, fontWeight: 500 }}>{i + 1}</span>
+                    </td>
+                    {/* PR Number */}
+                    <td style={{ padding: "11px 16px", whiteSpace: "nowrap" }}>
                       <span style={{ color: C.coral, fontWeight: 600, fontSize: 12 }}>{pr.pr_number || "—"}</span>
                     </td>
-                    <td style={{ padding: "9px 14px", maxWidth: 260 }}>
+                    {/* Description */}
+                    <td style={{ padding: "11px 16px", maxWidth: 260 }}>
                       <div style={{ fontSize: 12, color: C.textPri, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pr.description}</div>
                       {pr.is_rush && <span style={{ ...styles.badge("Rush"), fontSize: 10, marginTop: 2 }}>Rush</span>}
                     </td>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: C.textSec, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pr.projects?.name || "—"}</td>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: pr.reviewer_name && pr.reviewer_name !== "Unassigned" ? C.textSec : C.textTer, fontStyle: pr.reviewer_name && pr.reviewer_name !== "Unassigned" ? "normal" : "italic", whiteSpace: "nowrap" }}>{pr.reviewer_name || "Unassigned"}</td>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: C.textSec, whiteSpace: "nowrap" }}>{fmtShort(pr.start_date)}</td>
-                    <td style={{ padding: "9px 14px" }}>
+                    {/* Project */}
+                    <td style={{ padding: "11px 16px", fontSize: 12, color: C.textSec, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pr.projects?.name || "—"}</td>
+                    {/* Reviewer */}
+                    <td style={{ padding: "11px 16px", fontSize: 12, color: pr.reviewer_name && pr.reviewer_name !== "Unassigned" ? C.textSec : C.textTer, fontStyle: pr.reviewer_name && pr.reviewer_name !== "Unassigned" ? "normal" : "italic", whiteSpace: "nowrap" }}>{pr.reviewer_name || "Unassigned"}</td>
+                    {/* Start Date */}
+                    <td style={{ padding: "11px 16px", fontSize: 12, color: C.textSec, whiteSpace: "nowrap" }}>{fmtShort(pr.start_date)}</td>
+                    {/* Status */}
+                    <td style={{ padding: "11px 16px" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                         <span style={styles.badge(pr.status)}>{pr.status}</span>
                         {pr.budget_status && <span style={{ ...styles.badge(pr.budget_status), fontSize: 10 }}>{pr.budget_status}</span>}
                       </div>
                     </td>
-                    <td style={{ padding: "9px 14px", textAlign: "right" }}><Icon name="chevronRight" size={13} color={C.textTer} /></td>
+                    {/* Chevron */}
+                    <td style={{ padding: "11px 16px", textAlign: "right" }}><Icon name="chevronRight" size={13} color={C.textTer} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -1033,7 +1049,7 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
           </div>
 
           <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {prList.length} records</span>
+            <span style={{ fontSize: 12, color: C.textTer }}>{filtered.length} of {prList.length} records</span>
             <button onClick={fetchPRs} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
           </div>
         </div>
