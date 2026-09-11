@@ -473,7 +473,7 @@ function LoginPage() {
 }
 
 // ─── APP HEADER ───────────────────────────────────────────────────────────────
-function AppHeader({ profile, pageTitle, sidebarCollapsed }) {
+function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, canCreatePR }) {
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
@@ -503,6 +503,14 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed }) {
 
       {/* Right — icon buttons + user info */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        {/* Create PR button — dashboard only */}
+        {page === "dashboard" && canCreatePR && (
+          <button style={styles.btnPrimary} onClick={onCreatePR}
+            onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+            onMouseOut={e => e.currentTarget.style.opacity = "1"}>
+            + Create PR
+          </button>
+        )}
         {/* Filter icon */}
         <button style={{ width: 34, height: 34, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -926,14 +934,7 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
   return (
     <>
       <div style={styles.topBar}>
-                <div style={{ flex: 1 }} />
-        {isCreator && (
-          <button style={styles.btnPrimary} onClick={() => setPage("create")}
-            onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
-            onMouseOut={e => e.currentTarget.style.opacity = "1"}>
-            + Create PR
-          </button>
-        )}
+        <div style={{ flex: 1 }} />
       </div>
 
       <div style={styles.pageBody}>
@@ -14925,7 +14926,8 @@ export default function App() {
     <SidebarCtx.Provider value={{ toggle: () => setSidebarCollapsed(o => !o) }}>
     <div style={styles.appShell}>
       {/* Full-width fixed header */}
-      <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} sidebarCollapsed={sidebarCollapsed} />
+      <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} sidebarCollapsed={sidebarCollapsed}
+        page={page} onCreatePR={() => setPage("create")} canCreatePR={can(profile, "pr.prepare")} />
 
       {/* Persistent glass sidebar */}
       <Sidebar
