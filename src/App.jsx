@@ -563,7 +563,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
         backgroundImage: "url('/Sidebar%20Background.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
-        filter: "blur(32px)",
+        filter: "blur(25px)",
         transform: "scale(1.08)",
         zIndex: 0,
       }} />
