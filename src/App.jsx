@@ -647,21 +647,6 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
         })}
       </nav>
 
-      {/* User footer */}
-      <div style={styles.sidebarUser(collapsed)}>
-        <div style={{ ...styles.avatar, flexShrink: 0 }}>{initials}</div>
-        {!collapsed && (
-          <>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{profile?.full_name || "User"}</div>
-              <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)" }}>{profile?.position || "—"}{profile?.is_admin ? " · Admin" : ""}</div>
-            </div>
-            <button onClick={onLogout} title="Sign out" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}>
-              <Icon name="logout" size={14} color="rgba(255,255,255,0.35)" />
-            </button>
-          </>
-        )}
-      </div>
 
       {/* Divider + collapse toggle at bottom */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "0 8px" }} />
