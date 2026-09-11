@@ -25,6 +25,8 @@ async function sendEmail(to, subject, html) {
 
 // ─── SIDEBAR CONTEXT ──────────────────────────────────────────────────────────
 const SidebarCtx = createContext({ toggle: () => {} });
+// Pages inject header subtitle + action buttons via this context
+const HeaderActionsCtx = createContext({ setHeaderContent: () => {} });
 function HamburgerBtn() {
   const { toggle } = useContext(SidebarCtx);
   return (
@@ -473,16 +475,21 @@ function LoginPage() {
 }
 
 // ─── APP HEADER ───────────────────────────────────────────────────────────────
-function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, canCreatePR }) {
+function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, canCreatePR, headerSubtitle, headerActions }) {
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
   return (
     <div style={styles.appHeader(sidebarCollapsed)}>
 
-      {/* Left — page title */}
+      {/* Left — page title + optional subtitle */}
       {pageTitle && (
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, letterSpacing: "-0.01em", flexShrink: 0 }}>{pageTitle}</div>
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, letterSpacing: "-0.01em", lineHeight: 1.2 }}>{pageTitle}</div>
+          {headerSubtitle && (
+            <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>{headerSubtitle}</div>
+          )}
+        </div>
       )}
 
       <div style={{ flex: 1 }} />
@@ -511,6 +518,8 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
             + Create PR
           </button>
         )}
+        {/* Page-injected actions (via HeaderActionsCtx) */}
+        {headerActions}
         {/* Filter icon */}
         <button style={{ width: 34, height: 34, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2423,6 +2432,28 @@ function ProjectsPage({ profile }) {
 
   const canManage = can(profile, "project.create");
 
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: "Manage all active and inactive projects",
+      actions: (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button style={styles.btnGhost} onClick={downloadProjectTemplate}>⬇ Download Template</button>
+          {canManage && (
+            <>
+              <input id="excel-upload" type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleExcelUpload} />
+              <button style={styles.btnSecondary} onClick={() => document.getElementById("excel-upload").click()}>↑ Import Excel</button>
+              <button style={styles.btnPrimary} onClick={openCreate}
+                onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+                onMouseOut={e => e.currentTarget.style.opacity = "1"}>+ New Project</button>
+            </>
+          )}
+        </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [canManage]);
+
   useEffect(() => { fetchProjects(); fetchBusinessUnits(); fetchReviewers(); }, []);
 
   const fetchProjects = async () => {
@@ -2560,22 +2591,6 @@ function ProjectsPage({ profile }) {
 
   return (
     <>
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 12, color: C.textTer }}>Manage all active and inactive projects</span>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button style={styles.btnGhost} onClick={downloadProjectTemplate}>⬇ Download Template</button>
-          {canManage && (
-            <>
-              <input id="excel-upload" type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleExcelUpload} />
-              <button style={styles.btnSecondary} onClick={() => document.getElementById("excel-upload").click()}>↑ Import Excel</button>
-              <button style={styles.btnPrimary} onClick={openCreate}>+ New Project</button>
-            </>
-          )}
-        </div>
-      </div>
-
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
 
@@ -14864,6 +14879,7 @@ export default function App() {
   const [rfaPRId, setRfaPRId] = useState(null);
   const [selectedContractId, setSelectedContractId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [headerContent, setHeaderContent] = useState({ subtitle: "", actions: null });
   const [ph1LogoUrl, setPh1LogoUrl] = useState(null);
 
   useEffect(() => {
@@ -14940,10 +14956,12 @@ export default function App() {
 
   return (
     <SidebarCtx.Provider value={{ toggle: () => setSidebarCollapsed(o => !o) }}>
+    <HeaderActionsCtx.Provider value={{ setHeaderContent }}>
     <div style={styles.appShell}>
       {/* Full-width fixed header */}
       <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} sidebarCollapsed={sidebarCollapsed}
-        page={page} onCreatePR={() => setPage("create")} canCreatePR={can(profile, "pr.prepare")} />
+        page={page} onCreatePR={() => setPage("create")} canCreatePR={can(profile, "pr.prepare")}
+        headerSubtitle={headerContent.subtitle} headerActions={headerContent.actions} />
 
       {/* Persistent glass sidebar */}
       <Sidebar
@@ -14955,6 +14973,7 @@ export default function App() {
       {/* Main content — shifts right with sidebar */}
       <div style={styles.mainContent(sidebarCollapsed)}>{pageMap[page] || pageMap.dashboard}</div>
     </div>
+    </HeaderActionsCtx.Provider>
     </SidebarCtx.Provider>
   );
 }
