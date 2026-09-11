@@ -88,7 +88,7 @@ const styles = {
   appShell: {
     minHeight: "100vh",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'DM Sans', 'Helvetica Neue', Arial, sans-serif",
-    background: C.offWhite,
+    background: "#F0F2F7",
     color: C.textPri,
   },
   appHeader: (collapsed) => ({
