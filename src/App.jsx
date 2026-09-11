@@ -618,25 +618,6 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
           </div>
         )}
 
-        {/* Collapse toggle */}
-        {!collapsed && (
-          <button onClick={onToggleCollapse} title="Collapse sidebar"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.28)", padding: 3, display: "flex", alignItems: "center", flexShrink: 0, borderRadius: 5, transition: "color 0.12s" }}
-            onMouseOver={e => e.currentTarget.style.color = "rgba(255,255,255,0.65)"}
-            onMouseOut={e  => e.currentTarget.style.color = "rgba(255,255,255,0.28)"}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/>
-            </svg>
-          </button>
-        )}
-        {collapsed && (
-          <button onClick={onToggleCollapse} title="Expand sidebar"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: 0, display: "flex", alignItems: "center", borderRadius: 5 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6"/><polyline points="15 18 21 12 15 6"/>
-            </svg>
-          </button>
-        )}
       </div>
 
       {/* Nav */}
@@ -681,6 +662,31 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
           </>
         )}
       </div>
+
+      {/* Divider + collapse toggle at bottom */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "0 8px" }} />
+      <button
+        onClick={onToggleCollapse}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          height: 44, width: "100%", border: "none", background: "none",
+          cursor: "pointer", color: "rgba(255,255,255,0.35)",
+          transition: "color 0.12s", flexShrink: 0,
+        }}
+        onMouseOver={e => e.currentTarget.style.color = "rgba(255,255,255,0.7)"}
+        onMouseOut={e  => e.currentTarget.style.color = "rgba(255,255,255,0.35)"}>
+        {collapsed ? (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/><polyline points="15 18 21 12 15 6"/>
+          </svg>
+        ) : (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/>
+          </svg>
+        )}
+        {!collapsed && <span style={{ fontSize: 11, fontWeight: 500, marginLeft: 8 }}>Collapse</span>}
+      </button>
 
       </div>{/* end content wrapper */}
     </div>
