@@ -101,7 +101,7 @@ const styles = {
   sidebar: (collapsed) => ({
     width: collapsed ? 80 : 240, minWidth: collapsed ? 80 : 240,
     background: "rgba(5,5,5,0.68)",
-    backgroundImage: "url('/Sidebar%20Background.jpg')",
+    backgroundImage: "url('/Sidebar%20Background.png')",
     backgroundSize: "cover",
     backgroundPosition: "center",
     backdropFilter: "blur(24px) saturate(160%)",
