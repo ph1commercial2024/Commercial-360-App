@@ -91,20 +91,21 @@ const styles = {
     background: C.offWhite,
     color: C.textPri,
   },
-  appHeader: {
+  appHeader: (collapsed) => ({
     background: "#FFFFFF",
     height: 56, display: "flex", alignItems: "center",
     padding: "0 24px", gap: 14,
-    position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
+    position: "fixed", top: 0, left: collapsed ? 80 : 240, right: 0, zIndex: 200,
     borderBottom: "1px solid #E2E8F0",
     boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-  },
+    transition: "left 0.26s cubic-bezier(0.23,1,0.32,1)",
+  }),
   sidebar: (collapsed) => ({
     width: collapsed ? 80 : 240, minWidth: collapsed ? 80 : 240,
     background: "rgba(5,5,8,0.55)",
     display: "flex", flexDirection: "column",
-    position: "fixed", top: 56, left: 0,
-    height: "calc(100vh - 56px)", zIndex: 150,
+    position: "fixed", top: 0, left: 0,
+    height: "100vh", zIndex: 150,
     borderRadius: "0 16px 16px 0",
     border: "1px solid rgba(255,255,255,0.1)",
     borderLeft: "none",
@@ -472,12 +473,12 @@ function LoginPage() {
 }
 
 // ─── APP HEADER ───────────────────────────────────────────────────────────────
-function AppHeader({ profile, pageTitle }) {
+function AppHeader({ profile, pageTitle, sidebarCollapsed }) {
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
   return (
-    <div style={styles.appHeader}>
+    <div style={styles.appHeader(sidebarCollapsed)}>
 
       {/* Left — app name + page title */}
       <div style={{ display: "flex", flexDirection: "column", gap: 1, flexShrink: 0 }}>
@@ -14927,7 +14928,7 @@ export default function App() {
     <SidebarCtx.Provider value={{ toggle: () => setSidebarCollapsed(o => !o) }}>
     <div style={styles.appShell}>
       {/* Full-width fixed header */}
-      <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} />
+      <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} sidebarCollapsed={sidebarCollapsed} />
 
       {/* Persistent glass sidebar */}
       <Sidebar
