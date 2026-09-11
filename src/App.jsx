@@ -563,14 +563,14 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
         backgroundImage: "url('/Sidebar%20Background.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
-        filter: "blur(18px)",
+        filter: "blur(32px)",
         transform: "scale(1.08)",
         zIndex: 0,
       }} />
       {/* 2. Dark tint overlay */}
       <div style={{
         position: "absolute", inset: 0,
-        background: "rgba(5,5,10,0.58)",
+        background: "rgba(5,5,10,0.78)",
         zIndex: 0,
       }} />
       {/* 3. Subtle inner highlight border */}
