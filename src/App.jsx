@@ -92,11 +92,12 @@ const styles = {
     color: C.textPri,
   },
   appHeader: {
-    background: "#111827",
+    background: "#FFFFFF",
     height: 56, display: "flex", alignItems: "center",
-    padding: "0 28px", gap: 14,
+    padding: "0 24px", gap: 14,
     position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
-    boxShadow: "0 1px 0 rgba(255,255,255,0.06)",
+    borderBottom: "1px solid #E2E8F0",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
   },
   sidebar: (collapsed) => ({
     width: collapsed ? 80 : 240, minWidth: collapsed ? 80 : 240,
@@ -477,47 +478,68 @@ function AppHeader({ profile, pageTitle }) {
     : "?";
   return (
     <div style={styles.appHeader}>
-      <HamburgerBtn />
-      {/* PH1 World Developers logo — white version */}
-      <img
-        src="/ph1-logo.png"
-        alt="PH1 World Developers"
-        style={{ height: 32, width: "auto", objectFit: "contain", flexShrink: 0 }}
-      />
 
-      {/* Divider */}
-      <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
-
-      {/* System label */}
-      <div style={{ flexShrink: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.white, letterSpacing: "0.02em", lineHeight: 1.2 }}>Commercial 360</div>
+      {/* Left — app name + page title */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 1, flexShrink: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, letterSpacing: "-0.01em", lineHeight: 1.2 }}>Commercial 360</div>
+        {pageTitle && (
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.coral, letterSpacing: "0.01em" }}>{pageTitle}</div>
+        )}
       </div>
-
-      {/* Page title */}
-      {pageTitle && (
-        <>
-          <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.3)", flexShrink: 0 }} />
-          <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.85)", whiteSpace: "nowrap" }}>{pageTitle}</span>
-        </>
-      )}
 
       <div style={{ flex: 1 }} />
 
-      {/* User info */}
-      {profile && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.white, lineHeight: 1.3 }}>{profile.full_name || "User"}</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", lineHeight: 1.3, display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
-              {profile.position || "—"}
-              {profile.is_admin && (
-                <span style={{ padding: "1px 6px", borderRadius: 99, background: "rgba(0,0,0,0.25)", color: C.white, fontWeight: 700, fontSize: 9, letterSpacing: "0.04em" }}>ADMIN</span>
-              )}
+      {/* Center — search bar */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        background: "#F1F5F9", border: "1px solid #E2E8F0",
+        borderRadius: 8, padding: "0 12px", height: 34, width: 240,
+      }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <span style={{ fontSize: 12, color: "#94A3B8" }}>Search...</span>
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      {/* Right — icon buttons + user info */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        {/* Filter icon */}
+        <button style={{ width: 34, height: 34, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+          </svg>
+        </button>
+        {/* More icon */}
+        <button style={{ width: 34, height: 34, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="5" r="1" fill="#64748B"/><circle cx="12" cy="12" r="1" fill="#64748B"/><circle cx="12" cy="19" r="1" fill="#64748B"/>
+          </svg>
+        </button>
+
+        {/* Divider */}
+        <div style={{ width: 1, height: 24, background: "#E2E8F0", flexShrink: 0 }} />
+
+        {/* User info */}
+        {profile && (
+          <>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.textPri, lineHeight: 1.3 }}>{profile.full_name || "User"}</div>
+              <div style={{ fontSize: 11, color: C.textSec, lineHeight: 1.3 }}>
+                {profile.is_admin ? "Admin" : profile.position || "—"}
+              </div>
             </div>
-          </div>
-          <div style={{ ...styles.avatar, background: C.black, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>{initials}</div>
-        </div>
-      )}
+            <div style={{
+              width: 34, height: 34, borderRadius: "50%",
+              background: C.coral,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0,
+              boxShadow: "0 2px 8px rgba(229,80,58,0.3)",
+            }}>{initials}</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
