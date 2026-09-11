@@ -2458,6 +2458,26 @@ function VendorAccreditationPage({ token }) {
     if (form.has_qms === "yes" && !form.has_internal_qms) missing.push("Internal QMS status (yes/no)");
     if (!form.has_env_management) missing.push("Environmental Management status (yes/no)");
 
+    // Lists — at least one entry required
+    if (!form.client_list.some(r => r.name.trim()))       missing.push("List of Major Clients (at least one)");
+    if (!form.equipment_list.some(r => r.item.trim()))    missing.push("List of Equipment (at least one)");
+    if (!form.stockholder_list.some(r => r.name.trim()))  missing.push("Owners / Stockholders list (at least one)");
+
+    // Company documents
+    if (!(docFiles["Company Profile"] || uploadedDocs["Company Profile"]))
+      missing.push("Company Profile document");
+    if (!(docFiles["Organizational Chart"] || uploadedDocs["Organizational Chart"]))
+      missing.push("Organizational Chart document");
+
+    // Valid Government IDs — both must be uploaded with a non-expired date (60+ days)
+    const idMin60 = new Date(Date.now() + 60 * 86400e3).toISOString().slice(0, 10);
+    COMPANY_ID_DOCS.forEach((d, i) => {
+      const label = i === 0 ? "Valid Government ID 1" : "Valid Government ID 2";
+      if (!(docFiles[d] || uploadedDocs[d])) missing.push(`${label} (upload required)`);
+      else if (!docExpiry[d]?.expiry_date)   missing.push(`${label} (expiry date required)`);
+      else if (docExpiry[d].expiry_date <= idMin60) missing.push(`${label} (must be valid for 60+ more days)`);
+    });
+
     if (missing.length > 0) {
       alert("Please fill in all required fields:\n• " + missing.join("\n• "));
       return;
@@ -2905,7 +2925,7 @@ function VendorAccreditationPage({ token }) {
               Company Identity
             </div>
             <PrepDocRow name="2 Valid Government IDs" note="Passport, Driver's License, UMID, PhilSys, PRC, or Voter's ID" badge={<PrepBadge type="req" label="Required" />} />
-            <PrepDocRow name="Company Profile &amp; Organizational Chart" badge={<PrepBadge type="pref" label="Preferred" />} />
+            <PrepDocRow name="Company Profile &amp; Organizational Chart" badge={<PrepBadge type="req" label="Required" />} />
           </div>
 
           {/* Financial Documents */}
@@ -2984,7 +3004,7 @@ function VendorAccreditationPage({ token }) {
   if (notFound) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.offWhite }}>
       <div style={{ ...S.card, maxWidth: 400, textAlign: "center" }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>ðŸ”—</div>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🔗</div>
         <div style={{ fontSize: 16, fontWeight: 700, color: C.textPri, marginBottom: 8 }}>Link not found</div>
         <div style={{ fontSize: 13, color: C.textSec }}>This accreditation link is invalid or has expired. Please contact the admin for a new link.</div>
       </div>
@@ -3138,7 +3158,14 @@ function VendorAccreditationPage({ token }) {
             !!_kc.technical_incharge?.name?.trim() &&
             ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim()) &&
             !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms && !!form.has_env_management &&
-            (form.has_qms !== "yes" || !!form.has_internal_qms);
+            (form.has_qms !== "yes" || !!form.has_internal_qms) &&
+            COMPANY_ID_DOCS.every(d => (docFiles[d] || uploadedDocs[d]) &&
+              docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate) &&
+            form.client_list.some(r => r.name.trim()) &&
+            form.equipment_list.some(r => r.item.trim()) &&
+            form.stockholder_list.some(r => r.name.trim()) &&
+            !!(docFiles["Company Profile"] || uploadedDocs["Company Profile"]) &&
+            !!(docFiles["Organizational Chart"] || uploadedDocs["Organizational Chart"]);
           const _cfg = fieldReqs[form.vendor_type] || {};
           const _cfgOk =
             (!_cfg.satellite_address   || !!form.satellite_address.trim()) &&
@@ -4446,23 +4473,29 @@ function VendorAccreditationPage({ token }) {
             !!form.is_subsidiary &&
             (form.is_subsidiary !== "yes" || (form.parent_company_name.trim() && form.parent_company_country.trim())) &&
             !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms &&
-            (form.has_qms !== "no" || !!form.has_internal_qms) &&
+            (form.has_qms !== "yes" || !!form.has_internal_qms) &&
             !!form.has_env_management;
+          // Always-required subset of compliance (yes/no answers — excludes admin-gated num_employees/is_subsidiary)
+          const complianceYesNoOk = !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms &&
+            (form.has_qms !== "yes" || !!form.has_internal_qms) && !!form.has_env_management;
           const declarationOk  = form.declaration_confirmed && form.authorization_confirmed &&
             !!sigSalesManager && !!sigPresident &&
             !!form.signatory_sales_manager.trim() && !!form.signatory_president.trim();
-          // Only enforce what the hub section cards actually track (so hub "100% / Ready to submit"
-          // always matches a clickable Submit button). Non-hub items (client list, equipment,
-          // key contacts, company docs, bank details, compliance answers) are optional unless
-          // admin marks them required via fieldReqs → cfgFieldsOk.
+          // All fields marked * in the UI must be satisfied here so the Submit button
+          // stays disabled until the form is genuinely complete.
           const requiredOk =
             companyBasicOk && cfgFieldsOk && telephoneOk &&
-            taxInfoOk &&
+            !!form.contact_position?.trim() && !!form.representative_title?.trim() &&
+            keyContactsOk &&
+            clientListOk && equipmentOk && stockholderOk &&
+            companyDocsOk &&
+            taxInfoOk && bankOk &&
             form.primary_activities.length > 0 &&
             form.trade_categories.length > 0 &&
             idDocsOk && idExpiryOk &&
             govDocsOk && govExpiryOk &&
             finRequiredOk &&
+            complianceYesNoOk &&
             declarationOk;
           const disabled = submitting || !requiredOk;
           return <>
