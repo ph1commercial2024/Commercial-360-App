@@ -100,45 +100,54 @@ const styles = {
     position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
     boxShadow: "0 2px 12px rgba(0,0,0,0.22), 0 1px 0 rgba(0,0,0,0.12)",
   },
-  sidebar: (open) => ({
-    width: 230, minWidth: 230,
-    background: "linear-gradient(180deg, #141414 0%, #000000 100%)",
+  sidebar: (collapsed) => ({
+    width: collapsed ? 68 : 232, minWidth: collapsed ? 68 : 232,
+    background: "rgba(20,20,24,0.72)",
+    backdropFilter: "blur(28px) saturate(160%)",
+    WebkitBackdropFilter: "blur(28px) saturate(160%)",
     display: "flex", flexDirection: "column",
     position: "fixed", top: 56, left: 0,
     height: "calc(100vh - 56px)", zIndex: 150,
     borderRadius: "0 16px 16px 0",
-    boxShadow: "4px 0 32px rgba(0,0,0,0.35)",
+    borderRight: "1px solid rgba(255,255,255,0.09)",
+    boxShadow: "4px 0 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.1), inset 1px 0 0 rgba(255,255,255,0.06)",
     overflow: "hidden",
-    transform: open ? "translateX(0)" : "translateX(-100%)",
-    transition: "transform 0.28s cubic-bezier(0.23,1,0.32,1)",
+    transition: "width 0.26s cubic-bezier(0.23,1,0.32,1), min-width 0.26s cubic-bezier(0.23,1,0.32,1)",
   }),
-  sidebarBackdrop: (open) => ({
-    position: "fixed", inset: 0, top: 56, zIndex: 140,
-    background: "rgba(0,0,0,0.45)",
-    opacity: open ? 1 : 0,
-    pointerEvents: open ? "auto" : "none",
-    transition: "opacity 0.28s ease",
+  nav: { padding: "8px 8px", flex: 1, overflowY: "auto" },
+  navSection: (collapsed) => ({
+    fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.22)",
+    letterSpacing: "0.07em",
+    padding: collapsed ? "0" : "0 6px",
+    marginBottom: 4, marginTop: 16,
+    textAlign: collapsed ? "center" : "left",
+    overflow: "hidden", whiteSpace: "nowrap",
+    opacity: collapsed ? 0 : 1,
+    height: collapsed ? 0 : "auto",
+    transition: "opacity 0.2s",
   }),
-  nav: { padding: "16px 10px", flex: 1, overflowY: "auto" },
-  navSection: {
-    fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)",
-    letterSpacing: "0.08em", textTransform: "uppercase",
-    padding: "0 12px", marginBottom: 6, marginTop: 16,
-  },
-  navItem: (active) => ({
-    display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10,
-    cursor: "pointer", fontSize: 13, fontWeight: active ? 600 : 400,
-    color: active ? "#FFFFFF" : "rgba(255,255,255,0.5)",
-    background: active ? "rgba(255,255,255,0.1)" : "transparent",
-    border: "none",
-    marginBottom: 2, transition: "background 0.15s, color 0.15s",
+  navItem: (active, collapsed) => ({
+    display: "flex", alignItems: "center",
+    gap: collapsed ? 0 : 10,
+    padding: collapsed ? "0" : "0 10px",
+    justifyContent: collapsed ? "center" : "flex-start",
+    height: 38, borderRadius: 8,
+    cursor: "pointer", fontSize: 13, fontWeight: active ? 600 : 500,
+    color: active ? "#FFFFFF" : "rgba(255,255,255,0.48)",
+    background: active ? "rgba(255,255,255,0.09)" : "transparent",
+    border: active ? "1px solid rgba(255,255,255,0.1)" : "1px solid transparent",
+    boxShadow: active ? "inset 0 1px 0 rgba(255,255,255,0.08)" : "none",
+    marginBottom: 2, transition: "background 0.15s, color 0.15s, border-color 0.15s",
     width: "100%", textAlign: "left",
   }),
-  sidebarUser: {
-    padding: "14px 16px",
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    display: "flex", alignItems: "center", gap: 10,
-  },
+  sidebarUser: (collapsed) => ({
+    padding: collapsed ? "12px 8px" : "12px 14px",
+    borderTop: "1px solid rgba(255,255,255,0.07)",
+    display: "flex", alignItems: "center",
+    gap: collapsed ? 0 : 10,
+    justifyContent: collapsed ? "center" : "flex-start",
+    transition: "padding 0.26s",
+  }),
   avatar: {
     width: 34, height: 34, borderRadius: "50%",
     background: `linear-gradient(135deg, ${C.coral}, ${C.coralDark})`,
@@ -146,10 +155,12 @@ const styles = {
     fontSize: 12, fontWeight: 600, color: C.white, flexShrink: 0,
     boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
   },
-  mainContent: {
+  mainContent: (collapsed) => ({
     paddingTop: 56,
+    marginLeft: collapsed ? 68 : 232,
     minHeight: "100vh", background: C.offWhite,
-  },
+    transition: "margin-left 0.26s cubic-bezier(0.23,1,0.32,1)",
+  }),
   topBar: {
     background: "rgba(255,255,255,0.88)",
     backdropFilter: "blur(20px)",
@@ -517,66 +528,135 @@ function AppHeader({ profile, pageTitle }) {
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-function Sidebar({ page, setPage, profile, onLogout, open, onClose }) {
-  const isAdm       = profile?.is_admin === true;
-  const showPR      = can(profile, "pr.prepare") || isAdm;
-  const showProjects= can(profile, "project.view");
-  const showVendors = can(profile, "vendor.view");
-  const showRFPs    = can(profile, "rfp.create") || can(profile, "rfp.bidcom1") || can(profile, "rfp.bidcom2");
-  const showRFA     = can(profile, "rfa.create") || can(profile, "rfa.approve");
+function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse }) {
+  const isAdm        = profile?.is_admin === true;
+  const showPR       = can(profile, "pr.prepare") || isAdm;
+  const showProjects = can(profile, "project.view");
+  const showVendors  = can(profile, "vendor.view");
+  const showRFPs     = can(profile, "rfp.create") || can(profile, "rfp.bidcom1") || can(profile, "rfp.bidcom2");
+  const showRFA      = can(profile, "rfa.create") || can(profile, "rfa.approve");
+
   const navItems = [
-  ...(showPR ? [
-    { key: "dashboard",    label: "Purchase Requests", icon: "pr",       section: "MAIN"  },
-  ] : []),
-  ...(showProjects ? [
-    { key: "projects",     label: "Projects",          icon: "projects", section: showPR ? null : "MAIN" },
-  ] : []),
-  ...(showRFPs ? [
-    { key: "rfps",         label: "RFPs",              icon: "rfp",      section: null    },
-  ] : []),
-  ...(showVendors ? [
-    { key: "vendors",      label: "Vendors",           icon: "users",    section: null    },
-  ] : []),
-  ...(showRFA ? [
-    { key: "rfq_list",     label: "RFQ",               icon: "rfp",      section: null    },
-    { key: "rfa_list",     label: "Rec. for Award",    icon: "rfp",      section: null    },
-    { key: "contracts",    label: "Contracts",          icon: "contract", section: null    },
-  ] : []),
-  ...(isAdm ? [
-    { key: "users",        label: "Users & Roles",     icon: "users",    section: "ADMIN" },
-    { key: "settings",     label: "Settings",          icon: "settings", section: null    },
-  ] : []),
-];
+    ...(showPR       ? [{ key: "dashboard", label: "Purchase Requests", icon: "pr",       section: "Main"        }] : []),
+    ...(showProjects ? [{ key: "projects",  label: "Projects",          icon: "projects", section: showPR ? null : "Main" }] : []),
+    ...(showRFPs     ? [{ key: "rfps",      label: "RFPs",              icon: "rfp",      section: "Procurement" }] : []),
+    ...(showVendors  ? [{ key: "vendors",   label: "Vendors",           icon: "users",    section: showRFPs ? null : "Procurement" }] : []),
+    ...(showRFA      ? [
+      { key: "rfq_list",  label: "RFQ",            icon: "rfp",      section: (showRFPs || showVendors) ? null : "Procurement" },
+      { key: "rfa_list",  label: "Rec. for Award", icon: "rfp",      section: null },
+      { key: "contracts", label: "Contracts",       icon: "contract", section: null },
+    ] : []),
+    ...(isAdm ? [
+      { key: "users",    label: "Users & Roles", icon: "users",    section: "Admin" },
+      { key: "settings", label: "Settings",      icon: "settings", section: null    },
+    ] : []),
+  ];
+
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
+
   let lastSection = null;
+
   return (
-    <div style={styles.sidebar(open)}>
+    <div style={styles.sidebar(collapsed)}>
+
+      {/* Logo card */}
+      <div style={{
+        margin: "10px 8px 16px",
+        background: "rgba(255,255,255,0.06)",
+        border: "1px solid rgba(255,255,255,0.09)",
+        borderRadius: 10,
+        padding: collapsed ? "9px 0" : "9px 12px",
+        display: "flex", alignItems: "center",
+        gap: collapsed ? 0 : 10,
+        justifyContent: collapsed ? "center" : "flex-start",
+        transition: "padding 0.26s",
+        flexShrink: 0,
+      }}>
+        {/* PH1 triangles mark */}
+        <div style={{
+          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+          background: C.coral,
+          boxShadow: `0 0 18px rgba(229,80,58,0.32), inset 0 1px 0 rgba(255,255,255,0.18)`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <polygon points="2,14 7,6 12,14" fill="rgba(255,255,255,0.92)"/>
+            <polygon points="8,14 13,6 18,14" fill="rgba(255,255,255,0.52)"/>
+          </svg>
+        </div>
+
+        {/* Brand text — hidden when collapsed */}
+        {!collapsed && (
+          <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", lineHeight: 1.2, whiteSpace: "nowrap" }}>PH1 World</div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.3)", letterSpacing: "0.09em", textTransform: "uppercase", marginTop: 1 }}>Developers</div>
+          </div>
+        )}
+
+        {/* Collapse toggle */}
+        {!collapsed && (
+          <button onClick={onToggleCollapse} title="Collapse sidebar"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.28)", padding: 3, display: "flex", alignItems: "center", flexShrink: 0, borderRadius: 5, transition: "color 0.12s" }}
+            onMouseOver={e => e.currentTarget.style.color = "rgba(255,255,255,0.65)"}
+            onMouseOut={e  => e.currentTarget.style.color = "rgba(255,255,255,0.28)"}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/>
+            </svg>
+          </button>
+        )}
+        {collapsed && (
+          <button onClick={onToggleCollapse} title="Expand sidebar"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: 0, display: "flex", alignItems: "center", borderRadius: 5 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/><polyline points="15 18 21 12 15 6"/>
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Nav */}
       <nav style={styles.nav}>
         {navItems.map(item => {
+          const active = page === item.key;
           const showSection = item.section && item.section !== lastSection;
           if (item.section) lastSection = item.section;
           return (
             <div key={item.key}>
-              {showSection && <div style={{ ...styles.navSection, marginTop: item.section === "MAIN" ? 0 : 16 }}>{item.section}</div>}
-              <button style={styles.navItem(page === item.key)} onClick={() => setPage(item.key)}>
-                <Icon name={item.icon} size={14} color={page === item.key ? "#FFFFFF" : "rgba(255,255,255,0.6)"} />
-                {item.label}
+              {showSection && (
+                <div style={styles.navSection(collapsed)}>{item.section}</div>
+              )}
+              <button
+                title={collapsed ? item.label : undefined}
+                style={styles.navItem(active, collapsed)}
+                onClick={() => setPage(item.key)}
+                onMouseOver={e => { if (!active) { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }}}
+                onMouseOut={e  => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.48)"; }}}>
+                <div style={{ width: collapsed ? 20 : 18, height: collapsed ? 20 : 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name={item.icon} size={collapsed ? 16 : 15} color={active ? "#FFFFFF" : "rgba(255,255,255,0.5)"} />
+                </div>
+                {!collapsed && <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>}
               </button>
             </div>
           );
         })}
       </nav>
-      <div style={styles.sidebarUser}>
-        <div style={styles.avatar}>{initials}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: C.white, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{profile?.full_name || "User"}</div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{profile?.position || "—"}{profile?.is_admin ? " · Admin" : ""}</div>
-        </div>
-        <button onClick={onLogout} title="Sign out" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
-          <Icon name="logout" size={14} color="rgba(255,255,255,0.4)" />
-        </button>
+
+      {/* User footer */}
+      <div style={styles.sidebarUser(collapsed)}>
+        <div style={{ ...styles.avatar, flexShrink: 0 }}>{initials}</div>
+        {!collapsed && (
+          <>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{profile?.full_name || "User"}</div>
+              <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)" }}>{profile?.position || "—"}{profile?.is_admin ? " · Admin" : ""}</div>
+            </div>
+            <button onClick={onLogout} title="Sign out" style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", flexShrink: 0 }}>
+              <Icon name="logout" size={14} color="rgba(255,255,255,0.35)" />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -14730,7 +14810,7 @@ export default function App() {
   const [selectedRFQId, setSelectedRFQId] = useState(null);
   const [rfaPRId, setRfaPRId] = useState(null);
   const [selectedContractId, setSelectedContractId] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [ph1LogoUrl, setPh1LogoUrl] = useState(null);
 
   useEffect(() => {
@@ -14806,23 +14886,20 @@ export default function App() {
   };
 
   return (
-    <SidebarCtx.Provider value={{ toggle: () => setSidebarOpen(o => !o) }}>
+    <SidebarCtx.Provider value={{ toggle: () => setSidebarCollapsed(o => !o) }}>
     <div style={styles.appShell}>
       {/* Full-width fixed header */}
       <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} />
 
-      {/* Sidebar overlay drawer */}
+      {/* Persistent glass sidebar */}
       <Sidebar
-        page={activeSidebarPage} setPage={(p) => { setPage(p); setSidebarOpen(false); }}
+        page={activeSidebarPage} setPage={(p) => setPage(p)}
         profile={profile} onLogout={handleLogout}
-        open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(o => !o)}
       />
 
-      {/* Backdrop — closes sidebar on click */}
-      <div style={styles.sidebarBackdrop(sidebarOpen)} onClick={() => setSidebarOpen(false)} />
-
-      {/* Main content — always full width */}
-      <div style={styles.mainContent}>{pageMap[page] || pageMap.dashboard}</div>
+      {/* Main content — shifts right with sidebar */}
+      <div style={styles.mainContent(sidebarCollapsed)}>{pageMap[page] || pageMap.dashboard}</div>
     </div>
     </SidebarCtx.Provider>
   );
