@@ -2623,9 +2623,9 @@ function ProjectsPage({ profile }) {
           <div style={{ overflowX: "auto" }} onClick={() => openMenuId && setOpenMenuId(null)}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ background: C.coralMid }}>
+                <tr style={{ background: "#374151" }}>
                   {["Project Code","Project Name","Commercial Officer","Start","End","Status",""].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -2633,7 +2633,7 @@ function ProjectsPage({ profile }) {
                 {loading && <tr><td colSpan={7} style={{ textAlign: "center", padding: "32px 0", color: C.textTer, fontSize: 13 }}>Loading…</td></tr>}
                 {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: C.textTer, fontSize: 13 }}>No projects found.{canManage && <> <span style={{ color: C.coral, cursor: "pointer" }} onClick={openCreate}>Create one</span>.</>}</td></tr>}
                 {!loading && filtered.map((p, i) => (
-                  <tr key={p.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", transition: "background 0.12s" }}
+                  <tr key={p.id} style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", transition: "background 0.12s" }}
                     onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                     onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                     {/* Project Code — auto-generated unique identifier */}
@@ -3109,7 +3109,7 @@ function BudgetCodesPage({ profile }) {
                 </thead>
                 <tbody>
                   {filtered.map((bc, i) => (
-                    <tr key={bc.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", opacity: bc.is_active ? 1 : 0.55 }}>
+                    <tr key={bc.id} style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", opacity: bc.is_active ? 1 : 0.55 }}>
                       <td style={{ padding: "11px 14px", fontFamily: "monospace", fontWeight: 700, color: bc.is_active ? C.coral : C.textTer }}>{bc.code}</td>
                       <td style={{ padding: "11px 14px", color: C.textSec }}>{bc.projects?.name}</td>
                       <td style={{ padding: "11px 14px" }}>
@@ -4203,9 +4203,9 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
             <thead>
-              <tr style={{ background: C.coralMid }}>
+              <tr style={{ background: "#374151" }}>
                 {["Title", "Status", "PRs Linked", "Vendors Invited", "Deadline", "Created By", ""].map(h => (
-                  <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -4218,7 +4218,7 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
               )}
               {!loading && filtered.map((r, i) => (
                 <tr key={r.id} onClick={() => { setSelectedRFPId(r.id); setPage("rfp_detail"); }}
-                  style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background 0.15s" }}
+                  style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
                   onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                   onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "9px 14px" }}>
@@ -6414,9 +6414,9 @@ function VendorsPage({ profile }) {
           <div>
             <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
               <thead>
-                <tr style={{ background: C.coralMid }}>
+                <tr style={{ background: "#374151" }}>
                   {["Company", "Contact Person", "Primary Activity", "Class", "Status", "Date", ""].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -6425,7 +6425,7 @@ function VendorsPage({ profile }) {
                 {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", padding: "48px 0", color: C.textTer }}>No vendors found.</td></tr>}
                 {!loading && filtered.map((v, i) => (
                   <tr key={v.id} onClick={() => openDetail(v)}
-                    style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background 0.15s" }}
+                    style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
                     onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                     onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                     <td style={{ padding: "9px 14px" }}>
@@ -8114,9 +8114,9 @@ function UsersPage({ profile }) {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
-                <tr style={{ background: C.coralMid }}>
+                <tr style={{ background: "#374151" }}>
                   {["User", "Email", "Position", "Access", "Status", ""].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -8155,7 +8155,7 @@ function UsersPage({ profile }) {
                   const initials = (user.full_name || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
                   return (
                     <tr key={user.id}
-                      style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", transition: "background 0.15s" }}
+                      style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", transition: "background 0.15s" }}
                       onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                       onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                       {/* User */}
@@ -8729,9 +8729,9 @@ function RFQListPage({ profile, setPage, setSelectedRFQId }) {
           <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
             <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
               <thead>
-                <tr style={{ background: C.coralMid }}>
+                <tr style={{ background: "#374151" }}>
                   {["RFQ #","PR #","Project","Status","Deadline",""].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -8743,7 +8743,7 @@ function RFQListPage({ profile, setPage, setSelectedRFQId }) {
                   return (
                     <tr key={r.id}
                       onClick={() => { setSelectedRFQId(r.id); setPage("rfq_detail"); }}
-                      style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background 0.15s" }}
+                      style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
                       onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                       onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                       <td style={{ padding: "9px 14px", fontWeight: 600, color: C.coral, fontFamily: "monospace" }}>{r.rfq_number}</td>
@@ -9852,9 +9852,9 @@ function RFAListPage({ profile, setPage, setSelectedRFAId, setRfaPRId }) {
             <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: C.coralMid }}>
+                  <tr style={{ background: "#374151" }}>
                     {["RFA #","PR #","Project","Status","Recommended Vendor","Created by","Date"].map(h => (
-                      <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 600, color: C.coralDark, textTransform: "uppercase", letterSpacing: "0.06em", padding: "9px 14px", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
+                      <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 600, color: "#FFFFFF", textTransform: "uppercase", letterSpacing: "0.06em", padding: "11px 16px", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -9863,7 +9863,7 @@ function RFAListPage({ profile, setPage, setSelectedRFAId, setRfaPRId }) {
                   {filtered.map((rfa, i) => (
                     <tr key={rfa.id}
                       onClick={() => { setSelectedRFAId(rfa.id); setRfaPRId(null); setPage("rfa_form"); }}
-                      style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background 0.15s" }}
+                      style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
                       onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                       onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                       <td style={{ padding: "9px 14px", fontSize: 13, fontWeight: 600, color: C.coral, fontFamily: "monospace" }}>{rfa.rfa_number}</td>
@@ -14549,9 +14549,9 @@ function ContractsListPage({ profile, setPage, setSelectedContractId }) {
             <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: C.coralMid }}>
+                  <tr style={{ background: "#374151" }}>
                     {["Contract No.", "RFA No.", "Project", "Status", "Prepared by", "Date", ""].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.coralDark, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${C.coralLight}`, whiteSpace: "nowrap" }}>{h}</th>
+                      <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -14560,7 +14560,7 @@ function ContractsListPage({ profile, setPage, setSelectedContractId }) {
                   {filtered.map((c, i) => (
                     <tr key={c.id}
                       onClick={() => { setSelectedContractId(c.id); setPage("contract_detail"); }}
-                      style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", transition: "background 0.15s" }}
+                      style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
                       onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                       onMouseOut={e => e.currentTarget.style.background = "transparent"}>
                       <td style={{ padding: "9px 14px", fontWeight: 600, color: C.coral, fontFamily: "monospace" }}>{c.contract_number}</td>
