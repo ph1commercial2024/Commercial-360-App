@@ -100,12 +100,7 @@ const styles = {
   },
   sidebar: (collapsed) => ({
     width: collapsed ? 80 : 240, minWidth: collapsed ? 80 : 240,
-    background: "rgba(5,5,5,0.68)",
-    backgroundImage: "url('/Sidebar%20Background.png')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backdropFilter: "blur(24px) saturate(160%)",
-    WebkitBackdropFilter: "blur(24px) saturate(160%)",
+    background: "rgba(5,5,8,0.55)",
     display: "flex", flexDirection: "column",
     position: "fixed", top: 56, left: 0,
     height: "calc(100vh - 56px)", zIndex: 150,
@@ -561,6 +556,34 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
   return (
     <div style={styles.sidebar(collapsed)}>
 
+      {/* ── Frosted glass layers ── */}
+      {/* 1. Blurred background image */}
+      <div style={{
+        position: "absolute", top: -20, left: -20, right: -20, bottom: -20,
+        backgroundImage: "url('/Sidebar%20Background.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        filter: "blur(18px)",
+        transform: "scale(1.08)",
+        zIndex: 0,
+      }} />
+      {/* 2. Dark tint overlay */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "rgba(5,5,10,0.58)",
+        zIndex: 0,
+      }} />
+      {/* 3. Subtle inner highlight border */}
+      <div style={{
+        position: "absolute", inset: 0,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.13), inset 1px 0 0 rgba(255,255,255,0.07)",
+        borderRadius: "0 16px 16px 0",
+        zIndex: 0, pointerEvents: "none",
+      }} />
+
+      {/* All content above the layers */}
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+
       {/* Logo card */}
       <div style={{
         margin: "10px 8px 16px",
@@ -658,6 +681,8 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
           </>
         )}
       </div>
+
+      </div>{/* end content wrapper */}
     </div>
   );
 }
