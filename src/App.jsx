@@ -6328,9 +6328,9 @@ function VendorsPage({ profile }) {
               <div style={{ background: C.white, border: "1px solid #C7D2FE", borderRadius: 12, overflow: "clip", boxShadow: "0 0 0 3px rgba(79,70,229,0.04), 0 1px 3px rgba(79,70,229,0.08)" }}>
                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
                   <thead>
-                    <tr style={{ background: "#EEF2FF" }}>
+                    <tr style={{ background: "#374151" }}>
                       {["Email Address", "Date Invited", "Link Status", "Progress", ""].map(h => (
-                        <th key={h} style={{ textAlign: h === "" ? "right" : "left", padding: "8px 14px", fontWeight: 700, color: "#4338CA", fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid #C7D2FE", whiteSpace: "nowrap" }}>{h}</th>
+                        <th key={h} style={{ textAlign: h === "" ? "right" : "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -6340,7 +6340,7 @@ function VendorsPage({ profile }) {
                       const inProgress = linked?.accreditation_status === "Draft";
                       const isExpired = tokenLinkStatus(t.created_at) === "expired";
                       return (
-                        <tr key={t.token} style={{ borderBottom: i < visibleRows.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                        <tr key={t.token} style={{ borderBottom: i < visibleRows.length - 1 ? "1px dashed #E5E7EB" : "none" }}>
                           <td style={{ padding: "9px 14px" }}>
                             <div style={{ fontWeight: 500, color: C.textPri }}>{t.invited_email}</div>
                           </td>
