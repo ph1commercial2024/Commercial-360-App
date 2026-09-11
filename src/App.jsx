@@ -5690,12 +5690,30 @@ function VendorsPage({ profile }) {
   const [inviteLink, setInviteLink]           = useState("");
   const [inviteLoading, setInviteLoading]     = useState(false);
   const [inviteCount, setInviteCount]         = useState(0);
+  const [inviteTokens, setInviteTokens]       = useState([]); // raw token rows for invited section
+  const [showAllInvited, setShowAllInvited]   = useState(false);
+
+  const INVITE_EXPIRY_DAYS = 30;
+  const tokenLinkStatus = (createdAt) => {
+    const days = Math.floor((Date.now() - new Date(createdAt)) / 86400000);
+    if (days > INVITE_EXPIRY_DAYS) return "expired";
+    if (days > INVITE_EXPIRY_DAYS - 7) return "expiring";
+    return "active";
+  };
+
+  const fetchInviteTokens = async () => {
+    const { data } = await supabase
+      .from("vendor_accreditation_tokens")
+      .select("token, invited_email, created_at, vendor_id")
+      .order("created_at", { ascending: false });
+    setInviteTokens(data || []);
+    setInviteCount((data || []).length);
+  };
 
   useEffect(() => {
     fetchVendors();
     fetchClassRules();
-    supabase.from("vendor_accreditation_tokens").select("*", { count: "exact", head: true })
-      .then(({ count }) => setInviteCount(count || 0));
+    fetchInviteTokens();
     supabase.from("trade_categories").select("name").eq("is_approved", true).order("display_order").order("name")
       .then(({ data }) => setTradeCatOptions((data || []).map(t => t.name)));
   }, []);
@@ -5975,9 +5993,46 @@ function VendorsPage({ profile }) {
       </div>`
     );
     setInviteLoading(false);
+    fetchInviteTokens();
+  };
+
+  const handleResendInvite = async (email) => {
+    const { data: tok } = await supabase
+      .from("vendor_accreditation_tokens")
+      .select("token")
+      .eq("invited_email", email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!tok?.token) { alert("Token not found."); return; }
+    const url = buildInviteUrl(window.location.origin, tok.token);
+    await sendEmail(
+      email,
+      "Vendor Accreditation Invitation – Commercial & Contract Management System",
+      `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="color:#3F3F3F;">Vendor Accreditation Invitation</h2>
+        <p>You have been invited to submit your accreditation to our Commercial &amp; Contract Management System.</p>
+        <p>Please click the link below to fill in your company details and upload the required documents:</p>
+        <p style="margin:24px 0;">
+          <a href="${url}" style="background:#3F3F3F;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
+            Start Accreditation
+          </a>
+        </p>
+        <p style="font-size:12px;color:#888;">Or copy this link: ${url}</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+        <p style="font-size:11px;color:#aaa;">This invitation was resent by ${profile?.full_name || "the procurement team"}.</p>
+      </div>`
+    );
+    alert(`Invite resent to ${email}`);
+  };
+
+  const handleCopyInviteLink = (token) => {
+    const url = buildInviteUrl(window.location.origin, token);
+    navigator.clipboard.writeText(url).then(() => alert("Link copied to clipboard.")).catch(() => alert(url));
   };
 
   const filtered = vendors.filter(v => {
+    if (v.accreditation_status === "Draft") return false; // Draft vendors live in the Invited section
     const name = v.vendor_company_info?.company_name || v.profiles?.full_name || "";
     const matchSearch = name.toLowerCase().includes(search.toLowerCase());
     let matchStatus;
@@ -5999,7 +6054,7 @@ function VendorsPage({ profile }) {
 
   const fmtCurrency = (n) => n ? `₱${Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : "—";
   const fmt = (d) => d ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—";
-  const STATUSES = ["All", "Draft", "Submitted", "Under Review", "Returned", "Accredited", "Declined"];
+  const STATUSES = ["All", "Submitted", "Under Review", "Returned", "Accredited", "Declined"];
   const STATUS_COLORS = {
     "Draft":        { bg: "#F1F0EE", color: "#5F5E5A" },
     "Submitted":    { bg: "#E6F4EF", color: "#0F6E56" },
@@ -6070,38 +6125,143 @@ function VendorsPage({ profile }) {
 
       <div style={styles.pageBody}>
   <div style={{ maxWidth: "80%", margin: "0 auto" }}>
-        {/* Summary cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 12 }}>
-          {[
-            { label: "Total",        value: inviteCount,                                                                       color: C.textPri,  desc: "Total invited vendors"    },
+        {/* Summary cards — 6 cards including Invited */}
+        {(() => {
+          const draftCount = inviteTokens.filter(t => {
+            const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
+            return !linked || linked.accreditation_status === "Draft";
+          }).length;
+          const cards = [
+            { label: "Total",        value: vendors.filter(v => v.accreditation_status !== "Draft").length, color: C.textPri,  desc: "Vendors on file"          },
+            { label: "Invited",      value: draftCount,                                                      color: "#4338CA",  desc: "Awaiting response",        isInvited: true },
             { label: "Submitted",    value: vendors.filter(v => v.accreditation_status === "Submitted").length,    color: "#0F6E56",  desc: "Applications received"    },
             { label: "Under Review", value: vendors.filter(v => v.accreditation_status === "Under Review").length, color: "#4338CA",  desc: "Being evaluated"           },
             { label: "Returned",     value: vendors.filter(v => v.accreditation_status === "Returned").length,     color: C.amberText,desc: "Returned for corrections"   },
             { label: "Accredited",   value: vendors.filter(v => v.accreditation_status === "Accredited").length,   color: C.greenText,desc: "Fully approved vendors"     },
-          ].map(s => {
-            const isActive = activeCard === s.label;
-            return (
-              <div key={s.label}
-                onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                style={{
-                  background: isActive ? C.coralLight : C.white,
-                  border: `1px solid ${isActive ? C.coral : C.border}`,
-                  borderRadius: 12, padding: "14px 18px",
-                  boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                  cursor: "pointer", userSelect: "none",
-                  transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                  textAlign: "center",
-                }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
+          ];
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 20 }}>
+              {cards.map(s => {
+                const isActive = activeCard === s.label;
+                return (
+                  <div key={s.label}
+                    onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
+                    style={{
+                      background: isActive ? (s.isInvited ? "#EEF2FF" : C.coralLight) : C.white,
+                      border: `1px solid ${isActive ? (s.isInvited ? "#818CF8" : C.coral) : (s.isInvited ? "#C7D2FE" : C.border)}`,
+                      borderRadius: 12, padding: "14px 18px",
+                      boxShadow: isActive ? `0 0 0 2px ${s.isInvited ? "rgba(99,102,241,0.15)" : C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
+                      cursor: "pointer", userSelect: "none",
+                      transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
+                      textAlign: "center",
+                    }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? (s.isInvited ? "#4338CA" : C.coralDark) : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
+                    <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {/* ── SECTION 1: Invited — Awaiting Response ── */}
+        {(() => {
+          // Tokens where vendor hasn't progressed past Draft
+          const invitedRows = inviteTokens.filter(t => {
+            const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
+            return !linked || linked.accreditation_status === "Draft";
+          });
+          if (invitedRows.length === 0) return null;
+          const visibleRows = showAllInvited ? invitedRows : invitedRows.slice(0, 5);
+          const linkStatusBadge = (createdAt) => {
+            const s = tokenLinkStatus(createdAt);
+            if (s === "expired")  return <span style={{ fontSize: 10, fontWeight: 600, background: "#FDEDED", color: "#B91C1C", padding: "2px 8px", borderRadius: 99 }}>✕ Expired</span>;
+            if (s === "expiring") return <span style={{ fontSize: 10, fontWeight: 600, background: "#FEF3E2", color: "#92580A", padding: "2px 8px", borderRadius: 99 }}>⚠ Expiring soon</span>;
+            return <span style={{ fontSize: 10, fontWeight: 600, background: "#EAF3DE", color: "#3B6D11", padding: "2px 8px", borderRadius: 99 }}>● Active</span>;
+          };
+          return (
+            <div style={{ marginBottom: 20 }}>
+              {/* Section header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>📩 Invited — Awaiting Response</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, background: "#EEF2FF", color: "#4338CA", border: "1px solid #C7D2FE", padding: "2px 9px", borderRadius: 99 }}>{invitedRows.length} pending</span>
+                </div>
+                <span style={{ fontSize: 11, color: C.textTer }}>Vendors who received an invite link but haven't submitted yet</span>
               </div>
-            );
-          })}
+
+              {/* Invited table */}
+              <div style={{ background: C.white, border: "1px solid #C7D2FE", borderRadius: 12, overflow: "clip", boxShadow: "0 0 0 3px rgba(79,70,229,0.04), 0 1px 3px rgba(79,70,229,0.08)" }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#EEF2FF" }}>
+                      {["Email Address", "Date Invited", "Link Status", "Progress", ""].map(h => (
+                        <th key={h} style={{ textAlign: h === "" ? "right" : "left", padding: "8px 14px", fontWeight: 700, color: "#4338CA", fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid #C7D2FE", whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((t, i) => {
+                      const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
+                      const inProgress = linked?.accreditation_status === "Draft";
+                      const isExpired = tokenLinkStatus(t.created_at) === "expired";
+                      return (
+                        <tr key={t.token} style={{ borderBottom: i < visibleRows.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                          <td style={{ padding: "9px 14px" }}>
+                            <div style={{ fontWeight: 500, color: C.textPri }}>{t.invited_email}</div>
+                          </td>
+                          <td style={{ padding: "9px 14px", color: C.textSec, whiteSpace: "nowrap" }}>{fmt(t.created_at)}</td>
+                          <td style={{ padding: "9px 14px" }}>{linkStatusBadge(t.created_at)}</td>
+                          <td style={{ padding: "9px 14px" }}>
+                            {inProgress
+                              ? <span style={{ fontSize: 10, fontWeight: 600, background: "#EEF2FF", color: "#4338CA", padding: "2px 8px", borderRadius: 99 }}>In progress</span>
+                              : <span style={{ fontSize: 10, fontWeight: 600, background: "#F1F0EE", color: "#5F5E5A", padding: "2px 8px", borderRadius: 99 }}>Not started</span>}
+                          </td>
+                          <td style={{ padding: "9px 14px", textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              {!isExpired && (
+                                <button onClick={() => handleCopyInviteLink(t.token)}
+                                  style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color: C.textSec, cursor: "pointer", fontFamily: "inherit" }}>
+                                  Copy Link
+                                </button>
+                              )}
+                              <button onClick={() => handleResendInvite(t.invited_email)}
+                                style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color: C.textSec, cursor: "pointer", fontFamily: "inherit" }}>
+                                {isExpired ? "Resend (new link)" : "Resend"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {invitedRows.length > 5 && (
+                  <div style={{ padding: "10px 16px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, color: C.textTer }}>
+                      {showAllInvited ? `Showing all ${invitedRows.length}` : `Showing 5 of ${invitedRows.length}`}
+                    </span>
+                    <button onClick={() => setShowAllInvited(p => !p)}
+                      style={{ fontSize: 11, fontWeight: 600, color: "#4338CA", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                      {showAllInvited ? "Show less" : `Show all ${invitedRows.length}`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── SECTION 2: Vendor Directory ── */}
+        {/* Section label */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>Vendor Directory</span>
+          <span style={{ fontSize: 11, fontWeight: 700, background: C.coralLight, color: C.coralDark, border: `1px solid ${C.coralMid}`, padding: "2px 9px", borderRadius: 99 }}>{vendors.filter(v => v.accreditation_status !== "Draft").length} vendors</span>
         </div>
 
         {/* Search and filter */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <div style={{ position: "relative", flex: 1 }}>
             <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={13} color={C.textTer} /></div>
             <input placeholder="Search by company name…" value={search} onChange={e => setSearch(e.target.value)} style={{ ...styles.input, paddingLeft: 30, fontSize: 12 }} />
@@ -6193,7 +6353,7 @@ function VendorsPage({ profile }) {
           </div>
 
           <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {vendors.length} vendors</span>
+            <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {vendors.filter(v => v.accreditation_status !== "Draft").length} vendors</span>
             <button onClick={fetchVendors} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
           </div>
         </div>
