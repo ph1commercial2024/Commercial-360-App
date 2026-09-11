@@ -480,13 +480,10 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed }) {
   return (
     <div style={styles.appHeader(sidebarCollapsed)}>
 
-      {/* Left — app name + page title */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 1, flexShrink: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, letterSpacing: "-0.01em", lineHeight: 1.2 }}>Commercial 360</div>
-        {pageTitle && (
-          <div style={{ fontSize: 11, fontWeight: 600, color: C.coral, letterSpacing: "0.01em" }}>{pageTitle}</div>
-        )}
-      </div>
+      {/* Left — page title */}
+      {pageTitle && (
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, letterSpacing: "-0.01em", flexShrink: 0 }}>{pageTitle}</div>
+      )}
 
       <div style={{ flex: 1 }} />
 
@@ -636,8 +633,8 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
         {/* Brand text — hidden when collapsed */}
         {!collapsed && (
           <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", lineHeight: 1.2, whiteSpace: "nowrap" }}>PH1 World</div>
-            <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.3)", letterSpacing: "0.09em", textTransform: "uppercase", marginTop: 1 }}>Developers</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", lineHeight: 1.2, whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>Commercial 360</div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>PH1 World Developers</div>
           </div>
         )}
 
