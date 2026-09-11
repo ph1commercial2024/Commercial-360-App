@@ -92,22 +92,19 @@ const styles = {
     color: C.textPri,
   },
   appHeader: {
-    background: "#111827",
+    background: "#1C2333",
     height: 56, display: "flex", alignItems: "center",
     padding: "0 28px", gap: 14,
     position: "fixed", top: 0, left: 0, right: 0, zIndex: 200,
-    boxShadow: "0 1px 0 rgba(255,255,255,0.06)",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
   },
   sidebar: (collapsed) => ({
     width: collapsed ? 80 : 240, minWidth: collapsed ? 80 : 240,
-    background: "rgba(5,5,8,0.55)",
+    background: "#1C2333",
     display: "flex", flexDirection: "column",
     position: "fixed", top: 56, left: 0,
     height: "calc(100vh - 56px)", zIndex: 150,
-    borderRadius: "0 16px 16px 0",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderLeft: "none",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), inset 1px 0 0 rgba(255,255,255,0.06), 4px 0 32px rgba(0,0,0,0.4)",
+    borderRight: "1px solid rgba(255,255,255,0.06)",
     overflow: "hidden",
     transition: "width 0.26s cubic-bezier(0.23,1,0.32,1), min-width 0.26s cubic-bezier(0.23,1,0.32,1)",
   }),
@@ -556,34 +553,6 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
   return (
     <div style={styles.sidebar(collapsed)}>
 
-      {/* ── Frosted glass layers ── */}
-      {/* 1. Blurred background image */}
-      <div style={{
-        position: "absolute", top: -20, left: -20, right: -20, bottom: -20,
-        backgroundImage: "url('/Sidebar%20Background.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        filter: "blur(18px)",
-        transform: "scale(1.08)",
-        zIndex: 0,
-      }} />
-      {/* 2. Dark tint overlay */}
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "rgba(5,5,10,0.58)",
-        zIndex: 0,
-      }} />
-      {/* 3. Subtle inner highlight border */}
-      <div style={{
-        position: "absolute", inset: 0,
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.13), inset 1px 0 0 rgba(255,255,255,0.07)",
-        borderRadius: "0 16px 16px 0",
-        zIndex: 0, pointerEvents: "none",
-      }} />
-
-      {/* All content above the layers */}
-      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
-
       {/* Logo card */}
       <div style={{
         margin: "10px 8px 16px",
@@ -682,7 +651,6 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
         )}
       </div>
 
-      </div>{/* end content wrapper */}
     </div>
   );
 }
