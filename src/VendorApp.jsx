@@ -3115,14 +3115,29 @@ function VendorAccreditationPage({ token }) {
         {/* ── Hub / Detail navigation ────────────────────────────────────── */}
         {form.vendor_type && (() => {
           // Completion stats
-          const reqFields = ["company_name", "registered_address", "cell_number", "contact_person", "authorized_representative"];
-          const idUploaded      = COMPANY_ID_DOCS.filter(d => docFiles[d] || uploadedDocs[d]).length;
-          const idMinDate       = new Date(Date.now() + 60 * 86400e3).toISOString().slice(0, 10);
-          const idExpiryFilled  = COMPANY_ID_DOCS.filter(d => docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate).length;
-          const companyFilled   = reqFields.filter(k => form[k]?.trim()).length + (form.rfq_emails.some(e => e.trim()) ? 1 : 0) + idUploaded + idExpiryFilled;
-          const companyTotal    = reqFields.length + 1 + COMPANY_ID_DOCS.length + COMPANY_ID_DOCS.length;
-          const tradeFilled     = (form.primary_activities.length > 0 ? 1 : 0) + (form.trade_categories.length > 0 ? 1 : 0);
-          const regType         = form.registration_type;
+          const idMinDate            = new Date(Date.now() + 60 * 86400e3).toISOString().slice(0, 10);
+          const idUploaded           = COMPANY_ID_DOCS.filter(d => docFiles[d] || uploadedDocs[d]).length;
+          const idExpiryFilled       = COMPANY_ID_DOCS.filter(d => docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate).length;
+          const _kcComp              = form.key_contacts || {};
+          const keyContactsFilled    = ["president","accounting_manager","sales_manager","delivery_incharge","technical_incharge"].filter(k => _kcComp[k]?.name?.trim()).length;
+          const bankFilled           = ["bank_name","bank_account_name","bank_account_number","bank_branch"].filter(k => form[k]?.trim()).length;
+          const hsFilled             = [form.has_hs_adviser, form.has_hs_policy, form.has_qms, form.has_env_management].filter(Boolean).length;
+          const companyReqFields     = ["company_name","registered_address","cell_number","contact_person","authorized_representative","contact_position","representative_title"];
+          const companyFilled        =
+            companyReqFields.filter(k => form[k]?.trim()).length +
+            (form.rfq_emails.some(e => e.trim()) ? 1 : 0) +
+            idUploaded + idExpiryFilled +
+            (form.trade_categories.length > 0 ? 1 : 0) +
+            (form.primary_activities.length > 0 ? 1 : 0) +
+            keyContactsFilled + bankFilled + hsFilled +
+            (form.client_list.some(r => r.name.trim()) ? 1 : 0) +
+            (form.equipment_list.some(r => r.item.trim()) ? 1 : 0) +
+            (form.stockholder_list.some(r => r.name.trim()) ? 1 : 0) +
+            ((docFiles["Company Profile"] || uploadedDocs["Company Profile"]) ? 1 : 0) +
+            ((docFiles["Organizational Chart"] || uploadedDocs["Organizational Chart"]) ? 1 : 0);
+          // 7 text + 1 email + 2 id upload + 2 id expiry + 2 trade + 5 key contacts + 4 bank + 4 hs + 3 lists + 2 docs = 32
+          const companyTotal         = 32;
+          const regType              = form.registration_type;
           const govRequired     = !regType ? [] : govDocsForType(form.vendor_type).filter(d => {
             if (GOV_DOCS_OPTIONAL.has(d)) return false;
             if (GOV_DOCS_SEC_ONLY.has(d)) return regType === "SEC";
@@ -3144,7 +3159,7 @@ function VendorAccreditationPage({ token }) {
           const taxInfoTotal           = 3;
 
           const pct = {
-            company:        (companyTotal + 2) > 0 ? (companyFilled + tradeFilled) / (companyTotal + 2) * 100 : 0,
+            company:        companyTotal > 0 ? companyFilled / companyTotal * 100 : 0,
             tax_gov:        ((taxInfoFilled / taxInfoTotal) + (govTotal > 0 ? govFilled / govTotal : 0)) / 2 * 100,
             fin_compliance: finReqDocs.length > 0 ? finReqUploaded / finReqDocs.length * 100 : 100,
             declaration:    (form.declaration_confirmed && form.authorization_confirmed &&
@@ -3154,7 +3169,7 @@ function VendorAccreditationPage({ token }) {
 
           // Declaration unlocks when all always-required AND admin-configured required fields are filled.
           // Progress bars (pct) remain informational but no longer gate the declaration tab.
-          const _kc = form.key_contacts || {};
+          const _kc = _kcComp;
           const _alwaysOk =
             ["company_name","registered_address","cell_number","contact_person","authorized_representative",
              "contact_position","representative_title","tin"].every(k => form[k]?.trim()) &&
