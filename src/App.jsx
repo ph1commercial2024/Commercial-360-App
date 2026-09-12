@@ -6528,12 +6528,13 @@ function VendorsPage({ profile, tab = "directory" }) {
               </div>
 
               {/* Invited table */}
-              <div style={{ background: C.white, border: "1px solid #C7D2FE", borderRadius: 12, overflow: "clip", boxShadow: "0 0 0 3px rgba(79,70,229,0.04), 0 1px 3px rgba(79,70,229,0.08)" }}>
+              <div style={{ background: C.white, border: "1px solid #C7D2FE", borderRadius: 12, overflow: "hidden", boxShadow: "0 0 0 3px rgba(79,70,229,0.04), 0 1px 3px rgba(79,70,229,0.08)" }}>
+                <div style={{ overflowY: "auto", maxHeight: 360 }}>
                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: "#374151" }}>
                       {["Email Address", "Date Invited", "Link Status", "Progress", ""].map(h => (
-                        <th key={h} style={{ textAlign: h === "" ? "right" : "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
+                        <th key={h} style={{ position: "sticky", top: 0, zIndex: 1, textAlign: h === "" ? "right" : "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", background: "#374151" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -6573,6 +6574,7 @@ function VendorsPage({ profile, tab = "directory" }) {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           );
