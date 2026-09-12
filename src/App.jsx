@@ -569,12 +569,17 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
   const showRFA      = can(profile, "rfa.create") || can(profile, "rfa.approve");
 
   const navItems = [
-    ...(showPR       ? [{ key: "dashboard", label: "Purchase Requests", icon: "pr",       section: "Main"        }] : []),
+    ...(showPR       ? [{ key: "dashboard", label: "Purchase Requests", icon: "pr",       section: "Main"     }] : []),
     ...(showProjects ? [{ key: "projects",  label: "Projects",          icon: "projects", section: showPR ? null : "Main" }] : []),
-    ...(showRFPs     ? [{ key: "rfps",      label: "RFPs",              icon: "rfp",      section: "Procurement" }] : []),
-    ...(showVendors  ? [{ key: "vendors",   label: "Vendors",           icon: "users",    section: showRFPs ? null : "Procurement" }] : []),
+    ...(showRFPs     ? [{ key: "rfps",      label: "RFPs",              icon: "rfp",      section: "Sourcing" }] : []),
+    ...(showVendors  ? [{ key: "vendors", label: "Vendors", icon: "users", section: showRFPs ? null : "Sourcing",
+      children: [
+        { key: "vendors_dir", label: "Directory" },
+        { key: "vendors_acc", label: "Accreditation" },
+      ]
+    }] : []),
     ...(showRFA      ? [
-      { key: "rfq_list",  label: "RFQ",            icon: "rfp",      section: (showRFPs || showVendors) ? null : "Procurement" },
+      { key: "rfq_list",  label: "RFQ",            icon: "rfp",      section: "Award & Contracts" },
       { key: "rfa_list",  label: "Rec. for Award", icon: "rfp",      section: null },
       { key: "contracts", label: "Contracts",       icon: "contract", section: null },
     ] : []),
@@ -583,6 +588,19 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
       { key: "settings", label: "Settings",      icon: "settings", section: null    },
     ] : []),
   ];
+
+  // Accordion: auto-open vendor group when on a vendor sub-page
+  const vendorSubPages = ["vendors_dir", "vendors_acc"];
+  const [openGroups, setOpenGroups] = useState(() =>
+    vendorSubPages.includes(page) ? new Set(["vendors"]) : new Set()
+  );
+  useEffect(() => {
+    if (vendorSubPages.includes(page)) {
+      setOpenGroups(prev => new Set([...prev, "vendors"]));
+    } else {
+      setOpenGroups(prev => { const next = new Set(prev); next.delete("vendors"); return next; });
+    }
+  }, [page]);
 
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
@@ -660,7 +678,10 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
       {/* Nav */}
       <nav style={styles.nav}>
         {navItems.map(item => {
-          const active = page === item.key;
+          const isParent = !!item.children;
+          const isParentActive = isParent && item.children.some(c => c.key === page);
+          const active = !isParent && page === item.key;
+          const isOpen = openGroups.has(item.key);
           const showSection = item.section && item.section !== lastSection;
           if (item.section) lastSection = item.section;
           return (
@@ -670,15 +691,66 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
               )}
               <button
                 title={collapsed ? item.label : undefined}
-                style={styles.navItem(active, collapsed)}
-                onClick={() => setPage(item.key)}
-                onMouseOver={e => { if (!active) { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }}}
-                onMouseOut={e  => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.48)"; }}}>
+                style={{
+                  ...styles.navItem(active || isParentActive, collapsed),
+                  ...(isParentActive && !active ? { background: "rgba(226,92,59,0.10)" } : {}),
+                }}
+                onClick={() => {
+                  if (isParent) {
+                    if (!collapsed) {
+                      setOpenGroups(prev => {
+                        const next = new Set(prev);
+                        next.has(item.key) ? next.delete(item.key) : next.add(item.key);
+                        return next;
+                      });
+                    }
+                    if (!isParentActive) setPage(item.children[0].key);
+                  } else {
+                    setPage(item.key);
+                  }
+                }}
+                onMouseOver={e => { if (!active && !isParentActive) { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }}}
+                onMouseOut={e  => { if (!active && !isParentActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.48)"; }}}>
                 <div style={{ width: collapsed ? 20 : 18, height: collapsed ? 20 : 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon name={item.icon} size={collapsed ? 16 : 15} color={active ? "#FFFFFF" : "rgba(255,255,255,0.5)"} />
+                  <Icon name={item.icon} size={collapsed ? 16 : 15} color={(active || isParentActive) ? "#FFFFFF" : "rgba(255,255,255,0.5)"} />
                 </div>
                 {!collapsed && <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>}
+                {!collapsed && isParent && (
+                  <svg style={{ flexShrink: 0, transition: "transform 0.2s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", opacity: isOpen ? 0.6 : 0.35 }}
+                    width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M6 4l4 4-4 4"/>
+                  </svg>
+                )}
               </button>
+              {/* Accordion sub-items */}
+              {isParent && !collapsed && (
+                <div style={{ overflow: "hidden", maxHeight: isOpen ? `${item.children.length * 34}px` : "0px", transition: "max-height 0.22s ease" }}>
+                  {item.children.map(child => {
+                    const childActive = page === child.key;
+                    return (
+                      <button
+                        key={child.key}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "5px 10px 5px 30px",
+                          width: "100%", border: "none", borderRadius: 7,
+                          background: childActive ? "rgba(226,92,59,0.16)" : "transparent",
+                          color: childActive ? "#fff" : "rgba(255,255,255,0.45)",
+                          fontSize: 12, fontWeight: childActive ? 600 : 500,
+                          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                          position: "relative", transition: "background 0.12s, color 0.12s",
+                          marginBottom: 1,
+                        }}
+                        onClick={() => setPage(child.key)}
+                        onMouseOver={e => { if (!childActive) { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "rgba(255,255,255,0.72)"; }}}
+                        onMouseOut={e  => { if (!childActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}}>
+                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: childActive ? "#E25C3B" : "rgba(255,255,255,0.2)", flexShrink: 0 }} />
+                        {child.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -5838,7 +5910,7 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
 }
 
 // ─── VENDORS PAGE ─────────────────────────────────────────────────────────────
-function VendorsPage({ profile }) {
+function VendorsPage({ profile, tab = "directory" }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6254,27 +6326,33 @@ function VendorsPage({ profile }) {
   };
 
   useEffect(() => {
-    setHeaderContent({
-      subtitle: "Manage vendor directory and accreditation",
-      actions: (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button style={styles.btnGhost} onClick={downloadVendorTemplate}>⬇ Download Template</button>
-          {canManage && (
-            <>
+    if (tab === "directory") {
+      setHeaderContent({
+        subtitle: "Browse and manage the vendor directory",
+        actions: (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button style={styles.btnGhost} onClick={downloadVendorTemplate}>⬇ Download Template</button>
+            {canManage && (
               <label style={{ ...styles.btnSecondary, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
                 ↑ Import Excel
                 <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { handleVendorImport(e.target.files[0]); e.target.value = ""; }} />
               </label>
-              <button style={styles.btnSecondary} onClick={() => { setShowInviteModal(true); setInviteEmail(""); setInviteLink(""); }}>
-                Invite Vendor for Accreditation
-              </button>
-            </>
-          )}
-        </div>
-      ),
-    });
+            )}
+          </div>
+        ),
+      });
+    } else {
+      setHeaderContent({
+        subtitle: "Track vendor accreditation applications and pipeline",
+        actions: canManage ? (
+          <button style={styles.btnSecondary} onClick={() => { setShowInviteModal(true); setInviteEmail(""); setInviteLink(""); }}>
+            Invite Vendor for Accreditation
+          </button>
+        ) : null,
+      });
+    }
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [canManage]);
+  }, [canManage, tab]);
 
   return (
     <>
@@ -6314,6 +6392,7 @@ function VendorsPage({ profile }) {
 
       <div style={styles.pageBody}>
   <div style={{ maxWidth: "80%", margin: "0 auto" }}>
+        {tab === "accreditation" && (<>
         {/* Summary cards — 6 cards including Invited */}
         {(() => {
           const draftCount = inviteTokens.filter(t => {
@@ -6442,7 +6521,9 @@ function VendorsPage({ profile }) {
           );
         })()}
 
-        {/* ── SECTION 2: Vendor Directory ── */}
+        </>)}
+        {tab === "directory" && (<>
+        {/* ── Vendor Directory ── */}
         {/* Section label */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>Vendor Directory</span>
@@ -6546,6 +6627,7 @@ function VendorsPage({ profile }) {
             <button onClick={fetchVendors} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
           </div>
         </div>
+        </>)}
         </div>
         </div>
 
@@ -14975,6 +15057,8 @@ export default function App() {
     rfp_create:   "Create RFP",
     rfp_detail:   "RFP Detail",
     vendors:      "Vendors",
+    vendors_dir:  "Vendors",
+    vendors_acc:  "Vendors",
     users:        "Users & Roles",
     rfa_list:        "Recommendations for Award",
     rfa_form:        "Rec. for Award",
@@ -14992,7 +15076,9 @@ export default function App() {
     rfps:       <RFPsPage       profile={profile} setPage={setPage} setSelectedRFPId={setSelectedRFPId} />,
     rfp_create: <RFPCreatePage  profile={profile} setPage={setPage} />,
     rfp_detail: <RFPDetailPage   rfpId={selectedRFPId} profile={profile} setPage={setPage} setSelectedRFAId={setSelectedRFAId} setRfaPRId={setRfaPRId} />,
-    vendors:    <VendorsPage    profile={profile} />,
+    vendors:      <VendorsPage profile={profile} tab="directory" />,
+    vendors_dir:  <VendorsPage profile={profile} tab="directory" />,
+    vendors_acc:  <VendorsPage profile={profile} tab="accreditation" />,
     reports:    <PlaceholderPage title="Reports" />,
     users:        <UsersPage        profile={profile} />,
     budget_codes: <BudgetCodesPage profile={profile} />,
