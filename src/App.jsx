@@ -15169,7 +15169,8 @@ function PlaceholderPage({ title }) {
 export default function App() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
-  const [page, setPage] = useState("dashboard");
+  const [page, setPageRaw] = useState(() => localStorage.getItem("cc_page") || "dashboard");
+  const setPage = (p) => { localStorage.setItem("cc_page", p); setPageRaw(p); };
   const [selectedPRId, setSelectedPRId] = useState(null);
   const [selectedRFPId, setSelectedRFPId] = useState(null);
   const [selectedRFAId, setSelectedRFAId] = useState(null);
