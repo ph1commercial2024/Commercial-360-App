@@ -4211,6 +4211,7 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
   const canCreate = can(profile, "rfp.create");
 
   useEffect(() => { fetchRFPs(); }, []);
+  useEffect(() => { document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = ""; }; }, []);
 
   const fetchRFPs = async () => {
     setLoading(true);
@@ -4329,12 +4330,13 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
           <MultiSelect options={rfpProjectOptions} value={projectFilter} onChange={setProjectFilter} placeholder="All Projects" />
         </div>
 
-        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden" }}>
+          <div style={{ overflowY: "auto", height: "calc(100vh - 320px)" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#374151" }}>
                 {["Title", "Status", "PRs Linked", "Vendors Invited", "Deadline", "Created By", ""].map(h => (
-                  <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h} style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -4364,6 +4366,7 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
               ))}
             </tbody>
           </table>
+          </div>
           <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {rfps.length} RFPs</span>
             <button onClick={fetchRFPs} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
@@ -15262,7 +15265,7 @@ export default function App() {
 
       {/* Main content — shifts right with sidebar */}
       {(() => {
-        const scrollLockedPages = new Set(["rfps","rfq_list","rfa_list","contracts"]);
+        const scrollLockedPages = new Set(["rfq_list","rfa_list","contracts"]);
         const isLocked = scrollLockedPages.has(page);
         return <div style={styles.mainContent(sidebarCollapsed, isLocked)}>{pageMap[page] || pageMap.dashboard}</div>;
       })()}
