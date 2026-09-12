@@ -482,7 +482,7 @@ function LoginPage() {
 }
 
 // ─── APP HEADER ───────────────────────────────────────────────────────────────
-function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, canCreatePR, headerSubtitle, headerActions }) {
+function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, canCreatePR, headerSubtitle, headerActions, headerSearchValue, onHeaderSearchChange }) {
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
@@ -510,7 +510,14 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
-        <span style={{ fontSize: 12, color: "#94A3B8" }}>Search...</span>
+        {onHeaderSearchChange
+          ? <input
+              value={headerSearchValue || ""}
+              onChange={e => onHeaderSearchChange(e.target.value)}
+              placeholder="Search…"
+              style={{ border: "none", background: "transparent", outline: "none", fontSize: 12, color: "#374151", width: "100%", fontFamily: "inherit" }}
+            />
+          : <span style={{ fontSize: 12, color: "#94A3B8" }}>Search...</span>}
       </div>
 
       <div style={{ flex: 1 }} />
@@ -6390,6 +6397,8 @@ function VendorsPage({ profile, tab = "directory" }) {
       setHeaderContent({
         subtitle: "Browse and manage the vendor directory",
         actions: null,
+        searchValue: search,
+        onSearchChange: (v) => setSearch(v),
       });
     } else {
       setHeaderContent({
@@ -6399,10 +6408,12 @@ function VendorsPage({ profile, tab = "directory" }) {
             Invite Vendor for Accreditation
           </button>
         ) : null,
+        searchValue: null,
+        onSearchChange: null,
       });
     }
-    return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [canManage, tab]);
+    return () => setHeaderContent({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
+  }, [canManage, tab, search]);
 
   // Lock body scroll on both vendor tabs so only the table scrolls
   useEffect(() => {
@@ -6636,45 +6647,17 @@ function VendorsPage({ profile, tab = "directory" }) {
           );
         })()}
 
-        {/* ── Vendor Directory ── */}
-        {/* Section label */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>Vendor Directory</span>
-          <span style={{ fontSize: 11, fontWeight: 700, background: C.coralLight, color: C.coralDark, border: `1px solid ${C.coralMid}`, padding: "2px 9px", borderRadius: 99 }}>{vendors.filter(v => v.accreditation_status !== "Draft").length} vendors</span>
-        </div>
-
-        {/* Search and filter */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={13} color={C.textTer} /></div>
-            <input placeholder="Search by company name or trade…" value={search} onChange={e => setSearch(e.target.value)} style={{ ...styles.input, paddingLeft: 30, fontSize: 12 }} />
-          </div>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...styles.input, width: "auto", fontSize: 12 }}>
-            {STATUSES.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <select value={tradeFilter} onChange={e => setTradeFilter(e.target.value)} style={{ ...styles.input, width: "auto", fontSize: 12 }}>
-            <option value="All">All Trades</option>
-            {tradeCatOptions.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-
         {/* Table */}
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden" }}>
           <div style={{ overflowY: "auto", height: "calc(100vh - 370px)" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#374151" }}>
-                {/* Sortable: Company */}
-                <th onClick={() => handleSort("company")} style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
-                  Company <SortIcon col="company" />
-                </th>
+                <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Company</th>
                 <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Contact</th>
                 <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Trades</th>
                 <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Class</th>
-                {/* Sortable: Status */}
-                <th onClick={() => handleSort("status")} style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
-                  Status <SortIcon col="status" />
-                </th>
+                <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Status</th>
                 <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", padding: "11px 16px", borderBottom: "2px solid rgba(255,255,255,0.08)" }}></th>
               </tr>
             </thead>
@@ -15186,7 +15169,7 @@ export default function App() {
   const [rfaPRId, setRfaPRId] = useState(null);
   const [selectedContractId, setSelectedContractId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [headerContent, setHeaderContent] = useState({ subtitle: "", actions: null });
+  const [headerContent, setHeaderContent] = useState({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
   const [ph1LogoUrl, setPh1LogoUrl] = useState(null);
 
   useEffect(() => {
@@ -15272,7 +15255,8 @@ export default function App() {
       {/* Full-width fixed header */}
       <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} sidebarCollapsed={sidebarCollapsed}
         page={page} onCreatePR={() => setPage("create")} canCreatePR={can(profile, "pr.prepare")}
-        headerSubtitle={headerContent.subtitle} headerActions={headerContent.actions} />
+        headerSubtitle={headerContent.subtitle} headerActions={headerContent.actions}
+        headerSearchValue={headerContent.searchValue} onHeaderSearchChange={headerContent.onSearchChange} />
 
       {/* Persistent glass sidebar */}
       <Sidebar
