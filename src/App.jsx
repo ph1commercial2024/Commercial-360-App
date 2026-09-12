@@ -6509,7 +6509,7 @@ function VendorsPage({ profile, tab = "directory" }) {
             return true;
           }) : allInvitedRows;
           if (invitedRows.length === 0) return null;
-          const visibleRows = showAllInvited ? invitedRows : invitedRows.slice(0, 5);
+          const visibleRows = invitedRows;
           const linkStatusBadge = (createdAt) => {
             const s = tokenLinkStatus(createdAt);
             if (s === "expired")  return <span style={{ fontSize: 10, fontWeight: 600, background: "#FDEDED", color: "#B91C1C", padding: "2px 8px", borderRadius: 99 }}>✕ Expired</span>;
@@ -6573,17 +6573,6 @@ function VendorsPage({ profile, tab = "directory" }) {
                     })}
                   </tbody>
                 </table>
-                {invitedRows.length > 5 && (
-                  <div style={{ padding: "10px 16px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, color: C.textTer }}>
-                      {showAllInvited ? `Showing all ${invitedRows.length}` : `Showing 5 of ${invitedRows.length}`}
-                    </span>
-                    <button onClick={() => setShowAllInvited(p => !p)}
-                      style={{ fontSize: 11, fontWeight: 600, color: "#4338CA", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      {showAllInvited ? "Show less" : `Show all ${invitedRows.length}`}
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           );
