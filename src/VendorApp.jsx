@@ -2010,7 +2010,6 @@ function VendorAccreditationPage({ token }) {
   const [sigPresident, setSigPresident]       = useState(null);
   const [draftSavedAt, setDraftSavedAt]       = useState(null);
   const [draftSaving, setDraftSaving]         = useState(false);
-  const [fileWarnDismissed, setFileWarnDismissed] = useState(() => { try { return !!sessionStorage.getItem("cc_file_warn_ok"); } catch { return false; } });
   const [draftSaveError, setDraftSaveError]   = useState(false);
   const [startingApp, setStartingApp]         = useState(false);
   const draftTimer                            = useRef(null);
@@ -3071,20 +3070,12 @@ function VendorAccreditationPage({ token }) {
           <div style={{ fontSize: 13, color: C.textSec, lineHeight: 1.6 }}>
             Complete all required fields and upload your supporting documents. Fields marked <span style={S.required}>*</span> are required.
           </div>
-          {!fileWarnDismissed && (
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginTop: 12, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 8, padding: "10px 12px" }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠️</span>
-                <div style={{ fontSize: 12, color: "#78350F", lineHeight: 1.5 }}>
-                  <strong style={{ color: "#92400E" }}>Uploaded files are not saved until you submit.</strong> If you refresh or close this page before submitting, you will need to re-attach your files.
-                </div>
-              </div>
-              <button onClick={() => { setFileWarnDismissed(true); try { sessionStorage.setItem("cc_file_warn_ok", "1"); } catch {} }}
-                style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#92400E", padding: "0 2px", fontFamily: "inherit", lineHeight: 1 }}>
-                Got it ✕
-              </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 8, padding: "10px 12px" }}>
+            <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+            <div style={{ fontSize: 12, color: "#78350F", lineHeight: 1.5 }}>
+              <strong style={{ color: "#92400E" }}>Uploaded files are not saved until you submit.</strong> If you refresh or close this page before submitting, you will need to re-attach your files.
             </div>
-          )}
+          </div>
         </div>}
 
         {/* ── Vendor type selector ─────────────────────────────────────── */}
