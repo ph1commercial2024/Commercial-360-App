@@ -6537,7 +6537,7 @@ function VendorsPage({ profile, tab = "directory" }) {
 
               {/* Invited table */}
               <div style={{ background: C.white, border: "1px solid #C7D2FE", borderRadius: 12, overflow: "hidden", boxShadow: "0 0 0 3px rgba(79,70,229,0.04), 0 1px 3px rgba(79,70,229,0.08)" }}>
-                <div style={{ overflowY: "auto", height: "calc(100vh - 270px)", height: "calc(100dvh - 270px)" }}>
+                <div style={{ overflowY: "auto", height: "calc(100vh - 294px)", height: "calc(100dvh - 294px)" }}>
                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: "#374151" }}>
