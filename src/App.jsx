@@ -8106,6 +8106,7 @@ const DEFAULT_CLASS_RULES = {
   classA: {
     // All documents are required
     requiredDocs: [
+      "Company Profile", "Organizational Chart",
       "DTI / SEC Certificate",
       "Municipality / Mayor's Permit", "BIR/VAT Registration",
       "PCAB License",
@@ -8115,30 +8116,32 @@ const DEFAULT_CLASS_RULES = {
       "Certificate of Good Credit Standing",
       "Sample Purchase Order / Job Order (5 Major Clients)",
     ],
-    minDocCount: 11,
+    minDocCount: 13,
     maxAward: "No limit",
   },
   classB: {
     // All except the 3 financial extras (AFS, Good Credit, Sample PO)
     requiredDocs: [
+      "Company Profile", "Organizational Chart",
       "DTI / SEC Certificate",
       "Municipality / Mayor's Permit", "BIR/VAT Registration",
       "PCAB License",
       "Valid Government ID 1", "Valid Government ID 2",
       "OR & Sales Invoice", "Copy of ITR Previous Year",
     ],
-    minDocCount: 8,
+    minDocCount: 10,
     maxAward: "₱1,000,000",
   },
   classC: {
     // All except PCAB + the 3 financial extras
     requiredDocs: [
+      "Company Profile", "Organizational Chart",
       "DTI / SEC Certificate",
       "Municipality / Mayor's Permit", "BIR/VAT Registration",
       "Valid Government ID 1", "Valid Government ID 2",
       "OR & Sales Invoice", "Copy of ITR Previous Year",
     ],
-    minDocCount: 7,
+    minDocCount: 9,
     maxAward: "₱500,000",
   },
   returnTriggerDocs: [
