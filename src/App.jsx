@@ -5923,6 +5923,8 @@ function VendorsPage({ profile, tab = "directory" }) {
   const [tradeFilter, setTradeFilter] = useState("All");
   const [tradeCatOptions, setTradeCatOptions] = useState([]);
   const [search, setSearch] = useState("");
+  const [sortCol, setSortCol] = useState("company");
+  const [sortDir, setSortDir] = useState("asc");
   const [updating, setUpdating] = useState(false);
   const [activeCard, setActiveCard] = useState(null);
 
@@ -6308,6 +6310,31 @@ function VendorsPage({ profile, tab = "directory" }) {
     return matchSearch && matchStatus && matchTrade;
   });
 
+  // Apply sort to filtered results
+  const sortedVendors = [...filtered].sort((a, b) => {
+    let aVal = "", bVal = "";
+    if (sortCol === "company") {
+      aVal = (a.vendor_company_info?.company_name || a.profiles?.full_name || "").toLowerCase();
+      bVal = (b.vendor_company_info?.company_name || b.profiles?.full_name || "").toLowerCase();
+    } else if (sortCol === "status") {
+      aVal = a.accreditation_status || "";
+      bVal = b.accreditation_status || "";
+    }
+    if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+
+  const SortIcon = ({ col }) => {
+    if (sortCol !== col) return <span style={{ opacity: 0.3, marginLeft: 4, fontSize: 9 }}>↕</span>;
+    return <span style={{ marginLeft: 4, fontSize: 9 }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
+  };
+
   const fmtCurrency = (n) => n ? `₱${Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : "—";
   const fmt = (d) => d ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—";
   const STATUSES = ["All", "Submitted", "Under Review", "Returned", "Accredited", "Declined"];
@@ -6547,83 +6574,129 @@ function VendorsPage({ profile, tab = "directory" }) {
 
         {/* Table */}
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
-
-          <div>
-            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: "#374151" }}>
-                  {["Company", "Contact Person", "Primary Activity", "Class", "Status", "Date", ""].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading && <tr><td colSpan={7} style={{ textAlign: "center", padding: "32px 0", color: C.textTer }}>Loading…</td></tr>}
-                {!loading && filtered.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", padding: "48px 0", color: C.textTer }}>No vendors found.</td></tr>}
-                {!loading && filtered.map((v, i) => (
+          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: "#374151" }}>
+                {/* Sortable: Company */}
+                <th onClick={() => handleSort("company")} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
+                  Company <SortIcon col="company" />
+                </th>
+                <th style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Contact</th>
+                <th style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Trades</th>
+                <th style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Class</th>
+                {/* Sortable: Status */}
+                <th onClick={() => handleSort("status")} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
+                  Status <SortIcon col="status" />
+                </th>
+                <th style={{ padding: "11px 16px", borderBottom: "2px solid rgba(255,255,255,0.08)" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={6} style={{ textAlign: "center", padding: "32px 0", color: C.textTer }}>Loading…</td></tr>}
+              {!loading && sortedVendors.length === 0 && (
+                <tr><td colSpan={6}>
+                  <div style={{ textAlign: "center", padding: "52px 24px" }}>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>🏢</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.textSec, marginBottom: 4 }}>No vendors found</div>
+                    <div style={{ fontSize: 12, color: C.textTer }}>Try adjusting your search or filters</div>
+                  </div>
+                </td></tr>
+              )}
+              {!loading && sortedVendors.map((v, i) => {
+                const cats = v.vendor_company_info?.trade_categories || [];
+                const legacyTrade = v.vendor_company_info?.primary_activity;
+                const visibleCats = cats.slice(0, 2);
+                const overflowCount = cats.length - 2;
+                const contactName = v.vendor_company_info?.contact_person;
+                const contactPos  = v.vendor_company_info?.contact_position;
+                const expRows = v.vendor_doc_expiry || [];
+                const todayMs = new Date().setHours(0, 0, 0, 0);
+                let expiredCount = 0, expiringCount = 0;
+                for (const r of expRows) {
+                  if (!r.expiry_date) continue;
+                  const days = Math.round((new Date(r.expiry_date).setHours(0,0,0,0) - todayMs) / 86400000);
+                  if (days < 0) expiredCount++;
+                  else if (days <= 40) expiringCount++;
+                }
+                return (
                   <tr key={v.id} onClick={() => openDetail(v)}
-                    style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
+                    style={{ borderBottom: i < sortedVendors.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer", transition: "background 0.15s" }}
                     onMouseOver={e => e.currentTarget.style.background = C.offWhite}
                     onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                    <td style={{ padding: "9px 14px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: C.textPri }}>{v.vendor_company_info?.company_name || v.profiles?.full_name || "—"}</div>
+
+                    {/* Company */}
+                    <td style={{ padding: "10px 14px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>{v.vendor_company_info?.company_name || v.profiles?.full_name || "—"}</div>
                       {v.vendor_code && <div style={{ fontSize: 11, fontWeight: 600, color: C.coral, marginTop: 1 }}>{v.vendor_code}</div>}
-                      {v.vendor_company_info?.registered_address && (
-                        <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>📍 {v.vendor_company_info.registered_address}</div>
+                      {v.vendor_company_info?.rfq_email && (
+                        <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>{v.vendor_company_info.rfq_email}</div>
                       )}
-                      <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>{v.vendor_company_info?.rfq_email || "—"}</div>
                     </td>
-                    <td style={{ padding: "9px 14px", color: C.textSec }}>{v.profiles?.full_name || "—"}</td>
-                    <td style={{ padding: "9px 14px" }}>
-                      {(() => {
-                        const cats = v.vendor_company_info?.trade_categories || [];
-                        const legacy = v.vendor_company_info?.primary_activity;
-                        if (cats.length > 0) return (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                            {cats.map(c => <span key={c} style={{ fontSize: 10, fontWeight: 500, background: C.coralMid, color: C.coralDark, padding: "2px 7px", borderRadius: 99, whiteSpace: "nowrap" }}>{c}</span>)}
+
+                    {/* Contact — from vendor_company_info, not profile */}
+                    <td style={{ padding: "10px 14px" }}>
+                      {contactName
+                        ? <>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: C.textPri }}>{contactName}</div>
+                            {contactPos && <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>{contactPos}</div>}
+                          </>
+                        : <span style={{ color: C.textTer, fontSize: 12 }}>—</span>}
+                    </td>
+
+                    {/* Trades — max 2 tags + overflow */}
+                    <td style={{ padding: "10px 14px", maxWidth: 180 }}>
+                      {cats.length > 0
+                        ? <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {visibleCats.map(c => (
+                              <span key={c} style={{ fontSize: 10, fontWeight: 500, background: C.coralMid, color: C.coralDark, padding: "2px 7px", borderRadius: 99, whiteSpace: "nowrap" }}>{c}</span>
+                            ))}
+                            {overflowCount > 0 && (
+                              <span title={cats.slice(2).join(", ")} style={{ fontSize: 10, fontWeight: 600, background: "#F1F0EE", color: C.textSec, padding: "2px 7px", borderRadius: 99, cursor: "default" }}>+{overflowCount}</span>
+                            )}
                           </div>
-                        );
-                        return <span style={{ fontSize: 12, color: C.textSec }}>{legacy || "—"}</span>;
-                      })()}
+                        : <span style={{ fontSize: 12, color: C.textSec }}>{legacyTrade || "—"}</span>}
                     </td>
-                    <td style={{ padding: "9px 14px" }}>
+
+                    {/* Class */}
+                    <td style={{ padding: "10px 14px" }}>
                       {v.subcontractor_class
                         ? <span style={{ background: C.coralMid, color: C.coralDark, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600 }}>{v.subcontractor_class}</span>
-                        : <span style={{ color: C.textTer, fontSize: 11 }}>Unassigned</span>}
+                        : <span style={{ color: C.textTer, fontSize: 12 }}>—</span>}
                     </td>
-                    <td style={{ padding: "9px 14px" }}>
-                      {(() => {
-                        const expRows = v.vendor_doc_expiry || [];
-                        const todayMs = new Date().setHours(0, 0, 0, 0);
-                        let hasExpired = false, hasExpiring = false;
-                        for (const r of expRows) {
-                          if (!r.expiry_date) continue;
-                          const days = Math.round((new Date(r.expiry_date).setHours(0,0,0,0) - todayMs) / 86400000);
-                          if (days < 0) { hasExpired = true; break; }
-                          if (days <= 40) hasExpiring = true;
-                        }
-                        return (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={badge(v.accreditation_status)}>{v.accreditation_status}</span>
-                            {hasExpired
-                              ? <span title="Document expired" style={{ fontSize: 10, color: C.redText, lineHeight: 1 }}>●</span>
-                              : hasExpiring
-                                ? <span title="Document expiring soon" style={{ fontSize: 12, color: C.amberText, lineHeight: 1 }}>⚠</span>
-                                : null}
-                          </div>
-                        );
-                      })()}
+
+                    {/* Status + doc expiry */}
+                    <td style={{ padding: "10px 14px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={badge(v.accreditation_status)}>{v.accreditation_status}</span>
+                        {expiredCount > 0 && (
+                          <span style={{ fontSize: 10, fontWeight: 600, background: C.redBg, color: C.redText, padding: "2px 7px", borderRadius: 99, whiteSpace: "nowrap" }}>
+                            {expiredCount} doc{expiredCount > 1 ? "s" : ""} expired
+                          </span>
+                        )}
+                        {expiredCount === 0 && expiringCount > 0 && (
+                          <span style={{ fontSize: 10, fontWeight: 600, background: C.amberBg, color: C.amberText, padding: "2px 7px", borderRadius: 99, whiteSpace: "nowrap" }}>
+                            {expiringCount} expiring soon
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td style={{ padding: "9px 14px", color: C.textSec, whiteSpace: "nowrap" }}>{fmt(v.created_at)}</td>
-                    <td style={{ padding: "9px 14px", textAlign: "right" }}><Icon name="chevronRight" size={14} color={C.textTer} /></td>
+
+                    {/* Action */}
+                    <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                      <Icon name="chevronRight" size={14} color={C.textTer} />
+                    </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
 
           <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {vendors.filter(v => v.accreditation_status !== "Draft").length} vendors</span>
+            <span style={{ fontSize: 12, color: C.textTer }}>
+              {sortedVendors.length === filtered.length
+                ? `${filtered.length} vendor${filtered.length !== 1 ? "s" : ""}`
+                : `Showing ${sortedVendors.length} of ${vendors.filter(v => v.accreditation_status !== "Draft").length} vendors`}
+            </span>
             <button onClick={fetchVendors} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
           </div>
         </div>
