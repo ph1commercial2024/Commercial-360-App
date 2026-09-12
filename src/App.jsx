@@ -5979,7 +5979,7 @@ function VendorsPage({ profile, tab = "directory" }) {
   const [showAllInvited, setShowAllInvited]   = useState(false);
   const [accFilter, setAccFilter]             = useState(null); // "active"|"expiring"|"expired"|"in_progress"|"not_started"
 
-  const INVITE_EXPIRY_DAYS = 30;
+  const INVITE_EXPIRY_DAYS = 90;
   const tokenLinkStatus = (createdAt) => {
     const days = Math.floor((Date.now() - new Date(createdAt)) / 86400000);
     if (days > INVITE_EXPIRY_DAYS) return "expired";
