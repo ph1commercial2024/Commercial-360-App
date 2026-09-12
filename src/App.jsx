@@ -309,6 +309,8 @@ const Icon = ({ name, size = 14, color = "currentColor" }) => {
     contract:     <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></>,
     download:     <><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
     eye:          <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
+    list:         <><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1" fill="currentColor" stroke="none"/></>,
+    badge:        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,
     plus:         <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
     warning:      <><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
   };
@@ -561,8 +563,8 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
     ...(showRFPs     ? [{ key: "rfps",      label: "RFPs",              icon: "rfp",      section: "Sourcing" }] : []),
     ...(showVendors  ? [{ key: "vendors", label: "Vendors", icon: "users", section: showRFPs ? null : "Sourcing",
       children: [
-        { key: "vendors_dir", label: "Directory" },
-        { key: "vendors_acc", label: "Accreditation" },
+        { key: "vendors_dir", label: "Directory",     icon: "list"  },
+        { key: "vendors_acc", label: "Accreditation", icon: "badge" },
       ]
     }] : []),
     ...(showRFA      ? [
@@ -588,8 +590,6 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
       setOpenGroups(prev => { const next = new Set(prev); next.delete("vendors"); return next; });
     }
   }, [page]);
-
-  const [flyoutGroup, setFlyoutGroup] = useState(null); // key of the hovered parent when collapsed
 
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
@@ -674,47 +674,9 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
           const showSection = item.section && item.section !== lastSection;
           if (item.section) lastSection = item.section;
           return (
-            <div key={item.key} style={{ position: "relative" }}
-              onMouseEnter={() => { if (collapsed && isParent) setFlyoutGroup(item.key); }}
-              onMouseLeave={() => { if (collapsed && isParent) setFlyoutGroup(null); }}>
+            <div key={item.key}>
               {showSection && (
                 <div style={styles.navSection(collapsed)}>{item.section}</div>
-              )}
-              {/* Collapsed flyout for accordion parents */}
-              {collapsed && isParent && flyoutGroup === item.key && (
-                <div style={{
-                  position: "fixed", left: 88, zIndex: 300,
-                  background: "rgba(18,22,36,0.97)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: 10,
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-                  padding: "6px 4px",
-                  minWidth: 160,
-                  backdropFilter: "blur(12px)",
-                }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 10px 6px" }}>{item.label}</div>
-                  {item.children.map(child => {
-                    const childActive = page === child.key;
-                    return (
-                      <button key={child.key}
-                        onClick={() => { setPage(child.key); setFlyoutGroup(null); }}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          width: "100%", padding: "7px 10px", border: "none", borderRadius: 7,
-                          background: childActive ? "rgba(226,92,59,0.18)" : "transparent",
-                          color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
-                          fontSize: 12, fontWeight: childActive ? 600 : 500,
-                          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-                          transition: "background 0.1s, color 0.1s",
-                        }}
-                        onMouseOver={e => { if (!childActive) { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "#fff"; }}}
-                        onMouseOut={e  => { if (!childActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}}>
-                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: childActive ? "#E25C3B" : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
-                        {child.label}
-                      </button>
-                    );
-                  })}
-                </div>
               )}
               <button
                 title={collapsed ? item.label : undefined}
@@ -749,7 +711,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                   </svg>
                 )}
               </button>
-              {/* Accordion sub-items */}
+              {/* Accordion sub-items — expanded: text rows; collapsed: icon buttons */}
               {isParent && !collapsed && (
                 <div style={{ overflow: "hidden", maxHeight: isOpen ? `${item.children.length * 34}px` : "0px", transition: "max-height 0.22s ease" }}>
                   {item.children.map(child => {
@@ -773,6 +735,33 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                         onMouseOut={e  => { if (!childActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}}>
                         <span style={{ width: 4, height: 4, borderRadius: "50%", background: childActive ? "#E25C3B" : "rgba(255,255,255,0.2)", flexShrink: 0 }} />
                         {child.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {isParent && collapsed && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingBottom: 2 }}>
+                  {item.children.map(child => {
+                    const childActive = page === child.key;
+                    return (
+                      <button
+                        key={child.key}
+                        title={child.label}
+                        onClick={() => setPage(child.key)}
+                        style={{
+                          width: 32, height: 32, borderRadius: 7, border: "none",
+                          background: childActive ? "rgba(226,92,59,0.18)" : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          cursor: "pointer", transition: "background 0.12s",
+                          position: "relative",
+                        }}
+                        onMouseOver={e => { if (!childActive) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
+                        onMouseOut={e  => { if (!childActive) e.currentTarget.style.background = "transparent"; }}>
+                        {childActive && (
+                          <span style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 2, height: 14, background: "#E25C3B", borderRadius: "0 2px 2px 0" }} />
+                        )}
+                        <Icon name={child.icon} size={13} color={childActive ? "#FFFFFF" : "rgba(255,255,255,0.4)"} />
                       </button>
                     );
                   })}
