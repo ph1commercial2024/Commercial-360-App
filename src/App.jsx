@@ -6390,11 +6390,9 @@ function VendorsPage({ profile, tab = "directory" }) {
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [canManage, tab]);
 
-  // Lock body scroll on accreditation tab so only the table scrolls
+  // Lock body scroll on both vendor tabs so only the table scrolls
   useEffect(() => {
-    if (tab === "accreditation") {
-      document.body.style.overflow = "hidden";
-    }
+    document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, [tab]);
 
@@ -6647,22 +6645,23 @@ function VendorsPage({ profile, tab = "directory" }) {
         </div>
 
         {/* Table */}
-        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden" }}>
+          <div style={{ overflowY: "auto", height: "calc(100vh - 370px)" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#374151" }}>
                 {/* Sortable: Company */}
-                <th onClick={() => handleSort("company")} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("company")} style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
                   Company <SortIcon col="company" />
                 </th>
-                <th style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Contact</th>
-                <th style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Trades</th>
-                <th style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Class</th>
+                <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Contact</th>
+                <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Trades</th>
+                <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>Class</th>
                 {/* Sortable: Status */}
-                <th onClick={() => handleSort("status")} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("status")} style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}>
                   Status <SortIcon col="status" />
                 </th>
-                <th style={{ padding: "11px 16px", borderBottom: "2px solid rgba(255,255,255,0.08)" }}></th>
+                <th style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", padding: "11px 16px", borderBottom: "2px solid rgba(255,255,255,0.08)" }}></th>
               </tr>
             </thead>
             <tbody>
@@ -6764,6 +6763,7 @@ function VendorsPage({ profile, tab = "directory" }) {
               })}
             </tbody>
           </table>
+          </div>{/* end scroll wrapper */}
 
           <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: C.textTer }}>
