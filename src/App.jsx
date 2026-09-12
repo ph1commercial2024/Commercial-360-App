@@ -6428,30 +6428,57 @@ function VendorsPage({ profile, tab = "directory" }) {
       <div style={styles.pageBody}>
   <div style={{ maxWidth: "80%", margin: "0 auto" }}>
         {tab === "accreditation" && (<>
-        {/* Summary cards — Invited + Submitted (pipeline only) */}
+        {/* Summary cards — link status + progress monitors */}
         {(() => {
-          const draftCount = inviteTokens.filter(t => {
+          const pendingTokens = inviteTokens.filter(t => {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
             return !linked || linked.accreditation_status === "Draft";
+          });
+          const activeCount   = pendingTokens.filter(t => tokenLinkStatus(t.created_at) === "active").length;
+          const expiringCount = pendingTokens.filter(t => tokenLinkStatus(t.created_at) === "expiring").length;
+          const expiredCount  = pendingTokens.filter(t => tokenLinkStatus(t.created_at) === "expired").length;
+          const inProgressCount  = pendingTokens.filter(t => {
+            const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
+            return linked?.accreditation_status === "Draft";
           }).length;
-          const cards = [
-            { label: "Invited", value: draftCount, color: "#4338CA", desc: "Awaiting response", isInvited: true },
-          ];
+          const notStartedCount = pendingTokens.length - inProgressCount;
+          const cardStyle = (bg, border) => ({
+            background: bg, border: `1px solid ${border}`,
+            borderRadius: 10, padding: "12px 16px", textAlign: "center",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          });
+          const label = (txt) => <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{txt}</div>;
+          const val = (n, color) => <div style={{ fontSize: 24, fontWeight: 700, color, letterSpacing: "-0.02em", marginBottom: 2 }}>{n}</div>;
+          const desc = (txt) => <div style={{ fontSize: 10, color: C.textTer }}>{txt}</div>;
           return (
-            <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-              {cards.map(s => (
-                <div key={s.label} style={{
-                  background: "#F5F3FF",
-                  border: "1px solid #C7D2FE",
-                  borderRadius: 12, padding: "16px 24px",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                  textAlign: "center", minWidth: 160,
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                  <div style={{ fontSize: 30, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+              {/* Link Status group */}
+              <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Link Status</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                  <div style={cardStyle("#EAF3DE", "#BBD9A0")}>
+                    {label("Active")}{val(activeCount, "#3B6D11")}{desc("Links usable")}
+                  </div>
+                  <div style={cardStyle("#FEF3E2", "#F5C97A")}>
+                    {label("Expiring")}{val(expiringCount, "#92580A")}{desc("Expires in 7 days")}
+                  </div>
+                  <div style={cardStyle("#FDEDED", "#F5B8B8")}>
+                    {label("Expired")}{val(expiredCount, "#B91C1C")}{desc("Need resend")}
+                  </div>
                 </div>
-              ))}
+              </div>
+              {/* Progress group */}
+              <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Application Progress</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                  <div style={cardStyle("#EEF2FF", "#C7D2FE")}>
+                    {label("In Progress")}{val(inProgressCount, "#4338CA")}{desc("Filling in form")}
+                  </div>
+                  <div style={cardStyle("#F9FAFB", C.border)}>
+                    {label("Not Started")}{val(notStartedCount, C.textSec)}{desc("Haven't opened")}
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })()}
