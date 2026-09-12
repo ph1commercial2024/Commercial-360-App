@@ -2559,6 +2559,7 @@ function ProjectsPage({ profile }) {
   }, [canManage]);
 
   useEffect(() => { fetchProjects(); fetchBusinessUnits(); fetchReviewers(); }, []);
+  useEffect(() => { document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = ""; }; }, []);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -2739,12 +2740,12 @@ function ProjectsPage({ profile }) {
 
         {/* ── Table card ── */}
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)" }}>
-          <div style={{ overflowX: "auto" }} onClick={() => openMenuId && setOpenMenuId(null)}>
+          <div style={{ overflow: "auto", height: "calc(100vh - 320px)" }} onClick={() => openMenuId && setOpenMenuId(null)}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "#374151" }}>
                   {["Project Code","Project Name","Commercial Officer","Start","End","Status",""].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", padding: "11px 16px", fontWeight: 600, color: "#FFFFFF", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -15261,7 +15262,7 @@ export default function App() {
 
       {/* Main content — shifts right with sidebar */}
       {(() => {
-        const scrollLockedPages = new Set(["projects","rfps","rfq_list","rfa_list","contracts"]);
+        const scrollLockedPages = new Set(["rfps","rfq_list","rfa_list","contracts"]);
         const isLocked = scrollLockedPages.has(page);
         return <div style={styles.mainContent(sidebarCollapsed, isLocked)}>{pageMap[page] || pageMap.dashboard}</div>;
       })()}
