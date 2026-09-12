@@ -6390,6 +6390,14 @@ function VendorsPage({ profile, tab = "directory" }) {
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [canManage, tab]);
 
+  // Lock body scroll on accreditation tab so only the table scrolls
+  useEffect(() => {
+    if (tab === "accreditation") {
+      document.body.style.overflow = "hidden";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [tab]);
+
   return (
     <>
 
