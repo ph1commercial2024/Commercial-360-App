@@ -311,6 +311,8 @@ const Icon = ({ name, size = 14, color = "currentColor" }) => {
     eye:          <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
     list:         <><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1" fill="currentColor" stroke="none"/></>,
     badge:        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,
+    award:        <><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></>,
+    bookOpen:     <><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></>,
     plus:         <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
     warning:      <><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
   };
@@ -563,8 +565,8 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
     ...(showRFPs     ? [{ key: "rfps",      label: "RFPs",              icon: "rfp",      section: "Sourcing" }] : []),
     ...(showVendors  ? [{ key: "vendors", label: "Vendors", icon: "users", section: showRFPs ? null : "Sourcing",
       children: [
-        { key: "vendors_dir", label: "Directory",     icon: "list"  },
-        { key: "vendors_acc", label: "Accreditation", icon: "badge" },
+        { key: "vendors_dir", label: "Directory",     icon: "award"    },
+        { key: "vendors_acc", label: "Accreditation", icon: "bookOpen" },
       ]
     }] : []),
     ...(showRFA      ? [
