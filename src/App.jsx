@@ -958,6 +958,7 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
   const isManager   = pos === "Manager";
 
   useEffect(() => { fetchPRs(); }, [profile]);
+  useEffect(() => { document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = ""; }; }, []);
 
   // When BU filter changes, drop any project selections that no longer belong to it
   useEffect(() => {
@@ -1082,14 +1083,15 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
           </div>
         )}
 
-        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden" }}>
 
-          <div>
+          <div style={{ overflowY: "auto", height: "calc(100vh - 370px)" }}>
             <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
               <thead>
                 <tr style={{ background: "#374151" }}>
                   {["No.", "PR Number", "Description", "Project", "Reviewer", "Start Date", "Status", ""].map(h => (
                     <th key={h} style={{
+                      position: "sticky", top: 0, zIndex: 1, background: "#374151",
                       textAlign: "left", padding: "11px 16px",
                       fontWeight: 600, color: "#FFFFFF",
                       fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase",
@@ -1144,7 +1146,7 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>{/* end scroll wrapper */}
 
           <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: C.textTer }}>{filtered.length} of {prList.length} records</span>
@@ -15259,7 +15261,7 @@ export default function App() {
 
       {/* Main content — shifts right with sidebar */}
       {(() => {
-        const scrollLockedPages = new Set(["dashboard","projects","rfps","rfq_list","rfa_list","contracts"]);
+        const scrollLockedPages = new Set(["projects","rfps","rfq_list","rfa_list","contracts"]);
         const isLocked = scrollLockedPages.has(page);
         return <div style={styles.mainContent(sidebarCollapsed, isLocked)}>{pageMap[page] || pageMap.dashboard}</div>;
       })()}
