@@ -3236,7 +3236,7 @@ function VendorAccreditationPage({ token }) {
 
 
           const sectionMeta = [
-            { key: "company",        num: 1, label: "Company Information",       desc: "Business details, addresses, key personnel, trade categories & ID documents.", detail: `${Math.min(companyFilled + tradeFilled, companyTotal + 2)} of ${companyTotal + 2} fields` },
+            { key: "company",        num: 1, label: "Company Information",       desc: "Business details, addresses, key personnel, trade categories & ID documents.", detail: `${Math.min(companyFilled, companyTotal)} of ${companyTotal} fields` },
             { key: "tax_gov",        num: 2, label: "Tax & Government Docs",      desc: "TIN, tax classification, EWT entries, business registrations & valid IDs.",    detail: `${taxInfoFilled + govFilled} of ${taxInfoTotal + govTotal} items` },
             { key: "fin_compliance", num: 3, label: "Financials & Compliance",    desc: "Bank details, financial documents, H&S policy, QMS & environmental management.", detail: finReqDocs.length > 0 ? `${finReqUploaded} of ${finReqDocs.length} required docs` : "Not started" },
             { key: "declaration",    num: 4, label: "Declaration",                desc: "Review, sign, and submit your completed accreditation application.",            detail: declarationLocked ? "Fill in all required fields first" : pct.declaration >= 100 ? "Ready to submit" : "Signatories & checkboxes needed" },
