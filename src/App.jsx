@@ -6435,18 +6435,17 @@ function VendorsPage({ profile, tab = "directory" }) {
             return !linked || linked.accreditation_status === "Draft";
           }).length;
           const cards = [
-            { label: "Invited",      value: draftCount,                                                                      color: "#4338CA", desc: "Awaiting response",  isInvited: true },
-            { label: "Under Review", value: vendors.filter(v => v.accreditation_status === "Under Review").length, color: "#4338CA", desc: "Being evaluated"     },
+            { label: "Invited", value: draftCount, color: "#4338CA", desc: "Awaiting response", isInvited: true },
           ];
           return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
               {cards.map(s => (
                 <div key={s.label} style={{
-                  background: s.isInvited ? "#F5F3FF" : C.white,
-                  border: `1px solid ${s.isInvited ? "#C7D2FE" : C.border}`,
-                  borderRadius: 12, padding: "16px 20px",
+                  background: "#F5F3FF",
+                  border: "1px solid #C7D2FE",
+                  borderRadius: 12, padding: "16px 24px",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                  textAlign: "center",
+                  textAlign: "center", minWidth: 160,
                 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
                   <div style={{ fontSize: 30, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
