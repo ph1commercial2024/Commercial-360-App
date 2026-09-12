@@ -3596,6 +3596,17 @@ function VendorAccreditationPage({ token }) {
               </div>
             </div>
 
+            {/* File upload notice */}
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 8, padding: "10px 14px", marginBottom: 4 }}>
+              <span style={{ fontSize: 16, lineHeight: 1 }}>⚠️</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 2 }}>Attached files are not saved until you submit</div>
+                <div style={{ fontSize: 11, color: "#78350F", lineHeight: 1.5 }}>
+                  Your form details (company info, contacts, etc.) are auto-saved as you type. However, <strong>uploaded PDF files are only saved when you click Submit</strong>. If you refresh or close this page before submitting, you will need to re-attach your files.
+                </div>
+              </div>
+            </div>
+
             {/* Valid Government IDs */}
             <div>
               <label style={S.label}>Valid Government IDs <span style={S.required}>*</span></label>
