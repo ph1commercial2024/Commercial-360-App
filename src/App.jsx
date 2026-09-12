@@ -942,10 +942,6 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
 
   return (
     <>
-      <div style={styles.topBar}>
-        <div style={{ flex: 1 }} />
-      </div>
-
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
         {/* Summary cards */}
@@ -1117,6 +1113,7 @@ const SCOPE_WORK_TYPES = [
 
 // ─── CREATE PR PAGE ────────────────────────────────────────────────────────────
 function CreatePRPage({ setPage, profile }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [projects, setProjects] = useState([]);
   const [groupManagers, setGroupManagers] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -1364,19 +1361,19 @@ function CreatePRPage({ setPage, profile }) {
     </div>
   );
 
-  return (
-    <>
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-            <button onClick={() => setPage("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 13 }}>
-              Purchase Requests
-            </button>
-            <Icon name="chevronRight" size={12} color={C.textTer} />
-            <span style={{ color: C.textPri, fontWeight: 500 }}>New Purchase Request</span>
-          </div>
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+          <button onClick={() => setPage("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 11 }}>
+            Purchase Requests
+          </button>
+          <Icon name="chevronRight" size={10} color={C.textTer} />
+          <span style={{ color: C.textPri, fontWeight: 500 }}>New Purchase Request</span>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+      ),
+      actions: (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {!isReviewerCreating && (
             <button style={styles.btnSecondary} onClick={() => savePR(false)} disabled={saving}>{saving ? "Saving…" : "Save draft"}</button>
           )}
@@ -1395,8 +1392,13 @@ function CreatePRPage({ setPage, profile }) {
             </button>
           )}
         </div>
-      </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [saving, isReviewerCreating]);
 
+  return (
+    <>
       <div style={{ ...styles.pageBody, maxWidth: 900 }}>
         <div style={{ marginBottom: 22 }}>
           <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 600, color: C.textPri, letterSpacing: "-0.02em" }}>Create purchase request</h2>
@@ -1796,6 +1798,7 @@ function CreatePRPage({ setPage, profile }) {
 
 // ─── PR DETAIL PAGE ───────────────────────────────────────────────────────────
 function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, setSelectedRFQId }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [pr, setPR] = useState(null);
   const [scopeItems, setScopeItems] = useState([]);
   const [scopeOfWorks, setScopeOfWorks] = useState([]);
@@ -2069,25 +2072,23 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
     await fetchPR(); setUpdating(false);
   };
 
-  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR details…</div></div>;
-  if (!pr) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
-
-  return (
-    <>
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, flexWrap: "wrap" }}>
-            <button onClick={() => setPage("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon name="chevronLeft" size={14} color={C.textTer} /> Purchase Requests
-            </button>
-            <Icon name="chevronRight" size={12} color={C.textTer} />
-            <span style={{ color: C.textPri, fontWeight: 500 }}>{pr.pr_number}</span>
-            <span style={styles.badge(pr.status)}>{pr.status}</span>
-            {pr.is_rush && <span style={styles.badge("Rush")}>Rush</span>}
-            {pr.budget_status && <span style={styles.badge(pr.budget_status)}>{pr.budget_status}</span>}
-          </div>
+  useEffect(() => {
+    if (!pr) return;
+    setHeaderContent({
+      subtitle: (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, flexWrap: "wrap" }}>
+          <button onClick={() => setPage("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+            <Icon name="chevronLeft" size={10} color={C.textTer} /> Purchase Requests
+          </button>
+          <Icon name="chevronRight" size={10} color={C.textTer} />
+          <span style={{ color: C.textPri, fontWeight: 500 }}>{pr.pr_number}</span>
+          <span style={styles.badge(pr.status)}>{pr.status}</span>
+          {pr.is_rush && <span style={styles.badge("Rush")}>Rush</span>}
+          {pr.budget_status && <span style={styles.badge(pr.budget_status)}>{pr.budget_status}</span>}
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      ),
+      actions: (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {linkedRFQ ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: C.textSec }}>RFQ:</span>
@@ -2163,8 +2164,16 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
             <button style={styles.btnDanger} disabled={updating || a1Uploading || rvUploading} onClick={() => setShowRejectBox(true)}>Reject</button>
           )}
         </div>
-      </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, canSendToManager, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canResubmit, canCreateRFA, canCreateRFQ]);
 
+  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR details…</div></div>;
+  if (!pr) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
+
+  return (
+    <>
       <div style={{ ...styles.pageBody, maxWidth: 980 }}>
 
         {/* Rejection reason banner */}
@@ -2884,6 +2893,7 @@ function ProjectsPage({ profile }) {
 
 // ─── BUDGET CODES PAGE ────────────────────────────────────────────────────────
 function BudgetCodesPage({ profile }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [bcProjects, setBcProjects] = useState([]);
   const [bcCodes, setBcCodes]       = useState([]);
   const [bcFilterProject, setBcFilterProject] = useState("");
@@ -3033,11 +3043,11 @@ function BudgetCodesPage({ profile }) {
   const filtered = bcCodes.filter(c => !bcFilterProject || String(c.project_id) === bcFilterProject);
   const previewProject = bcProjects.find(p => p.id === parseInt(bcFormProject));
 
-  return (
-    <>
-      <div style={styles.topBar}>
-        <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: C.textPri }}>Budget Codes</h2>
-        <div style={{ display: "flex", gap: 8 }}>
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: "Manage project budget codes",
+      actions: (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button style={styles.btnGhost} onClick={downloadTemplate}>⬇ Download Template</button>
           <label style={{ ...styles.btnSecondary, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
             ⬆ Import Excel
@@ -3045,7 +3055,13 @@ function BudgetCodesPage({ profile }) {
           </label>
           <button style={styles.btnGhost} onClick={exportCodes} disabled={bcCodes.length === 0}>⬇ Export Codes</button>
         </div>
-      </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [bcCodes.length]);
+
+  return (
+    <>
       <div style={{ ...styles.pageBody, maxWidth: 1100 }}>
         <div style={{ marginBottom: 22 }}>
           <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 600, color: C.textPri, letterSpacing: "-0.02em" }}>Budget Codes</h2>
@@ -3531,10 +3547,6 @@ function SettingsPage({ profile }) {
 
   return (
     <>
-      <div style={styles.topBar}>
-                <div style={{ flex: 1 }} />
-      </div>
-
       <div style={{ ...styles.pageBody, display: "flex", gap: 0, alignItems: "flex-start", maxWidth: "none", padding: 0 }}>
 
         {/* Left nav pane */}
@@ -4086,6 +4098,7 @@ function rfpBadge(status) {
 
 // ─── RFPS PAGE ────────────────────────────────────────────────────────────────
 function RFPsPage({ profile, setPage, setSelectedRFPId }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [rfps, setRfps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -4166,15 +4179,20 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
     return matchSearch && matchStatus;
   });
 
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: "Manage requests for proposals",
+      actions: canCreate ? (
+        <button style={styles.btnPrimary} onClick={() => setPage("rfp_create")}
+          onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+          onMouseOut={e => e.currentTarget.style.opacity = "1"}>+ Create RFP</button>
+      ) : null,
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [canCreate]);
+
   return (
     <>
-      <div style={styles.topBar}>
-                <div style={{ flex: 1 }} />
-        {canCreate && (
-          <button style={styles.btnPrimary} onClick={() => setPage("rfp_create")}>+ Create RFP</button>
-        )}
-      </div>
-
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
         {/* Summary cards */}
@@ -4263,6 +4281,7 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
 
 // ─── RFP CREATE PAGE ──────────────────────────────────────────────────────────
 function RFPCreatePage({ profile, setPage }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -4455,23 +4474,31 @@ function RFPCreatePage({ profile, setPage }) {
     { key: "vendors",  label: "4. Invite Vendors"   },
   ];
 
-  return (
-    <div style={{ minHeight: "100vh", background: C.offWhite, fontFamily: "'DM Sans', Arial, sans-serif" }}>
-      {/* Top bar */}
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <button onClick={() => setPage("rfps")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, fontFamily: "inherit", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-            <Icon name="chevronLeft" size={14} color={C.textTer} /> RFPs
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+          <button onClick={() => setPage("rfps")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, fontFamily: "inherit", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+            <Icon name="chevronLeft" size={10} color={C.textTer} /> RFPs
           </button>
           <span style={{ color: C.textTer }}>/</span>
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.textPri }}>Create RFP</span>
+          <span style={{ fontWeight: 500, color: C.textPri }}>Create RFP</span>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+      ),
+      actions: (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button style={styles.btnSecondary} onClick={() => saveRFP(false)} disabled={saving}>{saving ? "Saving…" : "Save as Draft"}</button>
-          <button style={styles.btnPrimary}    onClick={() => saveRFP(true)}  disabled={saving}>{saving ? "Publishing…" : "Publish RFP"}</button>
+          <button style={styles.btnPrimary} onClick={() => saveRFP(true)} disabled={saving}
+            onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+            onMouseOut={e => e.currentTarget.style.opacity = "1"}>{saving ? "Publishing…" : "Publish RFP"}</button>
         </div>
-      </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [saving]);
 
+  return (
+    <div style={{ minHeight: "100vh", background: C.offWhite, fontFamily: "'DM Sans', Arial, sans-serif" }}>
       <div style={{ display: "flex" }}>
         {/* Step sidebar */}
         <div style={{ width: 200, minWidth: 200, padding: "24px 12px", position: "sticky", top: 60, height: "calc(100vh - 60px)", background: C.white, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -4775,6 +4802,7 @@ function RFPCreatePage({ profile, setPage }) {
 
 // ─── RFP DETAIL PAGE ──────────────────────────────────────────────────────────
 function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [rfp, setRfp] = useState(null);
   const [linkedPRs, setLinkedPRs] = useState([]);
   const [boqItems, setBoqItems] = useState([]);
@@ -5077,17 +5105,17 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
   const submittedCount = invitedVendors.filter(vi => vi.latest).length;
   const canCreateEval = !evaluation && can(profile, "rfp.manage") && submittedCount > 0;
 
-  return (
-    <>
-      {/* Top bar */}
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <button onClick={() => { setViewingVendor(null); setPage("rfps"); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, fontFamily: "inherit", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-            <Icon name="chevronLeft" size={14} color={C.textTer} /> RFPs
+  useEffect(() => {
+    if (!rfp) return;
+    setHeaderContent({
+      subtitle: (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, flexWrap: "wrap" }}>
+          <button onClick={() => { setViewingVendor(null); setPage("rfps"); }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, fontFamily: "inherit", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+            <Icon name="chevronLeft" size={10} color={C.textTer} /> RFPs
           </button>
           <span style={{ color: C.textTer }}>/</span>
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.textPri, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rfp.title}</span>
+          <span style={{ fontWeight: 500, color: C.textPri, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rfp.title}</span>
           <span style={rfpBadge(rfp.status)}>{rfp.status}</span>
           {linkedRFA && (
             <button
@@ -5097,25 +5125,32 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
             </button>
           )}
         </div>
-        {canManage && (
-          <div style={{ display: "flex", gap: 8 }}>
-            {rfp.status === "Open" && (
-              <button style={{ ...styles.btnSecondary, color: C.redText, borderColor: "#FCA5A5" }}
-                onClick={closeRFP} disabled={closing}>{closing ? "Closing…" : "Close RFP"}</button>
-            )}
-            {rfp.status === "Closed" && (
-              <button style={{ ...styles.btnSecondary, color: C.greenText, borderColor: "#86EFAC" }}
-                onClick={reopenRFP} disabled={closing}>{closing ? "Reopening…" : "Re-open RFP"}</button>
-            )}
-            {rfp.status !== "Draft" && submittedCount >= 2 && (
-              <button style={styles.btnPrimary} onClick={() => { setActiveTab("compare"); }}>
-                Compare Proposals
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      ),
+      actions: canManage ? (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {rfp.status === "Open" && (
+            <button style={{ ...styles.btnSecondary, color: C.redText, borderColor: "#FCA5A5" }}
+              onClick={closeRFP} disabled={closing}>{closing ? "Closing…" : "Close RFP"}</button>
+          )}
+          {rfp.status === "Closed" && (
+            <button style={{ ...styles.btnSecondary, color: C.greenText, borderColor: "#86EFAC" }}
+              onClick={reopenRFP} disabled={closing}>{closing ? "Reopening…" : "Re-open RFP"}</button>
+          )}
+          {rfp.status !== "Draft" && submittedCount >= 2 && (
+            <button style={styles.btnPrimary} onClick={() => { setActiveTab("compare"); }}
+              onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseOut={e => e.currentTarget.style.opacity = "1"}>
+              Compare Proposals
+            </button>
+          )}
+        </div>
+      ) : null,
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [rfp, canManage, closing, submittedCount, linkedRFA]);
 
+  return (
+    <>
       <div style={styles.pageBody}>
         {/* Summary strip */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
@@ -5804,6 +5839,7 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
 
 // ─── VENDORS PAGE ─────────────────────────────────────────────────────────────
 function VendorsPage({ profile }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedVendor, setSelectedVendor] = useState(null);
@@ -6217,11 +6253,11 @@ function VendorsPage({ profile }) {
     return { display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color, whiteSpace: "nowrap" };
   };
 
-  return (
-    <>
-      <div style={styles.topBar}>
-                <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", gap: 8 }}>
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: "Manage vendor directory and accreditation",
+      actions: (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button style={styles.btnGhost} onClick={downloadVendorTemplate}>⬇ Download Template</button>
           {canManage && (
             <>
@@ -6235,8 +6271,13 @@ function VendorsPage({ profile }) {
             </>
           )}
         </div>
-      </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [canManage]);
 
+  return (
+    <>
 
       {/* ── Import Preview Modal ── */}
       {showImportPreview && (
@@ -7959,6 +8000,7 @@ function EmptyNote() {
 }
 // ─── USERS PAGE ───────────────────────────────────────────────────────────────
 function UsersPage({ profile }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -8073,23 +8115,23 @@ function UsersPage({ profile }) {
     return map[position] || { bg: C.grayBg, color: C.grayText };
   };
 
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: "Manage system accounts and access levels",
+      actions: canManage ? (
+        <button style={styles.btnPrimary} onClick={openCreate}
+          onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+          onMouseOut={e => e.currentTarget.style.opacity = "1"}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "middle" }}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New User
+        </button>
+      ) : null,
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [canManage]);
+
   return (
     <>
-      {/* ── Top bar ── */}
-      <div style={styles.topBar}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, lineHeight: 1.2 }}>Users &amp; Roles</div>
-          <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>Manage system accounts and access levels</div>
-        </div>
-        <div style={{ flex: 1 }} />
-        {canManage && (
-          <button style={styles.btnPrimary} onClick={openCreate}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: "middle" }}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New User
-          </button>
-        )}
-      </div>
-
       <div style={styles.pageBody}>
 
         {/* ── KPI stat cards ── */}
@@ -8696,9 +8738,6 @@ function RFQListPage({ profile, setPage, setSelectedRFQId }) {
 
   return (
     <>
-      <div style={styles.topBar}>
-        <div style={{ flex: 1 }} />
-      </div>
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
           {/* Summary cards */}
@@ -8882,6 +8921,7 @@ function SubmissionsTab({ rfqId, rfq, rfqVendors }) {
 
 // ─── RFQ DETAIL PAGE ──────────────────────────────────────────────────────────
 function RFQDetailPage({ profile, rfqId, setPage }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [rfq, setRfq]           = useState(null);
@@ -9077,26 +9117,30 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
     await fetchRFQ();
   };
 
+  useEffect(() => {
+    if (!rfq) return;
+    setHeaderContent({
+      subtitle: (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+          <button onClick={() => setPage("rfq_list")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: C.textSec, fontFamily: "inherit" }}>← RFQ List</button>
+          <span style={{ color: C.textTer }}>/</span>
+          <span style={{ fontWeight: 700, color: C.textPri, fontFamily: "monospace" }}>{rfq?.rfq_number}</span>
+          <span style={styles.badge(rfq?.status || "Draft")}>{rfq?.status}</span>
+        </div>
+      ),
+      actions: canEdit && (rfq?.status === "Draft" || rfq?.status === "Open") ? (
+        <button onClick={saveRFQ} disabled={saving} style={styles.btnSecondary}>{saving ? "Saving…" : "Save"}</button>
+      ) : null,
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [rfq, canEdit, saving]);
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: C.textSec }}>Loading…</div>;
 
   const tabs = ["details", "vendors", "submissions", "preview"];
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <button onClick={() => setPage("rfq_list")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.coral }}>← RFQ List</button>
-          <span style={{ color: C.textTer }}>/</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: C.textPri, fontFamily: "monospace" }}>{rfq?.rfq_number}</span>
-          <span style={styles.badge(rfq?.status || "Draft")}>{rfq?.status}</span>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {canEdit && (rfq?.status === "Draft" || rfq?.status === "Open") && (
-            <button onClick={saveRFQ} disabled={saving} style={styles.btnSecondary}>{saving ? "Saving…" : "Save"}</button>
-          )}
-        </div>
-      </div>
-
       <div style={{ ...styles.card, marginBottom: 16 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>PR Reference</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -9810,9 +9854,6 @@ function RFAListPage({ profile, setPage, setSelectedRFAId, setRfaPRId }) {
 
   return (
     <>
-      <div style={styles.topBar}>
-        <div style={{ flex: 1 }} />
-      </div>
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
           {/* Summary cards */}
@@ -9969,6 +10010,7 @@ function SectionRow({ num, sKey, icon, title, subtitle, summaryFn, children, col
 
 // ─── RFA FORM PAGE ────────────────────────────────────────────────────────────
 function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId, setSelectedPRId, setSelectedContractId }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
   const [pr, setPr]                 = useState(null);
@@ -11324,25 +11366,25 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
     return { tot, ptLabel, sectionDone, autoAmts, ptd, ptt };
   });
 
-  return (
-    <>
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-            <button onClick={() => setPage("rfa_list")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon name="chevronLeft" size={14} color={C.textTer} /> Recommendations for Award
+  useEffect(() => {
+    setHeaderContent({
+      subtitle: (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, flexWrap: "wrap" }}>
+          <button onClick={() => setPage("rfa_list")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+            <Icon name="chevronLeft" size={10} color={C.textTer} /> Recommendations for Award
+          </button>
+          <Icon name="chevronRight" size={10} color={C.textTer} />
+          <span style={{ color: C.textPri, fontWeight: 500 }}>{rfaNumber || "New RFA"}</span>
+          {rfaNumber && <span style={styles.badge(status)}>{status}</span>}
+          {linkedContract && (
+            <button onClick={() => { if (setSelectedContractId) setSelectedContractId(linkedContract.id); setPage("contract_detail"); }}
+              style={{ background: C.greenBg, border: `1px solid ${C.greenText}40`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 600, color: C.greenText, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              📋 {linkedContract.contract_number}
             </button>
-            <Icon name="chevronRight" size={12} color={C.textTer} />
-            <span style={{ color: C.textPri, fontWeight: 500 }}>{rfaNumber || "New RFA"}</span>
-            {rfaNumber && <span style={styles.badge(status)}>{status}</span>}
-            {linkedContract && (
-              <button onClick={() => { if (setSelectedContractId) setSelectedContractId(linkedContract.id); setPage("contract_detail"); }}
-                style={{ background: C.greenBg, border: `1px solid ${C.greenText}40`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 600, color: C.greenText, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                📋 {linkedContract.contract_number}
-              </button>
-            )}
-          </div>
+          )}
         </div>
+      ),
+      actions: (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {(() => {
             if (!awardedSlot || !pr?.remaining_budget) return null;
@@ -11363,7 +11405,6 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
               color: checklist.length > 0 ? C.amberText : C.greenText }}>
             {checklist.length > 0 ? `⚠ ${checklist.length} item${checklist.length > 1 ? "s" : ""} missing` : "✓ Complete"}
           </button>
-          {/* Generate — only enabled when Approved */}
           {can(profile, "rfa.generate") && (() => {
             const genDisabled = checklist.length > 0 || status !== "Approved";
             const genTitle = status !== "Approved" ? "RFA must be approved by the Commercial Manager before generating documents" : checklist.length > 0 ? `${checklist.length} item${checklist.length !== 1 ? "s" : ""} must be completed before generating` : undefined;
@@ -11377,15 +11418,15 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
               </button>
             );
           })()}
-          {/* Draft / Returned → CO saves + submits */}
           {(status === "Draft" || status === "Returned" || status === "Completed" || !rfaId) && (<>
             <button style={styles.btnSecondary} onClick={() => saveRFA()} disabled={saving}>{saving ? "Saving…" : "Save Draft"}</button>
             <button style={styles.btnPrimary} onClick={submitRFA} disabled={saving || actionSaving || !rfaId}
-              title={!rfaId ? "Save as draft first" : undefined}>
+              title={!rfaId ? "Save as draft first" : undefined}
+              onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseOut={e => e.currentTarget.style.opacity = "1"}>
               {actionSaving ? "Submitting…" : "Submit for Review"}
             </button>
           </>)}
-          {/* Submitted → CM can save/return/approve; CO can only withdraw */}
           {status === "Submitted" && (can(profile, "rfa.approve") ? (<>
             <button style={styles.btnSecondary} onClick={() => saveRFA()} disabled={saving}>{saving ? "Saving…" : "Save Changes"}</button>
             <button style={styles.btnDanger} onClick={() => setReturnModal(true)} disabled={actionSaving}>Return</button>
@@ -11393,13 +11434,17 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
           </>) : (
             <button style={styles.btnAmber} onClick={withdrawRFA} disabled={actionSaving}>{actionSaving ? "Withdrawing…" : "Withdraw"}</button>
           ))}
-          {/* Approved → CM can return for revision */}
           {status === "Approved" && can(profile, "rfa.approve") && (
             <button style={styles.btnSecondary} onClick={() => setReturnModal(true)} disabled={actionSaving}>Return for Revision</button>
           )}
         </div>
-      </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [status, rfaNumber, linkedContract, awardedSlot, checklist.length, saving, actionSaving, rfaId]);
 
+  return (
+    <>
       {/* ── Return Comment Banner ── */}
       {status === "Returned" && rfaReturnComment && (
         <div style={{ margin:"0 0 16px", padding:"14px 18px", background:C.redBg, border:`1px solid #FCA5A5`, borderRadius:10, display:"flex", gap:10, alignItems:"flex-start" }}>
@@ -14507,9 +14552,6 @@ function ContractsListPage({ profile, setPage, setSelectedContractId }) {
 
   return (
     <>
-      <div style={styles.topBar}>
-        <div style={{ flex: 1 }} />
-      </div>
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
           {/* Summary cards */}
@@ -14605,6 +14647,7 @@ function ContractsListPage({ profile, setPage, setSelectedContractId }) {
 
 // ─── CONTRACT DETAIL PAGE ─────────────────────────────────────────────────────
 function ContractDetailPage({ profile, setPage, contractId, setSelectedRFAId, setRfaPRId }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [contract, setContract]       = useState(null);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]           = useState(false);
@@ -14673,6 +14716,45 @@ function ContractDetailPage({ profile, setPage, contractId, setSelectedRFAId, se
     setUploading(false);
   };
 
+  useEffect(() => {
+    if (!contract) return;
+    setHeaderContent({
+      subtitle: (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+          <button onClick={() => setPage("contracts")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+            <Icon name="chevronLeft" size={10} color={C.textTer} /> Contracts
+          </button>
+          <Icon name="chevronRight" size={10} color={C.textTer} />
+          <span style={{ color: C.textPri, fontWeight: 500, fontFamily: "monospace" }}>{contract.contract_number}</span>
+          <span style={{ ...statusColors[contract.status], fontWeight: 600, fontSize: 11, padding: "2px 8px", borderRadius: 20 }}>{contract.status}</span>
+        </div>
+      ),
+      actions: canManage ? (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {contract.status === "Draft" && (
+            <button style={styles.btnPrimary} onClick={() => advanceStatus("For Signing")} disabled={saving}
+              onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseOut={e => e.currentTarget.style.opacity = "1"}>
+              {saving ? "Saving…" : "Send for Signing"}
+            </button>
+          )}
+          {contract.status === "For Signing" && (
+            <>
+              <button style={styles.btnSecondary} onClick={() => advanceStatus("Draft")} disabled={saving}>Back to Draft</button>
+              <button style={{ ...styles.btnPrimary, background: C.greenText, borderColor: C.greenText }} onClick={() => advanceStatus("Signed")} disabled={saving || !contract.signed_doc_url}
+                title={!contract.signed_doc_url ? "Upload the signed copy first" : undefined}
+                onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
+                onMouseOut={e => e.currentTarget.style.opacity = "1"}>
+                {saving ? "Saving…" : "Mark as Signed"}
+              </button>
+            </>
+          )}
+        </div>
+      ) : null,
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [contract, canManage, saving]);
+
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading…</div></div>;
   if (!contract) return <div style={{ padding: 40, textAlign: "center", color: C.textTer }}>Contract not found.</div>;
 
@@ -14681,37 +14763,6 @@ function ContractDetailPage({ profile, setPage, contractId, setSelectedRFAId, se
 
   return (
     <>
-      <div style={styles.topBar}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-            <button onClick={() => setPage("contracts")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSec, padding: 0, fontFamily: "inherit", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon name="chevronLeft" size={14} color={C.textTer} /> Contracts
-            </button>
-            <Icon name="chevronRight" size={12} color={C.textTer} />
-            <span style={{ color: C.textPri, fontWeight: 500, fontFamily: "monospace" }}>{contract.contract_number}</span>
-            <span style={{ ...statusColors[contract.status], fontWeight: 600, fontSize: 11, padding: "2px 8px", borderRadius: 20 }}>{contract.status}</span>
-          </div>
-        </div>
-        {canManage && (
-          <div style={{ display: "flex", gap: 8 }}>
-            {contract.status === "Draft" && (
-              <button style={styles.btnPrimary} onClick={() => advanceStatus("For Signing")} disabled={saving}>
-                {saving ? "Saving…" : "Send for Signing"}
-              </button>
-            )}
-            {contract.status === "For Signing" && (
-              <>
-                <button style={styles.btnSecondary} onClick={() => advanceStatus("Draft")} disabled={saving}>Back to Draft</button>
-                <button style={{ ...styles.btnPrimary, background: C.greenText, borderColor: C.greenText }} onClick={() => advanceStatus("Signed")} disabled={saving || !contract.signed_doc_url}
-                  title={!contract.signed_doc_url ? "Upload the signed copy first" : undefined}>
-                  {saving ? "Saving…" : "Mark as Signed"}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
       <div style={styles.pageBody}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16, alignItems: "start" }}>
 
