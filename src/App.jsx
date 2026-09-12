@@ -4850,7 +4850,7 @@ function RFPCreatePage({ profile, setPage }) {
                   <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
                     <Icon name="search" size={13} color={C.textTer} />
                   </div>
-                  <input placeholder="Search by company name…" value={vendorSearch} onChange={e => setVendorSearch(e.target.value)}
+                  <input placeholder="Search by company name or trade…" value={vendorSearch} onChange={e => setVendorSearch(e.target.value)}
                     style={{ ...styles.input, paddingLeft: 32, fontSize: 12 }} />
                 </div>
                 <button style={{ ...styles.btnGhost, fontSize: 12, whiteSpace: "nowrap" }} onClick={toggleAllVendors}>
@@ -6320,7 +6320,12 @@ function VendorsPage({ profile, tab = "directory" }) {
   const filtered = vendors.filter(v => {
     if (v.accreditation_status === "Draft") return false; // Draft vendors live in the Invited section
     const name = v.vendor_company_info?.company_name || v.profiles?.full_name || "";
-    const matchSearch = name.toLowerCase().includes(search.toLowerCase());
+    const trades = [
+      ...(v.vendor_company_info?.trade_categories || []),
+      v.vendor_company_info?.primary_activity || "",
+    ].join(" ");
+    const matchSearch = name.toLowerCase().includes(search.toLowerCase()) ||
+      trades.toLowerCase().includes(search.toLowerCase());
     let matchStatus;
     if (activeCard && activeCard !== "Total") {
       matchStatus = (vendorCardStatusMap[activeCard] || []).includes(v.accreditation_status);
@@ -6642,7 +6647,7 @@ function VendorsPage({ profile, tab = "directory" }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <div style={{ position: "relative", flex: 1 }}>
             <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={13} color={C.textTer} /></div>
-            <input placeholder="Search by company name…" value={search} onChange={e => setSearch(e.target.value)} style={{ ...styles.input, paddingLeft: 30, fontSize: 12 }} />
+            <input placeholder="Search by company name or trade…" value={search} onChange={e => setSearch(e.target.value)} style={{ ...styles.input, paddingLeft: 30, fontSize: 12 }} />
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ ...styles.input, width: "auto", fontSize: 12 }}>
             {STATUSES.map(s => <option key={s}>{s}</option>)}
