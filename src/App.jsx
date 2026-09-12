@@ -520,19 +520,6 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
         )}
         {/* Page-injected actions (via HeaderActionsCtx) */}
         {headerActions}
-        {/* Filter icon */}
-        <button style={{ width: 34, height: 34, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
-          </svg>
-        </button>
-        {/* More icon */}
-        <button style={{ width: 34, height: 34, borderRadius: 7, border: "1px solid #E2E8F0", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="5" r="1" fill="#64748B"/><circle cx="12" cy="12" r="1" fill="#64748B"/><circle cx="12" cy="19" r="1" fill="#64748B"/>
-          </svg>
-        </button>
-
         {/* Divider */}
         <div style={{ width: 1, height: 24, background: "#E2E8F0", flexShrink: 0 }} />
 
