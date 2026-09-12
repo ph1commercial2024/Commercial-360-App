@@ -5968,6 +5968,7 @@ function VendorsPage({ profile, tab = "directory" }) {
   const [inviteCount, setInviteCount]         = useState(0);
   const [inviteTokens, setInviteTokens]       = useState([]); // raw token rows for invited section
   const [showAllInvited, setShowAllInvited]   = useState(false);
+  const [accFilter, setAccFilter]             = useState(null); // "active"|"expiring"|"expired"|"in_progress"|"not_started"
 
   const INVITE_EXPIRY_DAYS = 30;
   const tokenLinkStatus = (createdAt) => {
@@ -6442,28 +6443,36 @@ function VendorsPage({ profile, tab = "directory" }) {
             return linked?.accreditation_status === "Draft";
           }).length;
           const notStartedCount = pendingTokens.length - inProgressCount;
-          const cardStyle = (bg, border) => ({
-            background: bg, border: `1px solid ${border}`,
-            borderRadius: 10, padding: "12px 16px", textAlign: "center",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-          });
-          const label = (txt) => <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{txt}</div>;
-          const val = (n, color) => <div style={{ fontSize: 24, fontWeight: 700, color, letterSpacing: "-0.02em", marginBottom: 2 }}>{n}</div>;
-          const desc = (txt) => <div style={{ fontSize: 10, color: C.textTer }}>{txt}</div>;
+          const cardStyle = (bg, border, key) => {
+            const isActive = accFilter === key;
+            return {
+              background: isActive ? border : bg,
+              border: `2px solid ${isActive ? border : border + "80"}`,
+              borderRadius: 10, padding: "12px 16px", textAlign: "center",
+              boxShadow: isActive ? `0 0 0 3px ${border}40` : "0 1px 3px rgba(0,0,0,0.05)",
+              cursor: "pointer", userSelect: "none",
+              transition: "background 0.12s, box-shadow 0.12s",
+              opacity: accFilter && !isActive ? 0.5 : 1,
+            };
+          };
+          const label = (txt, active) => <div style={{ fontSize: 10, fontWeight: 700, color: active ? "rgba(0,0,0,0.55)" : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{txt}</div>;
+          const val = (n, color, active) => <div style={{ fontSize: 24, fontWeight: 700, color: active ? "rgba(0,0,0,0.75)" : color, letterSpacing: "-0.02em", marginBottom: 2 }}>{n}</div>;
+          const desc = (txt, active) => <div style={{ fontSize: 10, color: active ? "rgba(0,0,0,0.45)" : C.textTer }}>{txt}</div>;
+          const toggle = (key) => setAccFilter(prev => prev === key ? null : key);
           return (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
               {/* Link Status group */}
               <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Link Status</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                  <div style={cardStyle("#EAF3DE", "#BBD9A0")}>
-                    {label("Active")}{val(activeCount, "#3B6D11")}{desc("Links usable")}
+                  <div style={cardStyle("#EAF3DE", "#BBD9A0", "active")} onClick={() => toggle("active")}>
+                    {label("Active", accFilter === "active")}{val(activeCount, "#3B6D11", accFilter === "active")}{desc("Links usable", accFilter === "active")}
                   </div>
-                  <div style={cardStyle("#FEF3E2", "#F5C97A")}>
-                    {label("Expiring")}{val(expiringCount, "#92580A")}{desc("Expires in 7 days")}
+                  <div style={cardStyle("#FEF3E2", "#F5C97A", "expiring")} onClick={() => toggle("expiring")}>
+                    {label("Expiring", accFilter === "expiring")}{val(expiringCount, "#92580A", accFilter === "expiring")}{desc("Expires in 7 days", accFilter === "expiring")}
                   </div>
-                  <div style={cardStyle("#FDEDED", "#F5B8B8")}>
-                    {label("Expired")}{val(expiredCount, "#B91C1C")}{desc("Need resend")}
+                  <div style={cardStyle("#FDEDED", "#F5B8B8", "expired")} onClick={() => toggle("expired")}>
+                    {label("Expired", accFilter === "expired")}{val(expiredCount, "#B91C1C", accFilter === "expired")}{desc("Need resend", accFilter === "expired")}
                   </div>
                 </div>
               </div>
@@ -6471,11 +6480,11 @@ function VendorsPage({ profile, tab = "directory" }) {
               <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Application Progress</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-                  <div style={cardStyle("#EEF2FF", "#C7D2FE")}>
-                    {label("In Progress")}{val(inProgressCount, "#4338CA")}{desc("Filling in form")}
+                  <div style={cardStyle("#EEF2FF", "#C7D2FE", "in_progress")} onClick={() => toggle("in_progress")}>
+                    {label("In Progress", accFilter === "in_progress")}{val(inProgressCount, "#4338CA", accFilter === "in_progress")}{desc("Filling in form", accFilter === "in_progress")}
                   </div>
-                  <div style={cardStyle("#F9FAFB", C.border)}>
-                    {label("Not Started")}{val(notStartedCount, C.textSec)}{desc("Haven't opened")}
+                  <div style={cardStyle("#F9FAFB", C.border, "not_started")} onClick={() => toggle("not_started")}>
+                    {label("Not Started", accFilter === "not_started")}{val(notStartedCount, C.textSec, accFilter === "not_started")}{desc("Haven't opened", accFilter === "not_started")}
                   </div>
                 </div>
               </div>
@@ -6486,10 +6495,19 @@ function VendorsPage({ profile, tab = "directory" }) {
         {/* ── SECTION 1: Invited — Awaiting Response ── */}
         {(() => {
           // Tokens where vendor hasn't progressed past Draft
-          const invitedRows = inviteTokens.filter(t => {
+          const allInvitedRows = inviteTokens.filter(t => {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
             return !linked || linked.accreditation_status === "Draft";
           });
+          const invitedRows = accFilter ? allInvitedRows.filter(t => {
+            const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
+            if (accFilter === "active")      return tokenLinkStatus(t.created_at) === "active";
+            if (accFilter === "expiring")    return tokenLinkStatus(t.created_at) === "expiring";
+            if (accFilter === "expired")     return tokenLinkStatus(t.created_at) === "expired";
+            if (accFilter === "in_progress") return linked?.accreditation_status === "Draft";
+            if (accFilter === "not_started") return !linked || linked.accreditation_status !== "Draft";
+            return true;
+          }) : allInvitedRows;
           if (invitedRows.length === 0) return null;
           const visibleRows = showAllInvited ? invitedRows : invitedRows.slice(0, 5);
           const linkStatusBadge = (createdAt) => {
