@@ -6435,8 +6435,8 @@ function VendorsPage({ profile, tab = "directory" }) {
             return !linked || linked.accreditation_status === "Draft";
           }).length;
           const cards = [
-            { label: "Invited",   value: draftCount,                                                               color: "#4338CA", desc: "Awaiting response",    isInvited: true },
-            { label: "Submitted", value: vendors.filter(v => v.accreditation_status === "Submitted").length, color: "#0F6E56", desc: "Applications received" },
+            { label: "Invited",      value: draftCount,                                                                      color: "#4338CA", desc: "Awaiting response",  isInvited: true },
+            { label: "Under Review", value: vendors.filter(v => v.accreditation_status === "Under Review").length, color: "#4338CA", desc: "Being evaluated"     },
           ];
           return (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
@@ -6551,7 +6551,7 @@ function VendorsPage({ profile, tab = "directory" }) {
         {(() => {
           const dirCards = [
             { label: "Total",        value: vendors.filter(v => v.accreditation_status !== "Draft").length, color: C.textPri,   desc: "Vendors on file"           },
-            { label: "Under Review", value: vendors.filter(v => v.accreditation_status === "Under Review").length, color: "#4338CA", desc: "Being evaluated"            },
+            { label: "Submitted",    value: vendors.filter(v => v.accreditation_status === "Submitted").length,    color: "#0F6E56", desc: "Applications received"      },
             { label: "Returned",     value: vendors.filter(v => v.accreditation_status === "Returned").length,     color: C.amberText, desc: "Returned for corrections" },
             { label: "Accredited",   value: vendors.filter(v => v.accreditation_status === "Accredited").length,   color: C.greenText, desc: "Fully approved vendors"   },
           ];
