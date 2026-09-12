@@ -6428,42 +6428,31 @@ function VendorsPage({ profile, tab = "directory" }) {
       <div style={styles.pageBody}>
   <div style={{ maxWidth: "80%", margin: "0 auto" }}>
         {tab === "accreditation" && (<>
-        {/* Summary cards — 6 cards including Invited */}
+        {/* Summary cards — Invited + Submitted (pipeline only) */}
         {(() => {
           const draftCount = inviteTokens.filter(t => {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
             return !linked || linked.accreditation_status === "Draft";
           }).length;
           const cards = [
-            { label: "Total",        value: vendors.filter(v => v.accreditation_status !== "Draft").length, color: C.textPri,  desc: "Vendors on file"          },
-            { label: "Invited",      value: draftCount,                                                      color: "#4338CA",  desc: "Awaiting response",        isInvited: true },
-            { label: "Submitted",    value: vendors.filter(v => v.accreditation_status === "Submitted").length,    color: "#0F6E56",  desc: "Applications received"    },
-            { label: "Under Review", value: vendors.filter(v => v.accreditation_status === "Under Review").length, color: "#4338CA",  desc: "Being evaluated"           },
-            { label: "Returned",     value: vendors.filter(v => v.accreditation_status === "Returned").length,     color: C.amberText,desc: "Returned for corrections"   },
-            { label: "Accredited",   value: vendors.filter(v => v.accreditation_status === "Accredited").length,   color: C.greenText,desc: "Fully approved vendors"     },
+            { label: "Invited",   value: draftCount,                                                               color: "#4338CA", desc: "Awaiting response",    isInvited: true },
+            { label: "Submitted", value: vendors.filter(v => v.accreditation_status === "Submitted").length, color: "#0F6E56", desc: "Applications received" },
           ];
           return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 20 }}>
-              {cards.map(s => {
-                const isActive = activeCard === s.label;
-                return (
-                  <div key={s.label}
-                    onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                    style={{
-                      background: isActive ? (s.isInvited ? "#EEF2FF" : C.coralLight) : C.white,
-                      border: `1px solid ${isActive ? (s.isInvited ? "#818CF8" : C.coral) : (s.isInvited ? "#C7D2FE" : C.border)}`,
-                      borderRadius: 12, padding: "14px 18px",
-                      boxShadow: isActive ? `0 0 0 2px ${s.isInvited ? "rgba(99,102,241,0.15)" : C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                      cursor: "pointer", userSelect: "none",
-                      transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                      textAlign: "center",
-                    }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? (s.isInvited ? "#4338CA" : C.coralDark) : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                    <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                    <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-                  </div>
-                );
-              })}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
+              {cards.map(s => (
+                <div key={s.label} style={{
+                  background: s.isInvited ? "#F5F3FF" : C.white,
+                  border: `1px solid ${s.isInvited ? "#C7D2FE" : C.border}`,
+                  borderRadius: 12, padding: "16px 20px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
+                </div>
+              ))}
             </div>
           );
         })()}
@@ -6558,6 +6547,40 @@ function VendorsPage({ profile, tab = "directory" }) {
 
         </>)}
         {tab === "directory" && (<>
+        {/* Summary cards — directory stats (click to filter) */}
+        {(() => {
+          const dirCards = [
+            { label: "Total",        value: vendors.filter(v => v.accreditation_status !== "Draft").length, color: C.textPri,   desc: "Vendors on file"           },
+            { label: "Under Review", value: vendors.filter(v => v.accreditation_status === "Under Review").length, color: "#4338CA", desc: "Being evaluated"            },
+            { label: "Returned",     value: vendors.filter(v => v.accreditation_status === "Returned").length,     color: C.amberText, desc: "Returned for corrections" },
+            { label: "Accredited",   value: vendors.filter(v => v.accreditation_status === "Accredited").length,   color: C.greenText, desc: "Fully approved vendors"   },
+          ];
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+              {dirCards.map(s => {
+                const isActive = activeCard === s.label;
+                return (
+                  <div key={s.label}
+                    onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
+                    style={{
+                      background: isActive ? C.coralLight : C.white,
+                      border: `1px solid ${isActive ? C.coral : C.border}`,
+                      borderRadius: 12, padding: "14px 18px",
+                      boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
+                      cursor: "pointer", userSelect: "none",
+                      transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
+                      textAlign: "center",
+                    }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
+                    <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         {/* ── Vendor Directory ── */}
         {/* Section label */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
