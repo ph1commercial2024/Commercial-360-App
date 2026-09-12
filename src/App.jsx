@@ -156,10 +156,13 @@ const styles = {
     fontSize: 12, fontWeight: 600, color: C.white, flexShrink: 0,
     boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
   },
-  mainContent: (collapsed) => ({
+  mainContent: (collapsed, scrollLocked) => ({
     paddingTop: 56,
     marginLeft: collapsed ? 80 : 240,
-    minHeight: "100vh", background: C.offWhite,
+    ...(scrollLocked
+      ? { height: "100vh", overflowY: "auto", boxSizing: "border-box" }
+      : { minHeight: "100vh" }),
+    background: C.offWhite,
     transition: "margin-left 0.26s cubic-bezier(0.23,1,0.32,1)",
   }),
   topBar: {
@@ -15255,7 +15258,11 @@ export default function App() {
       />
 
       {/* Main content — shifts right with sidebar */}
-      <div style={styles.mainContent(sidebarCollapsed)}>{pageMap[page] || pageMap.dashboard}</div>
+      {(() => {
+        const scrollLockedPages = new Set(["dashboard","projects","rfps","rfq_list","rfa_list","contracts"]);
+        const isLocked = scrollLockedPages.has(page);
+        return <div style={styles.mainContent(sidebarCollapsed, isLocked)}>{pageMap[page] || pageMap.dashboard}</div>;
+      })()}
     </div>
     </HeaderActionsCtx.Provider>
     </SidebarCtx.Provider>
