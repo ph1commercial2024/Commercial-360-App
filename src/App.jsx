@@ -10043,6 +10043,7 @@ function RFAListPage({ profile, setPage, setSelectedRFAId, setRfaPRId }) {
   };
 
   useEffect(() => { fetchRFAs(); }, []);
+  useEffect(() => { document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = ""; }; }, []);
 
   useEffect(() => {
     if (projectFilter.length > 0) {
@@ -10146,12 +10147,13 @@ function RFAListPage({ profile, setPage, setSelectedRFAId, setRfaPRId }) {
               <div style={{ fontSize: 12, color: C.textTer, marginTop: 4 }}>RFAs are created from approved Purchase Requests.</div>
             </div>
           ) : (
-            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "clip" }}>
+            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden" }}>
+              <div style={{ overflowY: "auto", height: "calc(100vh - 320px)" }}>
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: "#374151" }}>
                     {["RFA #","PR #","Project","Status","Recommended Vendor","Created by","Date"].map(h => (
-                      <th key={h} style={{ textAlign: "left", fontSize: 11, fontWeight: 600, color: "#FFFFFF", textTransform: "uppercase", letterSpacing: "0.06em", padding: "11px 16px", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
+                      <th key={h} style={{ position: "sticky", top: 0, zIndex: 1, background: "#374151", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#FFFFFF", textTransform: "uppercase", letterSpacing: "0.06em", padding: "11px 16px", borderBottom: "2px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -10185,6 +10187,7 @@ function RFAListPage({ profile, setPage, setSelectedRFAId, setRfaPRId }) {
                   ))}
                 </tbody>
               </table>
+              </div>
               <div style={{ padding: "10px 18px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: C.textTer }}>Showing {filtered.length} of {rfas.length} records</span>
                 <button onClick={fetchRFAs} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
@@ -15268,7 +15271,7 @@ export default function App() {
 
       {/* Main content — shifts right with sidebar */}
       {(() => {
-        const scrollLockedPages = new Set(["rfa_list","contracts"]);
+        const scrollLockedPages = new Set(["contracts"]);
         const isLocked = scrollLockedPages.has(page);
         return <div style={styles.mainContent(sidebarCollapsed, isLocked)}>{pageMap[page] || pageMap.dashboard}</div>;
       })()}
