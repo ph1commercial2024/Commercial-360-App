@@ -589,6 +589,8 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
     }
   }, [page]);
 
+  const [flyoutGroup, setFlyoutGroup] = useState(null); // key of the hovered parent when collapsed
+
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
@@ -672,9 +674,47 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
           const showSection = item.section && item.section !== lastSection;
           if (item.section) lastSection = item.section;
           return (
-            <div key={item.key}>
+            <div key={item.key} style={{ position: "relative" }}
+              onMouseEnter={() => { if (collapsed && isParent) setFlyoutGroup(item.key); }}
+              onMouseLeave={() => { if (collapsed && isParent) setFlyoutGroup(null); }}>
               {showSection && (
                 <div style={styles.navSection(collapsed)}>{item.section}</div>
+              )}
+              {/* Collapsed flyout for accordion parents */}
+              {collapsed && isParent && flyoutGroup === item.key && (
+                <div style={{
+                  position: "fixed", left: 88, zIndex: 300,
+                  background: "rgba(18,22,36,0.97)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 10,
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                  padding: "6px 4px",
+                  minWidth: 160,
+                  backdropFilter: "blur(12px)",
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 10px 6px" }}>{item.label}</div>
+                  {item.children.map(child => {
+                    const childActive = page === child.key;
+                    return (
+                      <button key={child.key}
+                        onClick={() => { setPage(child.key); setFlyoutGroup(null); }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          width: "100%", padding: "7px 10px", border: "none", borderRadius: 7,
+                          background: childActive ? "rgba(226,92,59,0.18)" : "transparent",
+                          color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
+                          fontSize: 12, fontWeight: childActive ? 600 : 500,
+                          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                          transition: "background 0.1s, color 0.1s",
+                        }}
+                        onMouseOver={e => { if (!childActive) { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "#fff"; }}}
+                        onMouseOut={e  => { if (!childActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}}>
+                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: childActive ? "#E25C3B" : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                        {child.label}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
               <button
                 title={collapsed ? item.label : undefined}
