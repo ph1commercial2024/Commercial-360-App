@@ -6356,17 +6356,7 @@ function VendorsPage({ profile, tab = "directory" }) {
     if (tab === "directory") {
       setHeaderContent({
         subtitle: "Browse and manage the vendor directory",
-        actions: (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button style={styles.btnGhost} onClick={downloadVendorTemplate}>⬇ Download Template</button>
-            {canManage && (
-              <label style={{ ...styles.btnSecondary, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                ↑ Import Excel
-                <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { handleVendorImport(e.target.files[0]); e.target.value = ""; }} />
-              </label>
-            )}
-          </div>
-        ),
+        actions: null,
       });
     } else {
       setHeaderContent({
