@@ -3257,8 +3257,12 @@ function VendorAccreditationPage({ token }) {
           if (!(docFiles["Company Profile"]       || uploadedDocs["Company Profile"]))       addMi("Company Information", "Company Profile — not uploaded", "Upload your Company Profile document.", "company");
           if (!(docFiles["Organizational Chart"]  || uploadedDocs["Organizational Chart"]))  addMi("Company Information", "Organizational Chart — not uploaded", "Upload your Organizational Chart document.", "company");
           // Section 2 — Tax & Government
-          if (!form.tin?.trim())             addMi("Tax & Government Docs", "TIN — missing", "Enter your Tax Identification Number.", "tax_gov");
-          if (!form.registration_type)       addMi("Tax & Government Docs", "Registration type — not selected", "Choose DTI (Sole Proprietor) or SEC (Corporation / Partnership).", "tax_gov");
+          if (!form.tin?.trim())         addMi("Tax & Government Docs", "TIN — missing", "Enter your Tax Identification Number.", "tax_gov");
+          if (!form.tax_classification)  addMi("Tax & Government Docs", "Tax classification — not selected", "Select your tax classification (e.g. VAT, Non-VAT).", "tax_gov");
+          if (!form.registration_type)   addMi("Tax & Government Docs", "Registration type — not selected", "Choose DTI (Sole Proprietor) or SEC (Corporation / Partnership).", "tax_gov");
+          if (!form.ewt_entries?.some(e => e.rate && e.description?.trim()))
+            addMi("Tax & Government Docs", "EWT entries — at least one entry required", "Add at least one EWT rate and description in the Tax section.", "tax_gov");
+          // Government IDs — upload + expiry
           COMPANY_ID_DOCS.forEach(d => {
             if (!(docFiles[d] || uploadedDocs[d]))
               addMi("Tax & Government Docs", `${d} — not uploaded`, "Upload both government-issued IDs.", "tax_gov");
@@ -3267,10 +3271,28 @@ function VendorAccreditationPage({ token }) {
             else if (docExpiry[d].expiry_date <= idMinDate)
               addMi("Tax & Government Docs", `${d} — expires within 60 days or already expired`, "Your government ID must be valid for at least 60 more days.", "tax_gov");
           });
+          // Required government docs (DTI cert, Mayor's Permit, BIR/VAT, etc.)
+          if (govRequired.length === 0) {
+            addMi("Tax & Government Docs", "Registration type — select first to determine required documents", "Select your registration type so we know which government documents to require.", "tax_gov");
+          } else {
+            govRequired.forEach(d => {
+              if (!(docFiles[d] || uploadedDocs[d]))
+                addMi("Tax & Government Docs", `${d} — not uploaded`, "This government document is required for your registration type.", "tax_gov");
+            });
+            govRequiredWithExpiry.forEach(d => {
+              if ((docFiles[d] || uploadedDocs[d]) && !docExpiry[d]?.expiry_date)
+                addMi("Tax & Government Docs", `${d} — expiry date missing`, "Enter the expiry / validity date for this document.", "tax_gov");
+            });
+          }
           // Section 3 — Financials & Compliance
           const _bankFields = { bank_name: "Bank name", bank_account_name: "Account name", bank_account_number: "Account number", bank_branch: "Bank branch" };
           Object.entries(_bankFields).forEach(([k, label]) => {
             if (!form[k]?.trim()) addMi("Financials & Compliance", `Bank details — ${label} missing`, "All four bank fields are required.", "fin_compliance");
+          });
+          // Required financial documents
+          finReqDocs.forEach(d => {
+            if (!(docFiles[d] || uploadedDocs[d]))
+              addMi("Financials & Compliance", `${d} — not uploaded`, "This financial document is required before you can submit.", "fin_compliance");
           });
           if (!form.num_employees)  addMi("Financials & Compliance", "Number of employees — not filled", "Enter your company's employee count.", "fin_compliance");
           if (!form.is_subsidiary)  addMi("Financials & Compliance", "Subsidiary status — not answered", "Indicate whether your company is a subsidiary of another.", "fin_compliance");
@@ -3287,9 +3309,6 @@ function VendorAccreditationPage({ token }) {
           if (_cfg2.satellite_address  && !form.satellite_address?.trim())  addMi("Company Information", "Satellite / branch address", "This field is required for your vendor type.", "company");
           if (_cfg2.location_map_url   && !form.location_map_url?.trim())   addMi("Company Information", "Location / map URL", "This field is required for your vendor type.", "company");
           if (_cfg2.telephone          && !form.telephone?.trim())           addMi("Company Information", "Telephone number", "This field is required for your vendor type.", "company");
-          if (_cfg2.tax_classification && !form.tax_classification)          addMi("Tax & Government Docs", "Tax classification — not selected", "This field is required for your vendor type.", "tax_gov");
-          if (_cfg2.ewt_entries        && !form.ewt_entries?.some((e, i) => e.rate && e.description?.trim() && (ewtFiles?.[i] || uploadedEwtDocs?.[i])))
-            addMi("Tax & Government Docs", "EWT entries — at least one complete entry required", "Add an EWT rate, description, and upload the certificate.", "tax_gov");
           if (_cfg2.signatories && (!form.signatory_sales_manager?.trim() || !form.signatory_president?.trim()))
             addMi("Declaration", "Declaration signatories — Sales Manager & President names required", "Fill in the signatory names on the Declaration page.", "declaration");
           // Group by section for rendering
