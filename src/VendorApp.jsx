@@ -3221,6 +3221,73 @@ function VendorAccreditationPage({ token }) {
             (!_cfg.signatories         || (!!form.signatory_sales_manager.trim() && !!form.signatory_president.trim()));
           const declarationLocked = !_alwaysOk || !_cfgOk;
           const sectionsComplete  = Object.values(pct).filter(p => p >= 100).length;
+
+          // ── Build the "what's missing" list shown on the locked Declaration card ──
+          const _mi = [];
+          const addMi = (section, field, hint, tab) => _mi.push({ section, field, hint, tab });
+          // Section 1 — Company Information
+          const _basicFields = {
+            company_name: "Company name", registered_address: "Registered address",
+            cell_number: "Cell number", contact_person: "Contact person",
+            authorized_representative: "Authorized representative",
+            contact_position: "Contact position / designation",
+            representative_title: "Representative title",
+          };
+          Object.entries(_basicFields).forEach(([k, label]) => {
+            if (!form[k]?.trim()) addMi("Company Information", label, "Required field — fill in Company Information.", "company");
+          });
+          if (!form.rfq_emails?.some(e => e.trim()))    addMi("Company Information", "RFQ email address", "At least one email address is required.", "company");
+          if (!form.trade_categories?.length)            addMi("Company Information", "Trade categories", "Select at least one trade category.", "company");
+          const _kcRoles = [["president","President"],["accounting_manager","Accounting Manager"],["sales_manager","Sales Manager"],["delivery_incharge","Delivery In-charge"],["technical_incharge","Technical In-charge"]];
+          _kcRoles.forEach(([k, label]) => {
+            if (!_kcComp[k]?.name?.trim()) addMi("Company Information", `Key Contact — ${label}`, "All 5 key contact roles must have a name.", "company");
+          });
+          if (!form.client_list?.some(r => r.name?.trim()))       addMi("Company Information", "Client list — at least one entry required", "Add at least one client in the Client List table.", "company");
+          if (!form.equipment_list?.some(r => r.item?.trim()))    addMi("Company Information", "Equipment list — at least one entry required", "Add at least one item in the Equipment List table.", "company");
+          if (!form.stockholder_list?.some(r => r.name?.trim()))  addMi("Company Information", "Stockholder list — at least one entry required", "Add at least one name in the Stockholder List table.", "company");
+          if (!(docFiles["Company Profile"]       || uploadedDocs["Company Profile"]))       addMi("Company Information", "Company Profile — not uploaded", "Upload your Company Profile document.", "company");
+          if (!(docFiles["Organizational Chart"]  || uploadedDocs["Organizational Chart"]))  addMi("Company Information", "Organizational Chart — not uploaded", "Upload your Organizational Chart document.", "company");
+          // Section 2 — Tax & Government
+          if (!form.tin?.trim())             addMi("Tax & Government Docs", "TIN — missing", "Enter your Tax Identification Number.", "tax_gov");
+          if (!form.registration_type)       addMi("Tax & Government Docs", "Registration type — not selected", "Choose DTI (Sole Proprietor) or SEC (Corporation / Partnership).", "tax_gov");
+          COMPANY_ID_DOCS.forEach(d => {
+            if (!(docFiles[d] || uploadedDocs[d]))
+              addMi("Tax & Government Docs", `${d} — not uploaded`, "Upload both government-issued IDs.", "tax_gov");
+            else if (!docExpiry[d]?.expiry_date)
+              addMi("Tax & Government Docs", `${d} — expiry date missing`, "Enter the expiry date for this ID.", "tax_gov");
+            else if (docExpiry[d].expiry_date <= idMinDate)
+              addMi("Tax & Government Docs", `${d} — expires within 60 days or already expired`, "Your government ID must be valid for at least 60 more days.", "tax_gov");
+          });
+          // Section 3 — Financials & Compliance
+          const _bankFields = { bank_name: "Bank name", bank_account_name: "Account name", bank_account_number: "Account number", bank_branch: "Bank branch" };
+          Object.entries(_bankFields).forEach(([k, label]) => {
+            if (!form[k]?.trim()) addMi("Financials & Compliance", `Bank details — ${label} missing`, "All four bank fields are required.", "fin_compliance");
+          });
+          if (!form.num_employees)  addMi("Financials & Compliance", "Number of employees — not filled", "Enter your company's employee count.", "fin_compliance");
+          if (!form.is_subsidiary)  addMi("Financials & Compliance", "Subsidiary status — not answered", "Indicate whether your company is a subsidiary of another.", "fin_compliance");
+          if (form.is_subsidiary === "yes" && !form.parent_company_name?.trim())
+            addMi("Financials & Compliance", "Parent company name — missing", "Enter the name of your parent company.", "fin_compliance");
+          if (!form.has_hs_adviser)    addMi("Financials & Compliance", "H&S — Do you have a Health & Safety adviser?", "Answer the Health & Safety questions in the Compliance section.", "fin_compliance");
+          if (!form.has_hs_policy)     addMi("Financials & Compliance", "H&S — Do you have a written H&S policy?", "Answer the Health & Safety questions in the Compliance section.", "fin_compliance");
+          if (!form.has_qms)           addMi("Financials & Compliance", "QMS — Do you have a Quality Management System?", "Answer the QMS question in the Compliance section.", "fin_compliance");
+          if (form.has_qms === "yes" && !form.has_internal_qms)
+            addMi("Financials & Compliance", "QMS — Internal QMS type not specified", "Specify whether your QMS is ISO-certified or internal.", "fin_compliance");
+          if (!form.has_env_management) addMi("Financials & Compliance", "Environmental management — not answered", "Answer the Environmental Management question in the Compliance section.", "fin_compliance");
+          // Admin-configured fields
+          const _cfg2 = fieldReqs[form.vendor_type] || {};
+          if (_cfg2.satellite_address  && !form.satellite_address?.trim())  addMi("Company Information", "Satellite / branch address", "This field is required for your vendor type.", "company");
+          if (_cfg2.location_map_url   && !form.location_map_url?.trim())   addMi("Company Information", "Location / map URL", "This field is required for your vendor type.", "company");
+          if (_cfg2.telephone          && !form.telephone?.trim())           addMi("Company Information", "Telephone number", "This field is required for your vendor type.", "company");
+          if (_cfg2.tax_classification && !form.tax_classification)          addMi("Tax & Government Docs", "Tax classification — not selected", "This field is required for your vendor type.", "tax_gov");
+          if (_cfg2.ewt_entries        && !form.ewt_entries?.some((e, i) => e.rate && e.description?.trim() && (ewtFiles?.[i] || uploadedEwtDocs?.[i])))
+            addMi("Tax & Government Docs", "EWT entries — at least one complete entry required", "Add an EWT rate, description, and upload the certificate.", "tax_gov");
+          if (_cfg2.signatories && (!form.signatory_sales_manager?.trim() || !form.signatory_president?.trim()))
+            addMi("Declaration", "Declaration signatories — Sales Manager & President names required", "Fill in the signatory names on the Declaration page.", "declaration");
+          // Group by section for rendering
+          const _miGrouped = _mi.reduce((acc, item) => {
+            (acc[item.section] = acc[item.section] || []).push(item);
+            return acc;
+          }, {});
           const overallPct        = Math.round((pct.company + pct.tax_gov + pct.fin_compliance + pct.declaration) / 4);
 
           // Classification preview
@@ -3429,6 +3496,46 @@ function VendorAccreditationPage({ token }) {
                   );
                 })}
               </div>
+
+              {/* ── What's still missing (shown only when Declaration is locked) ── */}
+              {declarationLocked && _mi.length > 0 && (
+                <div style={{ border: "1px solid #FCA5A5", background: C.redBg, borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+                  {/* Header */}
+                  <div style={{ padding: "12px 16px", borderBottom: "1px solid #FCA5A5", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>🔒</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.redText }}>
+                        Declaration is locked — {_mi.length} item{_mi.length !== 1 ? "s" : ""} still needed
+                      </div>
+                      <div style={{ fontSize: 11, color: C.redText, opacity: .75, marginTop: 1 }}>
+                        Complete these before you can sign and submit your application.
+                      </div>
+                    </div>
+                  </div>
+                  {/* Items grouped by section */}
+                  {Object.entries(_miGrouped).map(([sectionName, items]) => (
+                    <div key={sectionName} style={{ padding: "10px 16px 8px" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: C.redText, opacity: .65, marginBottom: 6 }}>
+                        {sectionName}
+                      </div>
+                      {items.map((item, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "6px 0", borderBottom: i < items.length - 1 ? "1px solid rgba(185,28,28,.08)" : "none" }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.redText, flexShrink: 0, marginTop: 5 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: C.redText }}>{item.field}</div>
+                            <div style={{ fontSize: 11, color: C.redText, opacity: .7, marginTop: 1 }}>{item.hint}</div>
+                          </div>
+                          <button type="button"
+                            onClick={() => { setActiveTab(item.tab); setViewMode("detail"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                            style={{ fontSize: 11, color: C.redText, opacity: .65, background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: "2px 0", fontFamily: FONT, fontWeight: 600 }}>
+                            → Go
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Classification — dynamic tier grid */}
               {(() => {
