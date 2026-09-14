@@ -5944,7 +5944,7 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
 }
 
 // ─── VENDORS PAGE ─────────────────────────────────────────────────────────────
-function VendorsPage({ profile, tab = "directory" }) {
+function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6858,7 +6858,7 @@ function VendorsPage({ profile, tab = "directory" }) {
         ];
 
         return (
-        <div style={{ position: "fixed", inset: 0, top: 56, background: C.offWhite, zIndex: 150, overflowY: "auto" }}>
+        <div style={{ position: "fixed", top: 56, bottom: 0, left: sidebarCollapsed ? 80 : 240, right: 0, background: C.offWhite, zIndex: 140, overflowY: "auto", transition: "left 0.26s cubic-bezier(0.23,1,0.32,1)" }}>
 
           {/* ── Sticky admin bar ───────────────────────────────────────── */}
           <div style={{ position: "sticky", top: 0, zIndex: 10, background: C.white, borderBottom: `1px solid ${C.border}`, padding: "10px 20px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -6869,37 +6869,66 @@ function VendorsPage({ profile, tab = "directory" }) {
               <span style={badge(selectedVendor.accreditation_status)}>{selectedVendor.accreditation_status}</span>
             </div>
             {canManage && (<>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 12, color: C.textSec, fontWeight: 500 }}>Class:</span>
-                <select value={selectedVendor.subcontractor_class || ""}
-                  onChange={async e => {
-                    await supabase.from("vendors").update({ subcontractor_class: e.target.value || null }).eq("id", selectedVendor.id);
-                    setSelectedVendor(prev => ({ ...prev, subcontractor_class: e.target.value }));
-                    fetchVendors();
-                  }}
-                  style={{ ...styles.input, width: "auto", fontSize: 12, padding: "5px 10px" }}>
-                  <option value="">Unassigned</option>
-                  <option value="Class A">Class A</option>
-                  <option value="Class B">Class B</option>
-                  <option value="Class C">Class C</option>
-                </select>
-              </div>
-              {selectedVendor.accreditation_status === "Submitted" && (
-                <button style={{ ...styles.btnGhost, fontSize: 12 }} disabled={updating} onClick={() => updateStatus(selectedVendor.id, "Under Review")}>Mark as Under Review</button>
-              )}
-              {["Submitted", "Under Review", "Returned"].includes(selectedVendor.accreditation_status) && (
-                <button style={{ ...styles.btnDanger, padding: "7px 14px", fontSize: 12 }} disabled={updating}
-                  onClick={() => { setReturnNotes(selectedVendor.return_notes || ""); setShowReturnModal(true); }}>
-                  {selectedVendor.accreditation_status === "Returned" ? "✉ Resend return email" : "Return to vendor"}
-                </button>
+              {["Submitted", "Under Review"].includes(selectedVendor.accreditation_status) && (
+                <button style={{ background: C.redBg, color: C.redText, border: `1px solid #FCA5A5`, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }} disabled={updating} onClick={() => { if (confirm("Decline this vendor's accreditation?")) updateStatus(selectedVendor.id, "Declined"); }}>Decline</button>
               )}
               {["Submitted", "Under Review"].includes(selectedVendor.accreditation_status) && (
                 <button style={{ ...styles.btnSuccess, padding: "7px 14px", fontSize: 12 }} disabled={updating} onClick={() => updateStatus(selectedVendor.id, "Accredited")}>✓ Accredit vendor</button>
               )}
-              {["Submitted", "Under Review"].includes(selectedVendor.accreditation_status) && (
-                <button style={{ background: C.redBg, color: C.redText, border: `1px solid #FCA5A5`, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }} disabled={updating} onClick={() => { if (confirm("Decline this vendor's accreditation?")) updateStatus(selectedVendor.id, "Declined"); }}>Decline</button>
+              {selectedVendor.accreditation_status === "Returned" && (
+                <button style={{ ...styles.btnDanger, padding: "7px 14px", fontSize: 12 }} disabled={updating}
+                  onClick={() => { setReturnNotes(selectedVendor.return_notes || ""); setShowReturnModal(true); }}>
+                  ✉ Resend return email
+                </button>
               )}
             </>)}
+          </div>
+
+          {/* ── Vendor snapshot strip ───────────────────────────────────── */}
+          <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "12px 20px" }}>
+            <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", alignItems: "flex-start", gap: 0, flexWrap: "wrap" }}>
+              {/* Contact */}
+              <div style={{ paddingRight: 20, marginRight: 20, borderRight: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>Contact Person</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.textPri }}>{ci.contact_person || "—"}</div>
+                {ci.contact_position && <div style={{ fontSize: 11, color: C.textSec }}>{ci.contact_position}</div>}
+              </div>
+              {/* Email */}
+              <div style={{ paddingRight: 20, marginRight: 20, borderRight: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>Email</div>
+                <div style={{ fontSize: 12, color: C.textSec }}>{ci.rfq_email || "—"}</div>
+              </div>
+              {/* Trades */}
+              <div style={{ paddingRight: 20, marginRight: 20, borderRight: `1px solid ${C.border}`, flex: 1, minWidth: 120 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Trades</div>
+                {(ci.trade_categories?.length > 0)
+                  ? <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {ci.trade_categories.slice(0, 3).map(t => <span key={t} style={{ fontSize: 10, fontWeight: 500, background: C.coralMid, color: C.coralDark, padding: "2px 8px", borderRadius: 99 }}>{t}</span>)}
+                      {ci.trade_categories.length > 3 && (
+                        <span style={{ fontSize: 10, fontWeight: 600, background: "#E2E8F0", color: C.textSec, padding: "2px 8px", borderRadius: 99 }}>+{ci.trade_categories.length - 3} more</span>
+                      )}
+                    </div>
+                  : <div style={{ fontSize: 12, color: C.textSec }}>{ci.primary_activity || "—"}</div>}
+              </div>
+              {/* Class — moved from action bar */}
+              {canManage && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Classification</div>
+                  <select value={selectedVendor.subcontractor_class || ""}
+                    onChange={async e => {
+                      await supabase.from("vendors").update({ subcontractor_class: e.target.value || null }).eq("id", selectedVendor.id);
+                      setSelectedVendor(prev => ({ ...prev, subcontractor_class: e.target.value }));
+                      fetchVendors();
+                    }}
+                    style={{ ...styles.input, width: "auto", fontSize: 12, padding: "4px 10px" }}>
+                    <option value="">Unassigned</option>
+                    <option value="Class A">Class A</option>
+                    <option value="Class B">Class B</option>
+                    <option value="Class C">Class C</option>
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ── Content area ────────────────────────────────────────────── */}
@@ -7035,7 +7064,7 @@ function VendorsPage({ profile, tab = "directory" }) {
                         )}
                         {rec.action === "return" && (
                           <button style={{ ...styles.btnDanger, fontSize: 12, padding: "7px 14px" }}
-                            onClick={() => { setReturnNotes(rec.returnNote || ""); setShowReturnModal(true); }}>Accept — Return to Vendor</button>
+                            onClick={() => { setReturnNotes(rec.returnNote || ""); setShowReturnModal(true); }}>Return to Vendor</button>
                         )}
                       </div>
                     )}
@@ -7044,36 +7073,67 @@ function VendorsPage({ profile, tab = "directory" }) {
               );
             })()}
 
-            {/* ── Tab strip ─────────────────────────────────────────────── */}
-            <div style={{ display: "flex", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
-              {TABS.map((t, i) => (
-                <button key={t.key} onClick={() => setFormActiveTab(t.key)}
-                  style={{ flex: 1, padding: "10px 4px", border: "none", background: formActiveTab === t.key ? C.coral : "transparent", color: formActiveTab === t.key ? C.white : C.textSec, fontWeight: 600, fontSize: 11, cursor: "pointer", borderRight: i < TABS.length - 1 ? `1px solid ${C.border}` : "none", transition: "background 0.15s", fontFamily: "inherit" }}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {/* ── HUB ─────────────────────────────────────────────────────── */}
-            {formActiveTab === "hub" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {[
-                  { key: "company",        num: 1, label: "Company Information",     desc: "Business details, addresses, key personnel, trade categories & ID documents." },
-                  { key: "tax_gov",        num: 2, label: "Tax & Government Docs",   desc: "TIN, tax classification, EWT entries, business registrations & valid IDs." },
-                  { key: "fin_compliance", num: 3, label: "Financials & Compliance", desc: "Bank details, financial documents, H&S policy, QMS & environmental management." },
-                  { key: "declaration",    num: 4, label: "Declaration",             desc: "Signatories and submission confirmation." },
-                ].map(s => (
-                  <div key={s.key} style={{ ...roCard, marginBottom: 0, display: "flex", alignItems: "center", gap: 16 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.coralLight, color: C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{s.num}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: C.textPri }}>{s.label}</div>
-                      <div style={{ fontSize: 12, color: C.textSec, marginTop: 2 }}>{s.desc}</div>
-                    </div>
-                    <button onClick={() => setFormActiveTab(s.key)} style={{ ...styles.btnGhost, fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap" }}>View →</button>
-                  </div>
+            {/* ── Tab strip — only shown on section views, not on hub ───── */}
+            {formActiveTab !== "hub" && (
+              <div style={{ display: "flex", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+                {TABS.filter(t => t.key !== "hub").map((t, i, arr) => (
+                  <button key={t.key} onClick={() => setFormActiveTab(t.key)}
+                    style={{ flex: 1, padding: "10px 4px", border: "none", background: formActiveTab === t.key ? C.coral : "transparent", color: formActiveTab === t.key ? C.white : C.textSec, fontWeight: 600, fontSize: 11, cursor: "pointer", borderRight: i < arr.length - 1 ? `1px solid ${C.border}` : "none", transition: "background 0.15s", fontFamily: "inherit" }}>
+                    {t.label}
+                  </button>
                 ))}
               </div>
             )}
+
+            {/* ── HUB ─────────────────────────────────────────────────────── */}
+            {formActiveTab === "hub" && (() => {
+              const uploadedTypes = new Set((docs || []).map(d => d.document_type));
+              const SECTION_DOCS = {
+                company:        ["Company Profile", "Organizational Chart", "PCAB License", "Location Sketch (Office/Store/Warehouse)", "Letter of Intent"],
+                tax_gov:        ["DTI / SEC Certificate", "Municipality / Mayor's Permit", "BIR/VAT Registration", "Valid Government ID 1", "Valid Government ID 2"],
+                fin_compliance: ["OR & Sales Invoice", "Copy of ITR Previous Year", "Audited Financial Statement (2 years)", "Certificate of Good Credit Standing", "Sample Purchase Order / Job Order (5 Major Clients)"],
+                declaration:    [],
+              };
+              const getSectionChip = (key) => {
+                const required = SECTION_DOCS[key] || [];
+                if (required.length === 0) {
+                  // Declaration — check if vendor has submitted
+                  const submitted = ["Submitted", "Under Review", "Accredited", "Returned"].includes(selectedVendor.accreditation_status);
+                  return submitted
+                    ? { label: "✓ Submitted", bg: C.greenBg, color: C.greenText }
+                    : { label: "Pending", bg: "#F1F5F9", color: C.textSec };
+                }
+                const missing = required.filter(d => !uploadedTypes.has(d));
+                if (missing.length === 0) return { label: "✓ Complete", bg: C.greenBg, color: C.greenText };
+                if (missing.length < required.length) return { label: `⚠ ${missing.length} missing`, bg: C.amberBg, color: C.amberText };
+                return { label: "Not reviewed", bg: "#F1F5F9", color: C.textSec };
+              };
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {[
+                    { key: "company",        num: 1, label: "Company Information",     desc: "Business details, addresses, key personnel, trade categories & ID documents." },
+                    { key: "tax_gov",        num: 2, label: "Tax & Government Docs",   desc: "TIN, tax classification, EWT entries, business registrations & valid IDs." },
+                    { key: "fin_compliance", num: 3, label: "Financials & Compliance", desc: "Bank details, financial documents, H&S policy, QMS & environmental management." },
+                    { key: "declaration",    num: 4, label: "Declaration",             desc: "Signatories and submission confirmation." },
+                  ].map(s => {
+                    const chip = getSectionChip(s.key);
+                    return (
+                      <div key={s.key} style={{ ...roCard, marginBottom: 0, display: "flex", alignItems: "center", gap: 16 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.coralLight, color: C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{s.num}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: C.textPri }}>{s.label}</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: chip.bg, color: chip.color }}>{chip.label}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: C.textSec, marginTop: 2 }}>{s.desc}</div>
+                        </div>
+                        <button onClick={() => setFormActiveTab(s.key)} style={{ ...styles.btnGhost, fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap" }}>View →</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* ── COMPANY INFO ────────────────────────────────────────────── */}
             {formActiveTab === "company" && (<>
@@ -15233,9 +15293,9 @@ export default function App() {
     rfps:       <RFPsPage       profile={profile} setPage={setPage} setSelectedRFPId={setSelectedRFPId} />,
     rfp_create: <RFPCreatePage  profile={profile} setPage={setPage} />,
     rfp_detail: <RFPDetailPage   rfpId={selectedRFPId} profile={profile} setPage={setPage} setSelectedRFAId={setSelectedRFAId} setRfaPRId={setRfaPRId} />,
-    vendors:      <VendorsPage profile={profile} tab="directory" />,
-    vendors_dir:  <VendorsPage profile={profile} tab="directory" />,
-    vendors_acc:  <VendorsPage profile={profile} tab="accreditation" />,
+    vendors:      <VendorsPage key="vendors_dir"  profile={profile} tab="directory"      sidebarCollapsed={sidebarCollapsed} />,
+    vendors_dir:  <VendorsPage key="vendors_dir"  profile={profile} tab="directory"      sidebarCollapsed={sidebarCollapsed} />,
+    vendors_acc:  <VendorsPage key="vendors_acc"  profile={profile} tab="accreditation"  sidebarCollapsed={sidebarCollapsed} />,
     reports:    <PlaceholderPage title="Reports" />,
     users:        <UsersPage        profile={profile} />,
     budget_codes: <BudgetCodesPage profile={profile} />,
