@@ -3186,28 +3186,37 @@ function VendorAccreditationPage({ token }) {
                              !!form.signatory_sales_manager.trim() && !!form.signatory_president.trim()) ? 100 : 0,
           };
 
-          // Declaration unlocks when all always-required AND admin-configured required fields are filled.
-          // Progress bars (pct) remain informational but no longer gate the declaration tab.
+          // Declaration unlocks only when sections 1, 2, and 3 are fully complete.
+          // Every required field and document in all three sections must be satisfied.
           const _kc = _kcComp;
           const _alwaysOk =
+            // ── Section 1: Company Information ──────────────────────────────
             ["company_name","registered_address","cell_number","contact_person","authorized_representative",
-             "contact_position","representative_title","tin"].every(k => form[k]?.trim()) &&
+             "contact_position","representative_title"].every(k => form[k]?.trim()) &&
             form.rfq_emails.some(e => e.trim()) && form.trade_categories.length > 0 &&
             !!_kc.president?.name?.trim() && !!_kc.accounting_manager?.name?.trim() &&
             !!_kc.sales_manager?.name?.trim() && !!_kc.delivery_incharge?.name?.trim() &&
             !!_kc.technical_incharge?.name?.trim() &&
-            ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim()) &&
-            !!form.num_employees && !!form.is_subsidiary &&
-            (form.is_subsidiary !== "yes" || !!form.parent_company_name?.trim()) &&
-            !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms && !!form.has_env_management &&
-            (form.has_qms !== "yes" || !!form.has_internal_qms) &&
-            COMPANY_ID_DOCS.every(d => (docFiles[d] || uploadedDocs[d]) &&
-              docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate) &&
             form.client_list.some(r => r.name.trim()) &&
             form.equipment_list.some(r => r.item.trim()) &&
             form.stockholder_list.some(r => r.name.trim()) &&
             !!(docFiles["Company Profile"] || uploadedDocs["Company Profile"]) &&
-            !!(docFiles["Organizational Chart"] || uploadedDocs["Organizational Chart"]);
+            !!(docFiles["Organizational Chart"] || uploadedDocs["Organizational Chart"]) &&
+            // ── Section 2: Tax & Government Docs ────────────────────────────
+            !!form.tin?.trim() && !!form.tax_classification && !!form.registration_type &&
+            form.ewt_entries.some(e => e.rate && e.description.trim()) &&
+            COMPANY_ID_DOCS.every(d => (docFiles[d] || uploadedDocs[d]) &&
+              docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate) &&
+            govRequired.length > 0 &&
+            govRequired.every(d => docFiles[d] || uploadedDocs[d]) &&
+            govRequiredWithExpiry.every(d => docExpiry[d]?.expiry_date) &&
+            // ── Section 3: Financials & Compliance ──────────────────────────
+            ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim()) &&
+            finReqDocs.length > 0 && finReqDocs.every(d => docFiles[d] || uploadedDocs[d]) &&
+            !!form.num_employees && !!form.is_subsidiary &&
+            (form.is_subsidiary !== "yes" || !!form.parent_company_name?.trim()) &&
+            !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms && !!form.has_env_management &&
+            (form.has_qms !== "yes" || !!form.has_internal_qms);
           const _cfg = fieldReqs[form.vendor_type] || {};
           const _cfgOk =
             (!_cfg.satellite_address   || !!form.satellite_address.trim()) &&
