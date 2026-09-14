@@ -6779,6 +6779,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
       {vendorFormPage && selectedVendor && (() => {
         const ci   = selectedVendor.vendor_company_info || {};
         const docs = selectedVendor.vendor_documents || [];
+        const selectedVendorDocs = new Set(docs.map(d => d.document_type));
         // Map doc_type → vendor_doc_expiry row (expiry date, reg number, reg date)
         const docExpMap = Object.fromEntries(
           (selectedVendor.vendor_doc_expiry || []).map(r => [r.doc_type, r])
@@ -6790,6 +6791,12 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
         const roLbl   = { fontSize: 12, fontWeight: 600, color: C.textSec, marginBottom: 4, display: "block" };
         const roIn    = { border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, background: C.offWhite, color: C.textPri, width: "100%", boxSizing: "border-box", cursor: "default", outline: "none", fontFamily: "inherit" };
         const gap14   = { display: "flex", flexDirection: "column", gap: 14 };
+        // Wraps a field div with amber highlight when value is missing
+        const roField = (isMissing, children) => (
+          <div style={isMissing ? { borderLeft: "3px solid #F59E0B", paddingLeft: 10, marginLeft: -10 } : {}}>
+            {children}
+          </div>
+        );
 
         const DocRowV = ({ docType, label: lbl2 }) => {
           const doc = docs.find(d => d.document_type === docType);
@@ -7087,26 +7094,73 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
 
             {/* ── HUB ─────────────────────────────────────────────────────── */}
             {formActiveTab === "hub" && (() => {
-              const uploadedTypes = new Set((docs || []).map(d => d.document_type));
-              const SECTION_DOCS = {
-                company:        ["Company Profile", "Organizational Chart", "PCAB License", "Location Sketch (Office/Store/Warehouse)", "Letter of Intent"],
-                tax_gov:        ["DTI / SEC Certificate", "Municipality / Mayor's Permit", "BIR/VAT Registration", "Valid Government ID 1", "Valid Government ID 2"],
-                fin_compliance: ["OR & Sales Invoice", "Copy of ITR Previous Year", "Audited Financial Statement (2 years)", "Certificate of Good Credit Standing", "Sample Purchase Order / Job Order (5 Major Clients)"],
-                declaration:    [],
+              const uploadedTypes = selectedVendorDocs;
+              const kc = ci.key_contacts || {};
+
+              // Count missing items per section based on actual saved data
+              const companyIssues = [
+                !ci.company_name?.trim(),
+                !ci.registered_address?.trim(),
+                !ci.cell_number?.trim(),
+                !ci.contact_person?.trim(),
+                !ci.contact_position?.trim(),
+                !ci.authorized_representative?.trim(),
+                !ci.representative_title?.trim(),
+                !(ci.rfq_email?.trim() || (Array.isArray(ci.rfq_emails) && ci.rfq_emails.some(e => e.trim()))),
+                !(ci.trade_categories?.length > 0),
+                ci.num_employees == null || ci.num_employees === "",
+                ci.is_subsidiary == null || ci.is_subsidiary === "",
+                ci.is_subsidiary === true && !ci.parent_company_name?.trim(),
+                !kc.president?.name?.trim(),
+                !kc.accounting_manager?.name?.trim(),
+                !kc.sales_manager?.name?.trim(),
+                !kc.delivery_incharge?.name?.trim(),
+                !kc.technical_incharge?.name?.trim(),
+                !ci.bank_name?.trim(),
+                !ci.bank_account_name?.trim(),
+                !ci.bank_account_number?.trim(),
+                !ci.bank_branch?.trim(),
+                ci.has_hs_adviser == null || ci.has_hs_adviser === "",
+                ci.has_hs_policy == null || ci.has_hs_policy === "",
+                ci.has_qms == null || ci.has_qms === "",
+                ci.has_env_management == null || ci.has_env_management === "",
+                !(ci.client_list?.some(r => r.name?.trim())),
+                !(ci.equipment_list?.some(r => r.item?.trim())),
+                !(ci.stockholder_list?.some(r => r.name?.trim())),
+                !uploadedTypes.has("Company Profile"),
+                !uploadedTypes.has("Organizational Chart"),
+                !uploadedTypes.has("Valid Government ID 1"),
+                !uploadedTypes.has("Valid Government ID 2"),
+              ].filter(Boolean).length;
+
+              const taxIssues = [
+                !ci.tin?.trim(),
+                !ci.tax_classification,
+                !ci.registration_type,
+              ].filter(Boolean).length;
+
+              const finIssues = [
+                !uploadedTypes.has("OR & Sales Invoice"),
+                !uploadedTypes.has("Copy of ITR Previous Year"),
+                // AFS required for SEC-registered vendors
+                ci.registration_type === "SEC" && !uploadedTypes.has("Audited Financial Statement (2 years)"),
+              ].filter(Boolean).length;
+
+              const declarationOk = ["Submitted", "Under Review", "Accredited", "Returned"].includes(selectedVendor.accreditation_status);
+
+              const chip = (issues, isDeclaration = false) => {
+                if (isDeclaration) return declarationOk
+                  ? { label: "✓ Submitted", bg: C.greenBg, color: C.greenText }
+                  : { label: "⚠ Pending", bg: C.amberBg, color: C.amberText };
+                if (issues === 0) return { label: "✓ Complete", bg: C.greenBg, color: C.greenText };
+                return { label: `⚠ ${issues} issue${issues > 1 ? "s" : ""}`, bg: C.amberBg, color: C.amberText };
               };
-              const getSectionChip = (key) => {
-                const required = SECTION_DOCS[key] || [];
-                if (required.length === 0) {
-                  // Declaration — check if vendor has submitted
-                  const submitted = ["Submitted", "Under Review", "Accredited", "Returned"].includes(selectedVendor.accreditation_status);
-                  return submitted
-                    ? { label: "✓ Submitted", bg: C.greenBg, color: C.greenText }
-                    : { label: "Pending", bg: "#F1F5F9", color: C.textSec };
-                }
-                const missing = required.filter(d => !uploadedTypes.has(d));
-                if (missing.length === 0) return { label: "✓ Complete", bg: C.greenBg, color: C.greenText };
-                if (missing.length < required.length) return { label: `⚠ ${missing.length} missing`, bg: C.amberBg, color: C.amberText };
-                return { label: "Not reviewed", bg: "#F1F5F9", color: C.textSec };
+
+              const sectionChips = {
+                company:        chip(companyIssues),
+                tax_gov:        chip(taxIssues),
+                fin_compliance: chip(finIssues),
+                declaration:    chip(0, true),
               };
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -7116,7 +7170,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                     { key: "fin_compliance", num: 3, label: "Financials & Compliance", desc: "Bank details, financial documents, H&S policy, QMS & environmental management." },
                     { key: "declaration",    num: 4, label: "Declaration",             desc: "Signatories and submission confirmation." },
                   ].map(s => {
-                    const chip = getSectionChip(s.key);
+                    const chip = sectionChips[s.key];
                     return (
                       <div key={s.key} style={{ ...roCard, marginBottom: 0, display: "flex", alignItems: "center", gap: 16 }}>
                         <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.coralLight, color: C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{s.num}</div>
@@ -7141,11 +7195,11 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               <div style={roCard}>
                 <div style={roCT}>Company Information</div>
                 <div style={gap14}>
-                  <div>
+                  {roField(!ci.company_name?.trim(), <div>
                     <label style={roLbl}>Company Name</label>
                     <input value={ci.company_name || ""} readOnly style={roIn} />
-                  </div>
-                  <div>
+                  </div>)}
+                  {roField(!ci.registered_address?.trim(), <div>
                     <label style={roLbl}>Registered / Main Office Address</label>
                     <textarea value={ci.registered_address || ""} readOnly rows={2} style={{ ...roIn, resize: "none" }} />
                     {ci.location_map_url && (
@@ -7154,7 +7208,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                         <a href={ci.location_map_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.coral, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>View map ↗</a>
                       </div>
                     )}
-                  </div>
+                  </div>)}
                   <div>
                     <label style={roLbl}>Satellite Office / Warehouse Address</label>
                     <textarea value={ci.satellite_address || ""} readOnly rows={2} style={{ ...roIn, resize: "none" }} />
@@ -7170,100 +7224,99 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                       <label style={roLbl}>Telephone Number</label>
                       <input value={ci.telephone || ""} readOnly style={roIn} />
                     </div>
-                    <div>
+                    {roField(!ci.cell_number?.trim(), <div>
                       <label style={roLbl}>Cell Number</label>
                       <input value={ci.cell_number || ""} readOnly style={roIn} />
-                    </div>
+                    </div>)}
                   </div>
-                  <div>
+                  {roField(!ci.rfq_email?.trim(), <div>
                     <label style={roLbl}>Email Address(es)</label>
                     <input value={ci.rfq_email || ""} readOnly style={roIn} />
-                  </div>
+                  </div>)}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div>
+                    {roField(!ci.contact_person?.trim(), <div>
                       <label style={roLbl}>Contact Person</label>
                       <input value={ci.contact_person || ""} readOnly style={roIn} />
-                    </div>
-                    <div>
+                    </div>)}
+                    {roField(!ci.contact_position?.trim(), <div>
                       <label style={roLbl}>Position</label>
                       <input value={ci.contact_position || ""} readOnly style={roIn} />
-                    </div>
+                    </div>)}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div>
+                    {roField(!ci.authorized_representative?.trim(), <div>
                       <label style={roLbl}>Authorized Representative</label>
                       <input value={ci.authorized_representative || ""} readOnly style={roIn} />
-                    </div>
-                    <div>
+                    </div>)}
+                    {roField(!ci.representative_title?.trim(), <div>
                       <label style={roLbl}>Title</label>
                       <input value={ci.representative_title || ""} readOnly style={roIn} />
-                    </div>
+                    </div>)}
                   </div>
-                  <div>
+                  {roField(!selectedVendorDocs.has("Valid Government ID 1") || !selectedVendorDocs.has("Valid Government ID 2"), <div>
                     <label style={roLbl}>Valid Government IDs</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <DocRowV docType="Valid Government ID 1" label="Government ID — 1st" />
                       <DocRowV docType="Valid Government ID 2" label="Government ID — 2nd" />
                     </div>
-                  </div>
-                  <div>
+                  </div>)}
+                  {roField(!(ci.client_list?.some(r => r.name?.trim())), <div>
                     <label style={roLbl}>List of Major Clients</label>
                     <TableV headers={["Client Name", "Location", "Projects / Products"]}
                       rows={(ci.client_list || []).map(r => ({ name: r.name || r.client_name, location: r.location, projects: r.projects || r.products_supplied }))} />
-                  </div>
-                  <div>
+                  </div>)}
+                  {roField(!(ci.equipment_list?.some(r => r.item?.trim() || r.equipment?.trim())), <div>
                     <label style={roLbl}>List of Equipment / Vehicles</label>
                     <TableV headers={["Equipment / Vehicle", "Qty", "Condition", "Owned / Leased"]}
                       rows={(ci.equipment_list || []).map(r => ({ equipment: r.equipment || r.name, qty: r.qty, condition: r.condition, ownership: r.ownership || r.owned_leased }))} />
-                  </div>
-                  <div>
+                  </div>)}
+                  {roField(!(ci.stockholder_list?.some(r => r.name?.trim())), <div>
                     <label style={roLbl}>Owners / Stockholders</label>
                     <TableV headers={["Name", "Nationality", "% Share"]}
                       rows={(ci.stockholder_list || []).map(r => ({ name: r.name, nationality: r.nationality, share: r.share_percent ?? r.percentage ?? r.share }))} />
-                  </div>
-                  <div>
-                    <label style={roLbl}>Key Personnel</label>
-                    {(() => {
-                      const kc = ci.key_contacts || {};
-                      const roles = [
-                        { key: "president",          label: "President / Owner"     },
-                        { key: "accounting_manager",  label: "Accounting Manager"    },
-                        { key: "sales_manager",        label: "Sales Manager"         },
-                        { key: "delivery_incharge",    label: "Delivery In-charge"    },
-                        { key: "technical_incharge",   label: "Technical In-charge"   },
-                      ];
-                      return (
-                        <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "auto" }}>
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 440 }}>
-                            <thead>
-                              <tr style={{ background: C.offWhite }}>
-                                {["Position", "Name", "Contact", "Nationality"].map(h => (
-                                  <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 600, color: C.textSec, fontSize: 11, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {roles.map((r, i) => (
-                                <tr key={r.key} style={{ borderBottom: i < roles.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                                  <td style={{ padding: "8px 10px", background: C.offWhite, fontWeight: 600, fontSize: 11, color: C.textSec, whiteSpace: "nowrap" }}>{r.label}</td>
-                                  <td style={{ padding: "8px 10px", color: kc[r.key]?.name ? C.textPri : C.textTer }}>{kc[r.key]?.name || "—"}</td>
-                                  <td style={{ padding: "8px 10px", color: kc[r.key]?.contact ? C.textPri : C.textTer }}>{kc[r.key]?.contact || "—"}</td>
-                                  <td style={{ padding: "8px 10px", color: kc[r.key]?.nationality ? C.textPri : C.textTer }}>{kc[r.key]?.nationality || "—"}</td>
-                                </tr>
+                  </div>)}
+                  {(() => {
+                    const kc = ci.key_contacts || {};
+                    const roles = [
+                      { key: "president",          label: "President / Owner"     },
+                      { key: "accounting_manager",  label: "Accounting Manager"    },
+                      { key: "sales_manager",        label: "Sales Manager"         },
+                      { key: "delivery_incharge",    label: "Delivery In-charge"    },
+                      { key: "technical_incharge",   label: "Technical In-charge"   },
+                    ];
+                    const anyMissing = roles.some(r => !kc[r.key]?.name?.trim());
+                    return roField(anyMissing, <div>
+                      <label style={roLbl}>Key Personnel</label>
+                      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 440 }}>
+                          <thead>
+                            <tr style={{ background: C.offWhite }}>
+                              {["Position", "Name", "Contact", "Nationality"].map(h => (
+                                <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 600, color: C.textSec, fontSize: 11, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>
                               ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <div>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {roles.map((r, i) => (
+                              <tr key={r.key} style={{ borderBottom: i < roles.length - 1 ? `1px solid ${C.border}` : "none", background: !kc[r.key]?.name?.trim() ? "#FFFBEB" : "transparent" }}>
+                                <td style={{ padding: "8px 10px", background: C.offWhite, fontWeight: 600, fontSize: 11, color: C.textSec, whiteSpace: "nowrap" }}>{r.label}</td>
+                                <td style={{ padding: "8px 10px", color: kc[r.key]?.name ? C.textPri : "#F59E0B", fontWeight: kc[r.key]?.name ? 400 : 600 }}>{kc[r.key]?.name || "Missing"}</td>
+                                <td style={{ padding: "8px 10px", color: kc[r.key]?.contact ? C.textPri : C.textTer }}>{kc[r.key]?.contact || "—"}</td>
+                                <td style={{ padding: "8px 10px", color: kc[r.key]?.nationality ? C.textPri : C.textTer }}>{kc[r.key]?.nationality || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>);
+                  })()}
+                  {roField(!selectedVendorDocs.has("Company Profile") || !selectedVendorDocs.has("Organizational Chart"), <div>
                     <label style={roLbl}>Company Profile & Organizational Chart</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <DocRowV docType="Company Profile" />
                       <DocRowV docType="Organizational Chart" />
                     </div>
-                  </div>
+                  </div>)}
                 </div>
               </div>
 
@@ -7283,15 +7336,15 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                       })}
                     </div>
                   </div>
-                  <div>
+                  {roField(!(ci.trade_categories?.length > 0), <div>
                     <label style={roLbl}>Trade Categories</label>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       {(Array.isArray(ci.trade_categories) ? ci.trade_categories : ci.primary_activity ? [ci.primary_activity] : []).map(cat => (
                         <span key={cat} style={{ padding: "5px 14px", borderRadius: 99, background: C.coralLight, color: C.coral, fontSize: 12, fontWeight: 600, border: `1px solid ${C.coral}40` }}>{cat}</span>
                       ))}
-                      {!(Array.isArray(ci.trade_categories) ? ci.trade_categories.length : ci.primary_activity) && <span style={{ color: C.textTer, fontSize: 13 }}>No categories selected</span>}
+                      {!(Array.isArray(ci.trade_categories) ? ci.trade_categories.length : ci.primary_activity) && <span style={{ color: "#F59E0B", fontSize: 13, fontWeight: 600 }}>Missing</span>}
                     </div>
-                  </div>
+                  </div>)}
                 </div>
               </div>
 
@@ -7303,11 +7356,11 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               <div style={roCard}>
                 <div style={roCT}>Tax Information</div>
                 <div style={gap14}>
-                  <div>
+                  {roField(!ci.tin?.trim(), <div>
                     <label style={roLbl}>Tax Identification Number (TIN)</label>
                     <input value={ci.tin || ""} readOnly style={roIn} />
-                  </div>
-                  <div>
+                  </div>)}
+                  {roField(!ci.tax_classification, <div>
                     <label style={roLbl}>Tax Classification</label>
                     <div style={{ display: "flex", gap: 10 }}>
                       {["VAT", "Non-VAT"].map(t => {
@@ -7319,7 +7372,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                         );
                       })}
                     </div>
-                  </div>
+                  </div>)}
                   <div>
                     <label style={roLbl}>EWT / Withholding Tax Entries</label>
                     {(() => {
@@ -7353,7 +7406,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               <div style={roCard}>
                 <div style={roCT}>Government Documents</div>
                 <div style={gap14}>
-                  <div>
+                  {roField(!ci.registration_type, <div>
                     <label style={roLbl}>Company Registration Type</label>
                     <div style={{ display: "flex", gap: 10 }}>
                       {[{ value: "DTI", label: "DTI Registered", sub: "Sole Proprietorship" }, { value: "SEC", label: "SEC Registered", sub: "Corporation / Partnership" }].map(({ value, label: lbl2, sub }) => {
@@ -7366,7 +7419,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                         );
                       })}
                     </div>
-                  </div>
+                  </div>)}
                   <div>
                     <label style={roLbl}>Government Documents</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -7384,23 +7437,23 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               <div style={roCard}>
                 <div style={roCT}>Bank Details</div>
                 <div style={gap14}>
-                  <div>
+                  {roField(!ci.bank_name?.trim(), <div>
                     <label style={roLbl}>Bank Name</label>
                     <input value={ci.bank_name || ""} readOnly style={roIn} />
-                  </div>
-                  <div>
+                  </div>)}
+                  {roField(!ci.bank_account_name?.trim(), <div>
                     <label style={roLbl}>Account Name</label>
                     <input value={ci.bank_account_name || ""} readOnly style={roIn} />
-                  </div>
+                  </div>)}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div>
+                    {roField(!ci.bank_account_number?.trim(), <div>
                       <label style={roLbl}>Account Number</label>
                       <input value={ci.bank_account_number || ""} readOnly style={roIn} />
-                    </div>
-                    <div>
+                    </div>)}
+                    {roField(!ci.bank_branch?.trim(), <div>
                       <label style={roLbl}>Branch</label>
                       <input value={ci.bank_branch || ""} readOnly style={roIn} />
-                    </div>
+                    </div>)}
                   </div>
                 </div>
               </div>
@@ -7408,33 +7461,36 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               <div style={roCard}>
                 <div style={roCT}>Financial Documents</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <DocRowV docType="Audited Financial Statement (2 years)" label="Audited Financial Statement — 2 years" />
-                  <DocRowV docType="Copy of ITR Previous Year" label="Copy of ITR (Previous Year)" />
+                  {roField(ci.registration_type === "SEC" && !selectedVendorDocs.has("Audited Financial Statement (2 years)"),
+                    <DocRowV docType="Audited Financial Statement (2 years)" label="Audited Financial Statement — 2 years" />)}
+                  {roField(!selectedVendorDocs.has("Copy of ITR Previous Year"),
+                    <DocRowV docType="Copy of ITR Previous Year" label="Copy of ITR (Previous Year)" />)}
                   <DocRowV docType="Certificate of Good Credit Standing" />
                   <DocRowV docType="Sample Purchase Order / Job Order (5 Major Clients)" label="Sample PO / Job Order — 5 Major Clients" />
-                  <DocRowV docType="OR & Sales Invoice" label="Official Receipt & Sales Invoice" />
+                  {roField(!selectedVendorDocs.has("OR & Sales Invoice"),
+                    <DocRowV docType="OR & Sales Invoice" label="Official Receipt & Sales Invoice" />)}
                 </div>
               </div>
 
               <div style={roCard}>
                 <div style={roCT}>Compliance</div>
                 <div style={gap14}>
-                  <div style={{ padding: "14px 16px", background: C.offWhite, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                  {roField(ci.num_employees == null || ci.num_employees === "", <div style={{ padding: "14px 16px", background: C.offWhite, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: C.textSec, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Organization Status</div>
                     <label style={roLbl}>Number of Employees (Full-time)</label>
                     <input value={ci.num_employees ?? ci.num_full_time_employees ?? ""} readOnly style={roIn} />
-                  </div>
-                  <div style={{ padding: "14px 16px", background: C.offWhite, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                  </div>)}
+                  {roField(ci.is_subsidiary == null || ci.is_subsidiary === "", <div style={{ padding: "14px 16px", background: C.offWhite, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: C.textSec, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Ownership Structure</div>
                     <div>
                       <label style={roLbl}>Is this a subsidiary or affiliated company?</label>
                       <YesNoV value={ci.is_subsidiary} />
                       {(ci.is_subsidiary === true || ci.is_subsidiary === "yes") && (
                         <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                          <div>
+                          {roField(!ci.parent_company_name?.trim(), <div>
                             <label style={roLbl}>Parent Company Name</label>
                             <input value={ci.parent_company_name || ""} readOnly style={roIn} />
-                          </div>
+                          </div>)}
                           <div>
                             <label style={roLbl}>Country</label>
                             <input value={ci.parent_company_country || ""} readOnly style={roIn} />
@@ -7442,7 +7498,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div>)}
                   <div style={{ padding: "14px 16px", background: C.offWhite, border: `1px solid ${C.border}`, borderRadius: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: C.textSec, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Health & Safety</div>
                     <div style={gap14}>

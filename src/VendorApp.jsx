@@ -2451,6 +2451,11 @@ function VendorAccreditationPage({ token }) {
     if (!form.bank_account_number?.trim()) missing.push("Bank account number");
     if (!form.bank_branch?.trim())         missing.push("Bank branch");
 
+    // Organizational status — always required
+    if (!form.num_employees)  missing.push("Number of employees");
+    if (!form.is_subsidiary)  missing.push("Subsidiary / ownership status (yes/no)");
+    if (form.is_subsidiary === "yes" && !form.parent_company_name?.trim()) missing.push("Parent company name");
+
     // Compliance — must select yes or no
     if (!form.has_hs_adviser)     missing.push("H&S Adviser status (yes/no)");
     if (!form.has_hs_policy)      missing.push("H&S Policy status (yes/no)");
@@ -3178,6 +3183,8 @@ function VendorAccreditationPage({ token }) {
             !!_kc.sales_manager?.name?.trim() && !!_kc.delivery_incharge?.name?.trim() &&
             !!_kc.technical_incharge?.name?.trim() &&
             ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim()) &&
+            !!form.num_employees && !!form.is_subsidiary &&
+            (form.is_subsidiary !== "yes" || !!form.parent_company_name?.trim()) &&
             !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms && !!form.has_env_management &&
             (form.has_qms !== "yes" || !!form.has_internal_qms) &&
             COMPANY_ID_DOCS.every(d => (docFiles[d] || uploadedDocs[d]) &&
@@ -4261,7 +4268,7 @@ function VendorAccreditationPage({ token }) {
               Organizational Status
             </div>
             <div>
-              <label style={S.label}>How many full-time employees does this company have? {isFieldReq("num_employees") && <span style={S.required}>*</span>}</label>
+              <label style={S.label}>How many full-time employees does this company have? <span style={S.required}>*</span></label>
               <input
                 type="number" min="0"
                 value={form.num_employees}
@@ -4278,7 +4285,7 @@ function VendorAccreditationPage({ token }) {
               Ownership Structure
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={S.label}>Is this company a division or a subsidiary of another company? {isFieldReq("is_subsidiary") && <span style={S.required}>*</span>}</label>
+              <label style={S.label}>Is this company a division or a subsidiary of another company? <span style={S.required}>*</span></label>
               <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
                 {["yes","no"].map(v => (
                   <button key={v} type="button"
