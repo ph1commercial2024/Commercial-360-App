@@ -7262,18 +7262,18 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                   </div>)}
                   {roField(!(ci.client_list?.some(r => r.name?.trim())), <div>
                     <label style={roLbl}>List of Major Clients</label>
-                    <TableV headers={["Client Name", "Location", "Projects / Products"]}
-                      rows={(ci.client_list || []).map(r => ({ name: r.name || r.client_name, location: r.location, projects: r.projects || r.products_supplied }))} />
+                    <TableV headers={["Client Name", "Project / Service", "Year", "Contract Value (₱)"]}
+                      rows={(ci.client_list || []).map(r => ({ name: r.name, project: r.project, year: r.year, value: r.value }))} />
                   </div>)}
                   {roField(!(ci.equipment_list?.some(r => r.item?.trim() || r.equipment?.trim())), <div>
                     <label style={roLbl}>List of Equipment / Vehicles</label>
-                    <TableV headers={["Equipment / Vehicle", "Qty", "Condition", "Owned / Leased"]}
-                      rows={(ci.equipment_list || []).map(r => ({ equipment: r.equipment || r.name, qty: r.qty, condition: r.condition, ownership: r.ownership || r.owned_leased }))} />
+                    <TableV headers={["Equipment / Vehicle", "Brand / Model", "Qty", "Condition"]}
+                      rows={(ci.equipment_list || []).map(r => ({ equipment: r.item || r.equipment || r.name, brand: r.brand, qty: r.qty, condition: r.condition }))} />
                   </div>)}
                   {roField(!(ci.stockholder_list?.some(r => r.name?.trim())), <div>
                     <label style={roLbl}>Owners / Stockholders</label>
-                    <TableV headers={["Name", "Nationality", "% Share"]}
-                      rows={(ci.stockholder_list || []).map(r => ({ name: r.name, nationality: r.nationality, share: r.share_percent ?? r.percentage ?? r.share }))} />
+                    <TableV headers={["Name", "Position", "Address", "Contact No.", "TIN No."]}
+                      rows={(ci.stockholder_list || []).map(r => ({ name: r.name, position: r.position, address: r.address, contact: r.contact_no, tin: r.tin_no }))} />
                   </div>)}
                   {(() => {
                     const kc = ci.key_contacts || {};
