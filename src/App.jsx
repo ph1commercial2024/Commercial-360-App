@@ -5953,6 +5953,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const [formActiveTab, setFormActiveTab] = useState("hub");
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnNotes, setReturnNotes] = useState("");
+  const [actionHover, setActionHover] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
   const [tradeFilter, setTradeFilter] = useState("All");
   const [tradeCatOptions, setTradeCatOptions] = useState([]);
@@ -6883,78 +6884,104 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
         <div style={{ position: "fixed", top: 56, bottom: 0, left: sidebarCollapsed ? 80 : 240, right: 0, background: C.offWhite, zIndex: 140, overflowY: "auto", transition: "left 0.26s cubic-bezier(0.23,1,0.32,1)" }}>
 
           {/* ── Sticky admin bar ───────────────────────────────────────── */}
-          <div style={{ position: "sticky", top: 0, zIndex: 10, background: C.white, borderBottom: `1px solid ${C.border}`, padding: "10px 20px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <button onClick={() => { setVendorFormPage(false); setFormActiveTab("hub"); }} style={{ ...styles.btnGhost, fontSize: 12, padding: "5px 12px", whiteSpace: "nowrap" }}>← Vendor List</button>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, overflow: "hidden" }}>
-              {selectedVendor.vendor_code && <span style={{ fontSize: 11, fontWeight: 700, color: C.coral, letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{selectedVendor.vendor_code}</span>}
-              <span style={{ fontSize: 14, fontWeight: 600, color: C.textPri, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ci.company_name || selectedVendor.profiles?.full_name || "Vendor"}</span>
-              <span style={badge(selectedVendor.accreditation_status)}>{selectedVendor.accreditation_status}</span>
-            </div>
-            {canManage && (<>
-              {["Submitted", "Under Review"].includes(selectedVendor.accreditation_status) && (
-                <button style={{ background: C.redBg, color: C.redText, border: `1px solid #FCA5A5`, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }} disabled={updating} onClick={() => { if (confirm("Decline this vendor's accreditation?")) updateStatus(selectedVendor.id, "Declined"); }}>Decline</button>
-              )}
-              {["Submitted", "Under Review"].includes(selectedVendor.accreditation_status) && (
-                <button style={{ ...styles.btnSuccess, padding: "7px 14px", fontSize: 12 }} disabled={updating} onClick={() => updateStatus(selectedVendor.id, "Accredited")}>✓ Accredit vendor</button>
-              )}
-              {selectedVendor.accreditation_status === "Returned" && (
-                <button style={{ ...styles.btnDanger, padding: "7px 14px", fontSize: 12 }} disabled={updating}
-                  onClick={() => { setReturnNotes(selectedVendor.return_notes || ""); setShowReturnModal(true); }}>
-                  ✉ Resend return email
-                </button>
-              )}
-            </>)}
-          </div>
-
-          {/* ── Vendor snapshot strip ───────────────────────────────────── */}
-          <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "12px 20px" }}>
-            <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", alignItems: "flex-start", gap: 0, flexWrap: "wrap" }}>
-              {/* Contact */}
-              <div style={{ paddingRight: 20, marginRight: 20, borderRight: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>Contact Person</div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.textPri }}>{ci.contact_person || "—"}</div>
-                {ci.contact_position && <div style={{ fontSize: 11, color: C.textSec }}>{ci.contact_position}</div>}
+          <div style={{ position: "sticky", top: 0, zIndex: 10, background: C.offWhite, padding: "12px 0 0" }}>
+            <div style={{ maxWidth: 640, margin: "0 auto", background: C.white, border: "1px solid #E0DED9", borderRadius: 12, padding: "10px 20px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <button onClick={() => { setVendorFormPage(false); setFormActiveTab("hub"); }} style={{ ...styles.btnGhost, fontSize: 12, padding: "5px 12px", whiteSpace: "nowrap" }}>← Vendor List</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {selectedVendor.vendor_code && <span style={{ fontSize: 11, fontWeight: 700, color: C.coral, letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{selectedVendor.vendor_code}</span>}
+                <span style={badge(selectedVendor.accreditation_status)}>{selectedVendor.accreditation_status}</span>
               </div>
-              {/* Email */}
-              <div style={{ paddingRight: 20, marginRight: 20, borderRight: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>Email</div>
-                <div style={{ fontSize: 12, color: C.textSec }}>{ci.rfq_email || "—"}</div>
-              </div>
-              {/* Trades */}
-              <div style={{ paddingRight: 20, marginRight: 20, borderRight: `1px solid ${C.border}`, flex: 1, minWidth: 120 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Trades</div>
-                {(ci.trade_categories?.length > 0)
-                  ? <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {ci.trade_categories.slice(0, 3).map(t => <span key={t} style={{ fontSize: 10, fontWeight: 500, background: C.coralMid, color: C.coralDark, padding: "2px 8px", borderRadius: 99 }}>{t}</span>)}
-                      {ci.trade_categories.length > 3 && (
-                        <span style={{ fontSize: 10, fontWeight: 600, background: "#E2E8F0", color: C.textSec, padding: "2px 8px", borderRadius: 99 }}>+{ci.trade_categories.length - 3} more</span>
-                      )}
-                    </div>
-                  : <div style={{ fontSize: 12, color: C.textSec }}>{ci.primary_activity || "—"}</div>}
-              </div>
-              {/* Class — moved from action bar */}
-              {canManage && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Classification</div>
-                  <select value={selectedVendor.subcontractor_class || ""}
-                    onChange={async e => {
-                      await supabase.from("vendors").update({ subcontractor_class: e.target.value || null }).eq("id", selectedVendor.id);
-                      setSelectedVendor(prev => ({ ...prev, subcontractor_class: e.target.value }));
-                      fetchVendors();
-                    }}
-                    style={{ ...styles.input, width: "auto", fontSize: 12, padding: "4px 10px" }}>
-                    <option value="">Unassigned</option>
-                    <option value="Class A">Class A</option>
-                    <option value="Class B">Class B</option>
-                    <option value="Class C">Class C</option>
-                  </select>
-                </div>
-              )}
+              <div style={{ flex: 1 }} />
+              {canManage && (() => {
+                const iconBtn = (id, icon, bg, color, border, onClick, label) => (
+                  <div key={id} style={{ position: "relative", display: "inline-flex" }}
+                    onMouseEnter={() => setActionHover(id)} onMouseLeave={() => setActionHover(null)}>
+                    <button disabled={updating} onClick={onClick}
+                      style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${border}`, background: bg, color, cursor: "pointer", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", opacity: updating ? 0.5 : 1 }}>
+                      {icon}
+                    </button>
+                    {actionHover === id && (
+                      <div style={{ position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1C1B18", color: "#fff", fontSize: 11, fontWeight: 500, padding: "4px 9px", borderRadius: 6, whiteSpace: "nowrap", zIndex: 200, pointerEvents: "none" }}>
+                        {label}
+                      </div>
+                    )}
+                  </div>
+                );
+                if (["Submitted", "Under Review"].includes(selectedVendor.accreditation_status)) return (<>
+                  {iconBtn("decline",  "✕", C.redBg,   C.redText,   "#FCA5A5", () => { if (confirm("Decline this vendor's accreditation?")) updateStatus(selectedVendor.id, "Declined"); }, "Decline")}
+                  {iconBtn("return",   "↩", C.amberBg, C.amberText, "#FCD34D", () => { setReturnNotes(""); setShowReturnModal(true); }, "Return to vendor")}
+                  {iconBtn("accredit", "✓", C.greenBg, C.greenText, "#86EFAC", () => updateStatus(selectedVendor.id, "Accredited"), "Accredit vendor")}
+                </>);
+                if (selectedVendor.accreditation_status === "Returned") return (
+                  iconBtn("resend", "✉", C.redBg, C.redText, "#FCA5A5", () => { setReturnNotes(selectedVendor.return_notes || ""); setShowReturnModal(true); }, "Resend return email")
+                );
+                return null;
+              })()}
             </div>
           </div>
 
           {/* ── Content area ────────────────────────────────────────────── */}
-          <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 20px 60px" }}>
+          <div style={{ maxWidth: 680, margin: "0 auto", padding: "2px 20px 60px" }}>
+
+            {/* ── Vendor business card ──────────────────────────────────── */}
+            {(() => {
+              const name = ci.company_name || selectedVendor.profiles?.full_name || "Vendor";
+              const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+              const addrLine = (ci.registered_address || "").split(/[\n,]/)[0].trim();
+              // Use only the first email when multiple are stored comma-separated
+              const firstEmail = (ci.rfq_email || "").split(/[,;]/)[0].trim();
+              const dv = { fontSize: 12, color: C.textSec, maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+              return (
+                <div style={{ background: "#F2F1EE", border: "1px solid #E0DED9", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+                  {/* Avatar */}
+                  <div style={{ width: 46, height: 46, borderRadius: 10, background: C.white, border: "1px solid #D4D2CD", color: C.coral, fontSize: 14, fontWeight: 800, letterSpacing: -1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{initials}</div>
+                  {/* Company + contacts — fixed width so divider sits consistently left */}
+                  <div style={{ flex: "0 0 160px", minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.textPri, marginBottom: 4, wordBreak: "break-word", lineHeight: 1.3 }}>{name}</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 0" }}>
+                      {ci.contact_person && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 12 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec }}>{ci.contact_person}</span>
+                          {ci.contact_position && <><div style={{ width: 1, height: 10, background: "#D4D2CD" }} /><span style={{ fontSize: 11, color: C.textTer }}>{ci.contact_position}</span></>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Vertical divider */}
+                  <div style={{ width: 1, alignSelf: "stretch", background: "#D4D2CD", flexShrink: 0, margin: "0 4px" }} />
+                  {/* Details grid — fills remaining space, values truncate only when truly out of room */}
+                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "5px 10px", alignItems: "center", flex: 1, minWidth: 0 }}>
+                    {firstEmail && (<>
+                      <span style={{ fontSize: 11, color: C.textTer }}>✉</span>
+                      <span style={{ ...dv, maxWidth: "none" }} title={ci.rfq_email}>{firstEmail}</span>
+                    </>)}
+                    {ci.cell_number && (<>
+                      <span style={{ fontSize: 11, color: C.textTer }}>📞</span>
+                      <span style={{ ...dv, maxWidth: "none" }}>{ci.cell_number}</span>
+                    </>)}
+                    {addrLine && (<>
+                      <span style={{ fontSize: 11, color: C.textTer }}>📍</span>
+                      <span style={{ ...dv, maxWidth: "none" }}>{addrLine}</span>
+                    </>)}
+                    {canManage && (<>
+                      <span style={{ fontSize: 11, color: C.textTer }}>🏷</span>
+                      <select value={selectedVendor.subcontractor_class || ""}
+                        onChange={async e => {
+                          await supabase.from("vendors").update({ subcontractor_class: e.target.value || null }).eq("id", selectedVendor.id);
+                          setSelectedVendor(prev => ({ ...prev, subcontractor_class: e.target.value }));
+                          fetchVendors();
+                        }}
+                        style={{ ...styles.input, width: "100%", fontSize: 11, padding: "2px 8px", background: C.white, borderColor: "#D4D2CD" }}>
+                        <option value="">Unassigned</option>
+                        <option value="Class A">Class A</option>
+                        <option value="Class B">Class B</option>
+                        <option value="Class C">Class C</option>
+                      </select>
+                    </>)}
+                  </div>
+                </div>
+              );
+            })()}
 
 
             {/* Doc expiry notification banner */}
@@ -7078,10 +7105,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                               fetchVendors();
                             }}>Accept — Assign {rec.classification}</button>
                         )}
-                        {rec.action === "return" && (
-                          <button style={{ ...styles.btnDanger, fontSize: 12, padding: "7px 14px" }}
-                            onClick={() => { setReturnNotes(rec.returnNote || ""); setShowReturnModal(true); }}>Return to Vendor</button>
-                        )}
+                        {/* Return action moved to contained header */}
                       </div>
                     )}
                   </div>
