@@ -2538,6 +2538,20 @@ function VendorAccreditationPage({ token }) {
           accreditation_status: "Submitted",
           return_notes: null,
         }).eq("id", existingVendor.id);           // integer PK, not vendor_code
+        // Stamp resubmitted_at on the latest open history row
+        const { data: openRow } = await supabase
+          .from("vendor_return_history")
+          .select("id")
+          .eq("vendor_id", existingVendor.id)
+          .is("resubmitted_at", null)
+          .order("returned_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (openRow) {
+          await supabase.from("vendor_return_history")
+            .update({ resubmitted_at: new Date().toISOString() })
+            .eq("id", openRow.id);
+        }
       }
 
       const ciPayload = {

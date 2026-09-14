@@ -6062,7 +6062,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const openDetail = async (v) => {
   const vid = v.id;
   const vcode = vendorRef(v);
-  const [base, ci, ow, pj, cl, co, af, hq, rg, docs, prof, expRows] = await Promise.all([
+  const [base, ci, ow, pj, cl, co, af, hq, rg, docs, prof, expRows, retHist] = await Promise.all([
     supabase.from("vendors").select("*").eq("id", vid).single(),
     supabase.from("vendor_company_info").select("*").eq("vendor_id", vcode).maybeSingle(),
     supabase.from("vendor_owners").select("*").eq("vendor_id", vcode).order("id"),
@@ -6075,20 +6075,22 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
     supabase.from("vendor_documents").select("*").eq("vendor_id", vcode),
     v.profile_id ? supabase.from("profiles").select("id, full_name, position").eq("id", v.profile_id).single() : Promise.resolve({ data: null }),
     supabase.from("vendor_doc_expiry").select("*").eq("vendor_id", vcode),
+    supabase.from("vendor_return_history").select("*").eq("vendor_id", vid).order("returned_at", { ascending: true }),
   ]);
   const enriched = {
     ...base.data,
-    vendor_company_info: ci.data || null,
-    vendor_owners:       ow.data || [],
-    vendor_projects:     pj.data || [],
-    vendor_clients:      cl.data || [],
-    vendor_contacts:     co.data || [],
-    vendor_affiliates:   af.data || [],
-    vendor_hseq:         hq.data || null,
-    vendor_registration: rg.data || null,
-    vendor_documents:    docs.data || [],
-    profiles:            prof.data || null,
-    vendor_doc_expiry:   expRows.data || [],
+    vendor_company_info:  ci.data || null,
+    vendor_owners:        ow.data || [],
+    vendor_projects:      pj.data || [],
+    vendor_clients:       cl.data || [],
+    vendor_contacts:      co.data || [],
+    vendor_affiliates:    af.data || [],
+    vendor_hseq:          hq.data || null,
+    vendor_registration:  rg.data || null,
+    vendor_documents:     docs.data || [],
+    profiles:             prof.data || null,
+    vendor_doc_expiry:    expRows.data || [],
+    vendor_return_history: retHist.data || [],
   };
   setSelectedVendor(enriched);
   setVendorFormPage(true);
@@ -6181,6 +6183,19 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const handleReturn = async () => {
     if (!returnNotes.trim()) { alert("Please enter return notes explaining what needs to be corrected."); return; }
     await updateStatus(selectedVendor.id, "Returned", { return_notes: returnNotes });
+    // Record this return round in the history table
+    await supabase.from("vendor_return_history").insert({
+      vendor_id:        selectedVendor.id,
+      returned_by_name: profile?.full_name || null,
+      returned_by_id:   profile?.id || null,
+      return_notes:     returnNotes.trim(),
+      returned_at:      new Date().toISOString(),
+    });
+    // Refresh the selected vendor so the history card updates immediately
+    const { data: hist } = await supabase
+      .from("vendor_return_history").select("*")
+      .eq("vendor_id", selectedVendor.id).order("returned_at", { ascending: true });
+    setSelectedVendor(prev => ({ ...prev, vendor_return_history: hist || [] }));
   };
 
 
@@ -7185,6 +7200,92 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                       </div>
                     );
                   })}
+
+                {/* ── Return History ─────────────────────────────────────── */}
+                {(() => {
+                  const history = selectedVendor.vendor_return_history || [];
+                  if (!history.length) return null;
+                  const fmt = d => d ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : null;
+                  // Build timeline rows: for each return, emit the return event then the resubmission (or awaiting)
+                  const rows = [];
+                  history.forEach((h, i) => {
+                    rows.push({ type: "return", round: i + 1, data: h });
+                    rows.push({ type: h.resubmitted_at ? "resubmit" : "waiting", round: i + 1, data: h });
+                  });
+                  // Remove the trailing "waiting" if status is no longer Returned (vendor resubmitted and it's been cleared)
+                  const last = rows[rows.length - 1];
+                  if (last?.type === "waiting" && selectedVendor.accreditation_status !== "Returned") {
+                    rows.pop();
+                  }
+                  return (
+                    <div style={{ ...roCard, marginTop: 6, padding: 0, overflow: "hidden" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSec }}>Return History</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, background: C.amberBg, color: C.amberText, borderRadius: 99, padding: "2px 9px" }}>
+                          {history.length} {history.length === 1 ? "return" : "returns"}
+                        </span>
+                      </div>
+                      <div style={{ padding: 16 }}>
+                        {rows.map((row, ri) => {
+                          const isLast = ri === rows.length - 1;
+                          const dotStyle = { width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 };
+                          let dot, content;
+                          if (row.type === "return") {
+                            dot = <div style={{ ...dotStyle, background: C.amberBg, color: C.amberText, border: `2px solid #FCD34D` }}>↩</div>;
+                            content = (
+                              <>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 4, marginBottom: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>Return #{row.round}</span>
+                                  {row.data.returned_by_name && <span style={{ fontSize: 11, color: C.textTer }}>by {row.data.returned_by_name}</span>}
+                                  <span style={{ fontSize: 11, color: C.textTer, marginLeft: "auto" }}>{fmt(row.data.returned_at)}</span>
+                                </div>
+                                <div style={{ background: C.amberBg, border: `1px solid #FDE68A`, borderRadius: 8, padding: "9px 12px" }}>
+                                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.amberText, marginBottom: 3 }}>Return Notes</div>
+                                  <div style={{ fontSize: 12, color: C.amberText, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{row.data.return_notes}</div>
+                                </div>
+                              </>
+                            );
+                          } else if (row.type === "resubmit") {
+                            dot = <div style={{ ...dotStyle, background: "#EEF2FF", color: "#4338CA", border: `2px solid #A5B4FC`, fontSize: 14 }}>↑</div>;
+                            content = (
+                              <>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, marginBottom: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>Resubmitted</span>
+                                  <span style={{ fontSize: 11, color: C.textTer, marginLeft: "auto" }}>{fmt(row.data.resubmitted_at)}</span>
+                                </div>
+                                <div style={{ background: "#EEF2FF", border: `1px solid #C7D2FE`, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#4338CA", display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span>📋</span> Vendor resubmitted their application for review.
+                                </div>
+                              </>
+                            );
+                          } else {
+                            // waiting
+                            dot = <div style={{ ...dotStyle, background: C.offWhite, color: C.textTer, border: `2px solid ${C.border}`, fontSize: 14 }}>…</div>;
+                            content = (
+                              <>
+                                <div style={{ marginTop: 4, marginBottom: 6 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: C.textTer }}>Awaiting resubmission</span>
+                                </div>
+                                <div style={{ background: C.offWhite, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: C.textTer, display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span>⏳</span> Vendor has not yet resubmitted their application.
+                                </div>
+                              </>
+                            );
+                          }
+                          return (
+                            <div key={ri} style={{ display: "flex", gap: 12 }}>
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 28 }}>
+                                {dot}
+                                {!isLast && <div style={{ width: 2, flex: 1, minHeight: 10, background: C.border, margin: "3px 0" }} />}
+                              </div>
+                              <div style={{ flex: 1, paddingBottom: isLast ? 0 : 18 }}>{content}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 </div>
               );
             })()}
