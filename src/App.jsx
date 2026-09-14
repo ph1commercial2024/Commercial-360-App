@@ -6956,13 +6956,6 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
           {/* ── Content area ────────────────────────────────────────────── */}
           <div style={{ maxWidth: 680, margin: "0 auto", padding: "24px 20px 60px" }}>
 
-            {/* Return notes */}
-            {selectedVendor.accreditation_status === "Returned" && selectedVendor.return_notes && (
-              <div style={{ marginBottom: 16, padding: "12px 14px", background: "#FEF3E2", border: "1px solid #FCD34D", borderRadius: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: C.amberText, marginBottom: 4, textTransform: "uppercase" }}>Return Notes</div>
-                <p style={{ margin: 0, fontSize: 13, color: C.textPri }}>{selectedVendor.return_notes}</p>
-              </div>
-            )}
 
             {/* Doc expiry notification banner */}
             {selectedVendor.accreditation_status === "Accredited" && (() => {
@@ -7052,8 +7045,9 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               );
             })()}
 
-            {/* Classification recommendation */}
+            {/* Classification recommendation — hidden when already Returned */}
             {(() => {
+              if (selectedVendor.accreditation_status === "Returned") return null;
               const rec = computeRecommendation(selectedVendor.vendor_documents, classRules);
               if (!rec) return null;
               return (
@@ -7772,13 +7766,6 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               </div>
             )}
 
-            {/* Return notes if returned */}
-            {selectedVendor.accreditation_status === "Returned" && selectedVendor.return_notes && (
-              <div style={{ margin: "16px 24px 0", padding: "12px 14px", background: "#FEF3E2", border: "1px solid #FCD34D", borderRadius: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: C.amberText, marginBottom: 4, textTransform: "uppercase" }}>Return Notes</div>
-                <p style={{ margin: 0, fontSize: 13, color: C.textPri }}>{selectedVendor.return_notes}</p>
-              </div>
-            )}
 
             {/* Vendor details */}
             <div style={{ padding: "20px 24px", flex: 1 }}>
