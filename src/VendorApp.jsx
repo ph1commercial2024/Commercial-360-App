@@ -3262,14 +3262,14 @@ function VendorAccreditationPage({ token }) {
           if (!form.registration_type)   addMi("Tax & Government Docs", "Registration type — not selected", "Choose DTI (Sole Proprietor) or SEC (Corporation / Partnership).", "tax_gov");
           if (!form.ewt_entries?.some(e => e.rate && e.description?.trim()))
             addMi("Tax & Government Docs", "EWT entries — at least one entry required", "Add at least one EWT rate and description in the Tax section.", "tax_gov");
-          // Government IDs — upload + expiry
+          // Government IDs — live in Company Information section (Section 1)
           COMPANY_ID_DOCS.forEach(d => {
             if (!(docFiles[d] || uploadedDocs[d]))
-              addMi("Tax & Government Docs", `${d} — not uploaded`, "Upload both government-issued IDs.", "tax_gov");
+              addMi("Company Information", `${d} — not uploaded`, "Upload both government-issued IDs in the Company Information section.", "company");
             else if (!docExpiry[d]?.expiry_date)
-              addMi("Tax & Government Docs", `${d} — expiry date missing`, "Enter the expiry date for this ID.", "tax_gov");
+              addMi("Company Information", `${d} — expiry date missing`, "Enter the expiry date for this ID.", "company");
             else if (docExpiry[d].expiry_date <= idMinDate)
-              addMi("Tax & Government Docs", `${d} — expires within 60 days or already expired`, "Your government ID must be valid for at least 60 more days.", "tax_gov");
+              addMi("Company Information", `${d} — expires within 60 days or already expired`, "Your government ID must be valid for at least 60 more days.", "company");
           });
           // Required government docs (DTI cert, Mayor's Permit, BIR/VAT, etc.)
           if (govRequired.length === 0) {
