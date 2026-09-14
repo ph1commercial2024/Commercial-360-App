@@ -4585,7 +4585,7 @@ function VendorAccreditationPage({ token }) {
         {viewMode === "detail" && activeTab === "fin_compliance" && (
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
             <button onClick={() => setViewMode("hub")} style={{ ...S.btnSecondary, fontSize: 13 }}>← Overview</button>
-            <button onClick={() => setActiveTab("declaration")} style={{ ...S.btnPrimary, fontSize: 13 }}>Save &amp; Continue →</button>
+            <button onClick={() => { setViewMode("hub"); window.scrollTo({ top: 0, behavior: "smooth" }); }} style={{ ...S.btnPrimary, fontSize: 13 }}>Save &amp; Continue →</button>
           </div>
         )}
 
