@@ -139,7 +139,9 @@ const COMPLIANCE_DOCS = [
   "Internal QMS Procedures",
   "Environmental Management Policy",
 ];
-const ACCREDITATION_DOCS = [...GOV_DOCS, ...COMPANY_ID_DOCS, ...FIN_DOCS, ...COMPLIANCE_DOCS];
+// Company-level docs uploaded in the Company Information tab
+const COMPANY_PROFILE_DOCS = ["Company Profile", "Organizational Chart"];
+const ACCREDITATION_DOCS = [...GOV_DOCS, ...COMPANY_ID_DOCS, ...COMPANY_PROFILE_DOCS, ...FIN_DOCS, ...COMPLIANCE_DOCS];
 
 // Phone number helpers
 const cleanPhone      = v => v.replace(/[^\d+\-() ]/g, "");
