@@ -6985,7 +6985,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
 
 
             {/* Doc expiry notification banner */}
-            {selectedVendor.accreditation_status === "Accredited" && (() => {
+            {(() => {
               const todayMs = new Date().setHours(0, 0, 0, 0);
               const flagged = (selectedVendor.vendor_doc_expiry || [])
                 .filter(r => r.expiry_date)
@@ -7022,7 +7022,11 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                         ))}
                       </div>
                       <div style={{ fontSize: 11, color: C.textSec, marginTop: 8 }}>
-                        Auto-email notices are sent to the vendor at 40, 30, 7 days before and after expiry. Use Resend to send a manual reminder now.
+                        {selectedVendor.accreditation_status === "Accredited"
+                          ? "Auto-email notices are sent to the vendor at 40, 30, 7 days before and after expiry. Use Resend to send a manual reminder now."
+                          : hasExpired
+                            ? "This vendor submitted with an expired document. You may return their application and ask them to upload a valid replacement."
+                            : "This vendor's document will expire soon. You may want to flag this before accrediting."}
                       </div>
                     </div>
                     {vendorEmail && (

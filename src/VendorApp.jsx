@@ -3136,6 +3136,7 @@ function VendorAccreditationPage({ token }) {
         {/* ── Hub / Detail navigation ────────────────────────────────────── */}
         {form.vendor_type && (() => {
           // Completion stats
+          const todayDate            = new Date().toISOString().slice(0, 10);
           const idMinDate            = new Date(Date.now() + 60 * 86400e3).toISOString().slice(0, 10);
           const idUploaded           = COMPANY_ID_DOCS.filter(d => docFiles[d] || uploadedDocs[d]).length;
           const idExpiryFilled       = COMPANY_ID_DOCS.filter(d => docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate).length;
@@ -3211,7 +3212,7 @@ function VendorAccreditationPage({ token }) {
               docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate) &&
             govRequired.length > 0 &&
             govRequired.every(d => docFiles[d] || uploadedDocs[d]) &&
-            govRequiredWithExpiry.every(d => docExpiry[d]?.expiry_date) &&
+            govRequiredWithExpiry.every(d => docExpiry[d]?.expiry_date && docExpiry[d].expiry_date >= todayDate) &&
             // ── Section 3: Financials & Compliance ──────────────────────────
             ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim()) &&
             finReqDocs.length > 0 && finReqDocs.every(d => docFiles[d] || uploadedDocs[d]) &&
@@ -3284,6 +3285,8 @@ function VendorAccreditationPage({ token }) {
             govRequiredWithExpiry.forEach(d => {
               if ((docFiles[d] || uploadedDocs[d]) && !docExpiry[d]?.expiry_date)
                 addMi("Tax & Government Docs", `${d} — expiry date missing`, "Enter the expiry / validity date for this document.", "tax_gov");
+              else if ((docFiles[d] || uploadedDocs[d]) && docExpiry[d]?.expiry_date && docExpiry[d].expiry_date < todayDate)
+                addMi("Tax & Government Docs", `${d} — document expired`, "This document has already expired. Please upload a renewed copy.", "tax_gov");
             });
           }
           // Section 3 — Financials & Compliance
