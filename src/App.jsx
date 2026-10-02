@@ -847,12 +847,14 @@ function StatusTimeline({ status, dates = {} }) {
 
   // Map DB statuses to simplified 4-step display index
   const statusToStep = {
-    "Draft":               0,
-    "Pending GM Approval": 1,
-    "For Review":          1,
-    "Under Review":        2,
-    "Approved 1":          3,
-    "Approved":            4,
+    "Draft":                    0,
+    "Pending Manager Approval": 1,
+    "Pending GM Approval":      1,
+    "For Review":               1,
+    "Under Review":             2,
+    "Pending Endorsement":      3,
+    "Approved 1":               3,
+    "Approved":                 4,
   };
   const currentIdx = isRejected ? 2 : (statusToStep[status] ?? 0);
 
@@ -1005,9 +1007,10 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
   const openPR = (pr) => { setSelectedPRId(pr.pr_number); setPage("detail"); };
 
   const cardStatusMap = {
-    "Pending":   ["Draft", "Pending GM Approval"],
-    "In Review": ["For Review", "Under Review", "Approved 1"],
+    "Pending":   ["Draft", "Pending Manager Approval", "Pending GM Approval"],
+    "In Review": ["For Review", "Under Review", "Pending Endorsement", "Approved 1"],
     "Approved":  ["Approved"],
+    "Returned":  ["Rejected"],
   };
 
   const buOptions = [...new Set(prList.map(p => p.projects?.business_unit).filter(Boolean))].sort();
@@ -1046,12 +1049,13 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
         {/* Summary cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 12 }}>
           {[
-            { label: "Total",     value: prBase.length,                                                                              color: C.textPri,  desc: "All purchase requests"                    },
-            { label: "Pending",   value: prBase.filter(p => ["Draft","Pending GM Approval"].includes(p.status)).length,            color: C.amberText,desc: "Drafts and awaiting manager sign-off"       },
-            { label: "In Review", value: prBase.filter(p => ["For Review","Under Review","Approved 1"].includes(p.status)).length, color: C.tealText, desc: "Under commercial or technical review"        },
-            { label: "Approved",  value: prBase.filter(p => p.status === "Approved").length,                                       color: C.greenText,desc: "Fully approved and ready to procure"        },
+            { label: "Total",     value: prBase.length,                                                                          color: C.textPri,  desc: "All purchase requests"                },
+            { label: "Pending",   value: prBase.filter(p => cardStatusMap["Pending"].includes(p.status)).length,   color: C.amberText,desc: "Drafts and awaiting manager sign-off" },
+            { label: "In Review", value: prBase.filter(p => cardStatusMap["In Review"].includes(p.status)).length, color: C.tealText, desc: "Under commercial review or approval"  },
+            { label: "Approved",  value: prBase.filter(p => cardStatusMap["Approved"].includes(p.status)).length,  color: C.greenText,desc: "Fully approved and ready to procure"  },
+            { label: "Returned",  value: prBase.filter(p => cardStatusMap["Returned"].includes(p.status)).length,  color: C.redText,  desc: "Sent back to the preparer for fixes"  },
           ].map(s => {
             const isActive = activeCard === s.label;
             return (
@@ -1213,8 +1217,21 @@ const SCOPE_WORK_TYPES = [
   ]},
 ];
 
+// Closes the latest open return round, if any, when a returned PR goes back to the manager
+async function stampPRResubmitted(prNumber, byName) {
+  const { data: openRow } = await supabase
+    .from("pr_return_history").select("id")
+    .eq("pr_number", prNumber).is("resubmitted_at", null)
+    .order("returned_at", { ascending: false }).limit(1).maybeSingle();
+  if (openRow) {
+    await supabase.from("pr_return_history")
+      .update({ resubmitted_at: new Date().toISOString(), resubmitted_by_name: byName || null })
+      .eq("id", openRow.id);
+  }
+}
+
 // ─── CREATE PR PAGE ────────────────────────────────────────────────────────────
-function CreatePRPage({ setPage, profile }) {
+function CreatePRPage({ setPage, profile, editPRId = null }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [projects, setProjects] = useState([]);
   const [groupManagers, setGroupManagers] = useState([]);
@@ -1239,8 +1256,46 @@ function CreatePRPage({ setPage, profile }) {
   const [docLinks, setDocLinks] = useState({ plans: "", tor: "", specs: "" });
   const [remarks, setRemarks] = useState("");
   const [maxFileMB, setMaxFileMB] = useState(10);
+  const [existingDocs, setExistingDocs] = useState({ plans: null, tor: null, specs: null });
+  const [editPR, setEditPR] = useState(null);
+  const [editLoading, setEditLoading] = useState(!!editPRId);
+  const [openReturn, setOpenReturn] = useState(null);
 
   useEffect(() => { fetchProjects(); fetchGroupManagers(); fetchLeadTimes(); }, []);
+
+  useEffect(() => {
+    if (!editPRId) return;
+    (async () => {
+      const { data: p } = await supabase.from("purchase_requests").select("*").eq("pr_number", editPRId).single();
+      if (!p) { setEditLoading(false); return; }
+      setEditPR(p);
+      setSelectedProjectId(p.project_id ? String(p.project_id) : "");
+      if (p.group_manager_id) {
+        const { data: gm } = await supabase.from("group_managers").select("id").eq("profile_id", p.group_manager_id).maybeSingle();
+        if (gm) setSelectedGMId(String(gm.id));
+      }
+      setIsRush(!!p.is_rush);
+      setFormData({
+        description: p.description || "", justification: p.justification || "",
+        rushJustification: p.rush_justification || "", startDate: p.start_date || "", endDate: p.end_date || "",
+      });
+      setRemarks(p.remarks || "");
+      setScopeWorkTypes(Array.isArray(p.scope_of_works) ? p.scope_of_works : []);
+      // A saved link stores the URL as its name; a saved file keeps its original filename
+      const modes = {}, links = {}, existing = {};
+      for (const k of ["plans", "tor", "specs"]) {
+        const url = p[`${k}_file_url`], name = p[`${k}_file_name`];
+        if (url && name === url) { modes[k] = "link"; links[k] = url; existing[k] = null; }
+        else { modes[k] = "file"; links[k] = ""; existing[k] = url ? { url, name } : null; }
+      }
+      setDocModes(modes); setDocLinks(links); setExistingDocs(existing);
+      const { data: ret } = await supabase.from("pr_return_history").select("*")
+        .eq("pr_number", editPRId).is("resubmitted_at", null)
+        .order("returned_at", { ascending: false }).limit(1).maybeSingle();
+      setOpenReturn(ret || null);
+      setEditLoading(false);
+    })();
+  }, [editPRId]);
   useEffect(() => {
     if (!selectedProjectId || !isReviewerCreating) { setBudgetCodes([]); setBudgetCodeId(""); return; }
     supabase.from("budget_codes").select("id, code, type, description")
@@ -1319,11 +1374,11 @@ function CreatePRPage({ setPage, profile }) {
     const isSubmitting = sendToGM || isReviewerCreating;
     if (isSubmitting) {
       const missing = [];
-      if (docModes.plans === "file"  && !plansFile)            missing.push("Plans (upload a file)");
+      if (docModes.plans === "file"  && !plansFile && !existingDocs.plans) missing.push("Plans (upload a file)");
       if (docModes.plans === "link"  && !docLinks.plans.trim()) missing.push("Plans (provide a link)");
-      if (docModes.tor   === "file"  && !torFile)              missing.push("Terms of Reference (upload a file)");
+      if (docModes.tor   === "file"  && !torFile && !existingDocs.tor)     missing.push("Terms of Reference (upload a file)");
       if (docModes.tor   === "link"  && !docLinks.tor.trim())  missing.push("Terms of Reference (provide a link)");
-      if (docModes.specs === "file"  && !specsFile)            missing.push("Specifications (upload a file)");
+      if (docModes.specs === "file"  && !specsFile && !existingDocs.specs) missing.push("Specifications (upload a file)");
       if (docModes.specs === "link"  && !docLinks.specs.trim()) missing.push("Specifications (provide a link)");
       if (missing.length > 0) {
         alert("Please provide all required documents before submitting:\n• " + missing.join("\n• "));
@@ -1332,7 +1387,6 @@ function CreatePRPage({ setPage, profile }) {
     }
 
     setSaving(true);
-    const prNumber = await fetchPRNumber();
     const gmProfile = groupManagers.find(gm => gm.id === parseInt(selectedGMId));
     // Determine initial status based on who is creating
     const isAutoApprover = can(profile, "pr.approve_budgeted"); // CM or D&C Head
@@ -1343,28 +1397,30 @@ function CreatePRPage({ setPage, profile }) {
       : isFinalApprover && budgetStatus === "Unbudgeted" ? "Approved"
       : isAutoApprover && budgetStatus === "Unbudgeted" ? "Pending Endorsement"
       : "Under Review";
-    const { data: pr, error } = await supabase
-      .from("purchase_requests")
-      .insert({
-        pr_number: prNumber,
-        project_id: parseInt(selectedProjectId),
-        prepared_by: profile.id,
-        group_manager_id: gmProfile?.profiles?.id || null,
-        description: formData.description,
-        justification: formData.justification,
-        is_rush: isRush,
-        rush_justification: isRush ? formData.rushJustification : null,
-        start_date: formData.startDate || null,
-        end_date: formData.endDate || null,
-        status: autoStatus,
-        current_step: autoStatus,
-        pr_reviewer_id: isReviewerCreating ? profile.id : null,
-        remarks: remarks.trim() || null,
-        scope_of_works: scopeWorkTypes.length > 0 ? scopeWorkTypes : null,
-      })
-      .select().single();
+    const prFields = {
+      project_id: parseInt(selectedProjectId),
+      group_manager_id: gmProfile?.profiles?.id || null,
+      description: formData.description,
+      justification: formData.justification,
+      is_rush: isRush,
+      rush_justification: isRush ? formData.rushJustification : null,
+      start_date: formData.startDate || null,
+      end_date: formData.endDate || null,
+      status: autoStatus,
+      current_step: autoStatus,
+      pr_reviewer_id: isReviewerCreating ? profile.id : null,
+      remarks: remarks.trim() || null,
+      scope_of_works: scopeWorkTypes.length > 0 ? scopeWorkTypes : null,
+    };
+    const { data: pr, error } = editPR
+      ? await supabase.from("purchase_requests").update(prFields).eq("pr_number", editPR.pr_number).select().single()
+      : await supabase.from("purchase_requests").insert({ ...prFields, pr_number: await fetchPRNumber(), prepared_by: profile.id }).select().single();
 
     if (error) { alert("Error saving PR: " + error.message); setSaving(false); return; }
+    const prNumber = pr.pr_number;
+
+    // A draft has no RFQ/RFA yet, so its scope items can be rebuilt from the edited checklist
+    if (editPR) await supabase.from("scope_items").delete().eq("pr_id", prNumber);
 
     // Derive scope_items from Required checklist items (for RFA proposal pre-population)
     const requiredScopeItems = scopeWorkTypes.flatMap(wt => wt.items.filter(i => i.status === "required" && i.label.trim()));
@@ -1375,9 +1431,9 @@ function CreatePRPage({ setPage, profile }) {
     }
 
     // Upload required documents (or use provided links)
-    const uploadDoc = async (file, folder, mode, linkUrl) => {
+    const uploadDoc = async (file, folder, mode, linkUrl, existing) => {
       if (mode === "link") return { url: linkUrl.trim(), name: linkUrl.trim() };
-      if (!file) return { url: null, name: null };
+      if (!file) return existing || { url: null, name: null };
       const ext = file.name.split(".").pop();
       const path = `pr-docs/${pr.pr_number}/${folder}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("pr-documents").upload(path, file);
@@ -1390,9 +1446,9 @@ function CreatePRPage({ setPage, profile }) {
       return { url: urlData.publicUrl, name: file.name };
     };
 
-    const plansRes = await uploadDoc(plansFile, "plans", docModes.plans, docLinks.plans);
-    const torRes   = await uploadDoc(torFile,   "tor",   docModes.tor,   docLinks.tor);
-    const specsRes = await uploadDoc(specsFile,  "specs", docModes.specs, docLinks.specs);
+    const plansRes = await uploadDoc(plansFile, "plans", docModes.plans, docLinks.plans, existingDocs.plans);
+    const torRes   = await uploadDoc(torFile,   "tor",   docModes.tor,   docLinks.tor,   existingDocs.tor);
+    const specsRes = await uploadDoc(specsFile,  "specs", docModes.specs, docLinks.specs, existingDocs.specs);
 
     const { error: docUpdateErr } = await supabase.from("purchase_requests").update({
       plans_file_url: plansRes.url,  plans_file_name: plansRes.name,
@@ -1446,24 +1502,20 @@ function CreatePRPage({ setPage, profile }) {
       await supabase.from("purchase_requests").update(budgetUpdate).eq("pr_number", pr.pr_number);
     }
 
+    if (editPR && autoStatus !== "Draft") await stampPRResubmitted(prNumber, profile?.full_name);
+
     setSaving(false);
     setSubmitted(true);
-    setTimeout(() => { setSubmitted(false); setPage("dashboard"); }, 1800);
+    setTimeout(() => { setSubmitted(false); setPage(editPR ? "detail" : "dashboard"); }, 1800);
   };
 
-  if (submitted) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-      <div style={{ width: 56, height: 56, background: C.greenBg, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.greenText} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: C.textPri, marginBottom: 4 }}>PR saved successfully</div>
-        <div style={{ fontSize: 13, color: C.textSec }}>Redirecting to dashboard…</div>
-      </div>
-    </div>
-  );
+  // Header buttons are rendered once per effect run; the ref lets them call the latest savePR with current form state
+  const savePRRef = useRef(savePR);
+  useEffect(() => { savePRRef.current = savePR; });
+  const leavePage = () => setPage(editPRId ? "detail" : "dashboard");
 
   useEffect(() => {
+    if (submitted || editLoading) { setHeaderContent({ subtitle: "", actions: null }); return; }
     setHeaderContent({
       subtitle: (
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
@@ -1471,22 +1523,22 @@ function CreatePRPage({ setPage, profile }) {
             Purchase Requests
           </button>
           <Icon name="chevronRight" size={10} color={C.textTer} />
-          <span style={{ color: C.textPri, fontWeight: 500 }}>New Purchase Request</span>
+          <span style={{ color: C.textPri, fontWeight: 500 }}>{editPR ? `Edit ${editPR.pr_number}` : "New Purchase Request"}</span>
         </div>
       ),
       actions: (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {!isReviewerCreating && (
-            <button style={styles.btnSecondary} onClick={() => savePR(false)} disabled={saving}>{saving ? "Saving…" : "Save draft"}</button>
+            <button style={styles.btnSecondary} onClick={() => savePRRef.current(false)} disabled={saving}>{saving ? "Saving…" : "Save draft"}</button>
           )}
           {isReviewerCreating ? (
-            <button style={styles.btnPrimary} onClick={() => savePR(false)} disabled={saving}
+            <button style={styles.btnPrimary} onClick={() => savePRRef.current(false)} disabled={saving}
               onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
               onMouseOut={e => e.currentTarget.style.opacity = "1"}>
               {saving ? "Submitting…" : "Submit for review"}
             </button>
           ) : (
-            <button style={styles.btnAmber} onClick={() => savePR(true)} disabled={saving}>
+            <button style={styles.btnAmber} onClick={() => savePRRef.current(true)} disabled={saving}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Icon name="send" size={13} color={C.amberText} />
                 Send to Manager
@@ -1497,15 +1549,39 @@ function CreatePRPage({ setPage, profile }) {
       ),
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [saving, isReviewerCreating]);
+  }, [saving, isReviewerCreating, submitted, editLoading, editPR]);
+
+  if (submitted) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+      <div style={{ width: 56, height: 56, background: C.greenBg, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.greenText} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.textPri, marginBottom: 4 }}>PR saved successfully</div>
+        <div style={{ fontSize: 13, color: C.textSec }}>{editPR ? "Returning to the PR…" : "Redirecting to dashboard…"}</div>
+      </div>
+    </div>
+  );
+
+  if (editLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR…</div></div>;
+  if (editPRId && !editPR) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
 
   return (
     <>
       <div style={{ ...styles.pageBody, maxWidth: 900 }}>
         <div style={{ marginBottom: 22 }}>
-          <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 600, color: C.textPri, letterSpacing: "-0.02em" }}>Create purchase request</h2>
+          <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 600, color: C.textPri, letterSpacing: "-0.02em" }}>{editPR ? `Edit ${editPR.pr_number}` : "Create purchase request"}</h2>
           <p style={{ margin: 0, fontSize: 12, color: C.textSec }}>Save as draft or send directly to your Manager for submission.</p>
         </div>
+
+        {openReturn && (
+          <div style={{ background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.amberText, marginBottom: 4 }}>
+              Returned{openReturn.returned_by_name ? ` by ${openReturn.returned_by_name}` : ""} on {new Date(openReturn.returned_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}. Fix the following before sending again:
+            </div>
+            <div style={{ fontSize: 13, color: C.textPri, whiteSpace: "pre-wrap" }}>{openReturn.return_notes}</div>
+          </div>
+        )}
 
         {/* Section 1 — Project & GM */}
         <div style={{ ...styles.card, marginBottom: 16 }}>
@@ -1808,7 +1884,9 @@ function CreatePRPage({ setPage, profile }) {
             ].map(doc => {
               const showLink = docModes[doc.key] === "link";
               const link = docLinks[doc.key];
-              const isDone = doc.file || link.trim();
+              const existing = existingDocs[doc.key];
+              const hasFile = !!(doc.file || existing);
+              const isDone = hasFile || link.trim();
               return (
                 <div key={doc.key} style={{ border: `1px solid ${isDone ? C.greenText : C.border}`, borderRadius: 10, padding: "14px 16px", background: isDone ? C.greenBg : C.surface }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.textPri, marginBottom: 8 }}>
@@ -1830,25 +1908,25 @@ function CreatePRPage({ setPage, profile }) {
                           }
                           doc.setFile(f);
                         }} />
-                      <label htmlFor={`doc-${doc.key}`} style={{
+                      <label htmlFor={`doc-${doc.key}`} title={!doc.file && existing ? "Click to replace this file" : undefined} style={{
                         display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
-                        border: `1.5px dashed ${doc.file ? C.greenText : C.borderMid}`,
-                        borderRadius: 7, cursor: "pointer", background: doc.file ? C.greenBg : "white" }}>
+                        border: `1.5px dashed ${hasFile ? C.greenText : C.borderMid}`,
+                        borderRadius: 7, cursor: "pointer", background: hasFile ? C.greenBg : "white" }}>
                         <div style={{ flexShrink: 0 }}>
-                          {doc.file
+                          {hasFile
                             ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.greenText} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                             : <Icon name="upload" size={14} color={C.textTer} />}
                         </div>
-                        <span style={{ fontSize: 11, color: doc.file ? C.greenText : C.textTer, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {doc.file ? doc.file.name : `${doc.hint} · max ${maxFileMB} MB`}
+                        <span style={{ fontSize: 11, color: hasFile ? C.greenText : C.textTer, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {doc.file ? doc.file.name : existing ? `${existing.name} · on file, click to replace` : `${doc.hint} · max ${maxFileMB} MB`}
                         </span>
                       </label>
-                      {doc.file && (
-                        <button onClick={() => doc.setFile(null)}
+                      {hasFile && (
+                        <button onClick={() => doc.file ? doc.setFile(null) : setExistingDocs(p => ({ ...p, [doc.key]: null }))}
                           style={{ marginTop: 5, background: "none", border: "none", cursor: "pointer", fontSize: 11, color: C.textTer, padding: 0, fontFamily: "inherit" }}
                           onMouseOver={e => e.currentTarget.style.color = C.redText}
                           onMouseOut={e => e.currentTarget.style.color = C.textTer}>
-                          ✕ Remove
+                          ✕ {doc.file && existing ? "Undo replace" : "Remove"}
                         </button>
                       )}
                     </>
@@ -1877,7 +1955,7 @@ function CreatePRPage({ setPage, profile }) {
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button style={styles.btnSecondary} onClick={() => setPage("dashboard")}>Cancel</button>
+          <button style={styles.btnSecondary} onClick={leavePage}>Cancel</button>
           {!isReviewerCreating && (
             <button style={styles.btnSecondary} onClick={() => savePR(false)} disabled={saving}>Save as draft</button>
           )}
@@ -1927,6 +2005,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   const [a1Uploading, setA1Uploading] = useState(false);
 
   const [linkedRFQ, setLinkedRFQ] = useState(null);
+  const [returnHistory, setReturnHistory] = useState([]);
 
   useEffect(() => { fetchPR(); }, [prId]);
 
@@ -1935,7 +2014,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
     const { data } = await supabase
       .from("purchase_requests")
       .select(`
-        id, pr_number, project_id, description, justification, status, current_step,
+        id, pr_number, project_id, prepared_by, description, justification, status, current_step,
         is_rush, rush_justification, start_date, end_date, created_at,
         budget_status, budget_code, reviewed_at, approved1_at, approved2_at, rejected_at, rejection_reason,
         reviewer_budget_status, reviewer_budget_code,
@@ -1968,12 +2047,15 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
       .from("rfqs").select("id, rfq_number, status")
       .eq("pr_id", prId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (rfqRow) setLinkedRFQ(rfqRow);
+    const { data: hist } = await supabase
+      .from("pr_return_history").select("*")
+      .eq("pr_number", prId).order("returned_at", { ascending: false });
+    setReturnHistory(hist || []);
     setLoading(false);
   };
 
   const isAdmin    = profile?.is_admin === true;
-  const isPreparer = can(profile, "pr.prepare");
-  const isManager  = profile?.position === "Manager" || isAdmin;
+  const isOwner    = !!pr && pr.prepared_by === profile?.id;
 
   const canSendToManager   = can(profile, "pr.send_to_manager") && pr?.status === "Draft";
   const canSubmitForReview = (can(profile, "pr.submit") && (pr?.status === "Pending Manager Approval" || pr?.status === "Pending GM Approval")) ;
@@ -1984,8 +2066,8 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   const canApprove1        = (isAdmin) && pr?.status === "Under Review"; // admin fallback
   const canReject          = can(profile, "pr.reject")
                              && ["Under Review","Pending Endorsement","Approved 1"].includes(pr?.status);
-  const canRevise          = isPreparer && pr?.status === "Rejected";
-  const canResubmit        = isManager && pr?.status === "Rejected";
+  const canRevise          = (isOwner || isAdmin) && pr?.status === "Rejected";
+  const canEdit            = (isOwner || isAdmin) && pr?.status === "Draft";
   const canCreateRFA       = can(profile, "pr.create_rfa") && pr?.status === "Approved";
   const canCreateRFQ       = can(profile, "pr.review") && pr?.status === "Approved" && !linkedRFQ;
 
@@ -2022,6 +2104,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   const handleSendToManager = async () => {
     setUpdating(true);
     await supabase.from("purchase_requests").update({ status: "Pending Manager Approval", current_step: "Pending Manager Approval" }).eq("pr_number", prId);
+    await stampPRResubmitted(prId, profile?.full_name);
     await fetchPR(); setUpdating(false);
   };
 
@@ -2158,19 +2241,21 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   const handleReject = async () => {
     if (!rejectNote.trim()) { alert("Please enter a rejection reason."); return; }
     setUpdating(true);
-    await supabase.from("purchase_requests").update({ status: "Rejected", current_step: "Rejected", rejected_by: profile.id, rejected_at: new Date().toISOString(), rejection_reason: rejectNote }).eq("pr_number", prId);
+    const now = new Date().toISOString();
+    await supabase.from("purchase_requests").update({ status: "Rejected", current_step: "Rejected", rejected_by: profile.id, rejected_at: now, rejection_reason: rejectNote.trim() }).eq("pr_number", prId);
+    await supabase.from("pr_return_history").insert({
+      pr_number:        prId,
+      returned_by_id:   profile?.id || null,
+      returned_by_name: profile?.full_name || null,
+      return_notes:     rejectNote.trim(),
+      returned_at:      now,
+    });
     setShowRejectBox(false); setRejectNote(""); await fetchPR(); setUpdating(false);
   };
 
   const handleRevise = async () => {
     setUpdating(true);
-    await supabase.from("purchase_requests").update({ status: "Draft", current_step: "Draft", rejection_reason: null }).eq("pr_number", prId);
-    await fetchPR(); setUpdating(false);
-  };
-
-  const handleResubmit = async () => {
-    setUpdating(true);
-    await supabase.from("purchase_requests").update({ status: "For Review", current_step: "For Review" }).eq("pr_number", prId);
+    await supabase.from("purchase_requests").update({ status: "Draft", current_step: "Draft" }).eq("pr_number", prId);
     await fetchPR(); setUpdating(false);
   };
 
@@ -2213,6 +2298,9 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
               </span>
             </button>
           ) : null}
+          {canEdit && (
+            <button style={styles.btnSecondary} disabled={updating} onClick={() => setPage("edit_pr")}>Edit</button>
+          )}
           {canSendToManager && (
             <button style={styles.btnAmber} disabled={updating} onClick={handleSendToManager}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="send" size={13} color={C.amberText} /> Send to Manager</span>
@@ -2221,14 +2309,8 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
           {canSubmitForReview && (
             <button style={styles.btnPrimary} disabled={updating} onClick={handleManagerSubmit}>Submit for review</button>
           )}
-          {canRevise && !canResubmit && (
+          {canRevise && (
             <button style={styles.btnSecondary} disabled={updating} onClick={handleRevise}>Revise draft</button>
-          )}
-          {canResubmit && (
-            <>
-              <button style={styles.btnSecondary} disabled={updating} onClick={handleRevise}>Revise draft</button>
-              <button style={styles.btnPrimary} disabled={updating} onClick={handleResubmit}>Resubmit for review</button>
-            </>
           )}
           {canReview && (
             <button style={styles.btnSuccess} disabled={rvUploading} onClick={handleReviewComplete}>
@@ -2269,7 +2351,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
       ),
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, canSendToManager, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canResubmit, canCreateRFA, canCreateRFQ]);
+  }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, canSendToManager, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canEdit, canCreateRFA, canCreateRFQ]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR details…</div></div>;
   if (!pr) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
@@ -2295,6 +2377,35 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
             <div style={{ display: "flex", gap: 8 }}>
               <button style={styles.btnDanger} disabled={updating} onClick={handleReject}>Confirm rejection</button>
               <button style={styles.btnSecondary} onClick={() => setShowRejectBox(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {returnHistory.length > 0 && (
+          <div style={{ ...styles.card, marginBottom: 16 }}>
+            <h3 style={styles.cardTitle}>Return history</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {returnHistory.map((h, i) => {
+                const fmt = d => new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+                return (
+                  <div key={h.id} style={{ display: "flex", gap: 12, paddingBottom: 10, borderBottom: i < returnHistory.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0, width: 62, paddingTop: 1 }}>
+                      Round {returnHistory.length - i}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: C.textSec }}>
+                        <span style={{ color: C.redText, fontWeight: 600 }}>Returned</span> {fmt(h.returned_at)}{h.returned_by_name ? ` by ${h.returned_by_name}` : ""}
+                      </div>
+                      {h.return_notes && <div style={{ fontSize: 13, color: C.textPri, marginTop: 3, whiteSpace: "pre-wrap" }}>"{h.return_notes}"</div>}
+                      <div style={{ fontSize: 12, color: C.textSec, marginTop: 4 }}>
+                        {h.resubmitted_at
+                          ? <><span style={{ color: C.greenText, fontWeight: 600 }}>Resubmitted</span> {fmt(h.resubmitted_at)}{h.resubmitted_by_name ? ` by ${h.resubmitted_by_name}` : ""}</>
+                          : <span style={{ color: C.amberText, fontWeight: 600 }}>Awaiting resubmission</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -15431,7 +15542,7 @@ export default function App() {
   if (session === undefined) return <LoadingScreen logoUrl={ph1LogoUrl} />;
   if (!session) return <LoginPage />;
 
-  const activeSidebarPage = ["create", "detail"].includes(page) ? "dashboard"
+  const activeSidebarPage = ["create", "detail", "edit_pr"].includes(page) ? "dashboard"
     : ["rfp_create", "rfp_detail"].includes(page) ? "rfps"
     : ["rfa_form"].includes(page) ? "rfa_list"
     : ["contract_detail"].includes(page) ? "contracts"
@@ -15440,6 +15551,7 @@ export default function App() {
   const pageTitleMap = {
     dashboard:    "Purchase Requests",
     create:       "Create Purchase Request",
+    edit_pr:      "Edit Purchase Request",
     detail:       "PR Detail",
     projects:     "Projects",
     rfps:         "RFPs",
@@ -15459,7 +15571,8 @@ export default function App() {
 
   const pageMap = {
     dashboard:  <DashboardPage  setPage={setPage} setSelectedPRId={setSelectedPRId} profile={profile} />,
-    create:     <CreatePRPage   setPage={setPage} profile={profile} />,
+    create:     <CreatePRPage   key="create" setPage={setPage} profile={profile} />,
+    edit_pr:    <CreatePRPage   key={`edit-${selectedPRId}`} setPage={setPage} profile={profile} editPRId={selectedPRId} />,
     detail:     <PRDetailPage   prId={selectedPRId} setPage={setPage} profile={profile} setSelectedRFAId={setSelectedRFAId} setRfaPRId={setRfaPRId} setSelectedRFQId={setSelectedRFQId} />,
     projects:   <ProjectsPage   profile={profile} />,
     rfps:       <RFPsPage       profile={profile} setPage={setPage} setSelectedRFPId={setSelectedRFPId} />,
