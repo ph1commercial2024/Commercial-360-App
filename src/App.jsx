@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, createContext, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { venCode, vendorRef } from "./lib/vendorCode";
-import { generatePRNumber } from "./lib/prRef";
+import { toDateStr, fromDateStr } from "./lib/dates";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -1331,7 +1331,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   const MIN_DAYS = isRush ? minDaysRush : minDaysStandard;
   const minDateObj = new Date();
   minDateObj.setDate(minDateObj.getDate() + MIN_DAYS);
-  const minDate = minDateObj.toISOString().split("T")[0];
+  const minDate = toDateStr(minDateObj);
 
   const scopeGenId = () => Math.random().toString(36).slice(2, 9);
   const addWorkType = (name) => {
@@ -1349,16 +1349,23 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   const updateCustomScopeLabel = (wtName, itemId, label) => setScopeWorkTypes(prev => prev.map(wt => wt.workType !== wtName ? wt : { ...wt, items: wt.items.map(i => i.id !== itemId ? i : { ...i, label }) }));
 
   const fetchPRNumber = async () => {
-    const year = new Date().getFullYear();
-    const { count } = await supabase.from("purchase_requests").select("*", { count: "exact", head: true });
-    return generatePRNumber((count || 0) + 1, year);
+    const { data, error } = await supabase.rpc("next_pr_number");
+    if (error || !data) throw new Error(error?.message || "No PR number returned");
+    return data;
   };
 
   const savePR = async (sendToGM = false) => {
     if (!selectedProjectId) { alert("Please select a project."); return; }
-    if (!formData.description) { alert("Please enter a description."); return; }
+    if (!formData.description.trim()) { alert("Please enter a description."); return; }
+    if (!formData.justification.trim()) { alert("Please enter a justification."); return; }
+    if (isRush && !formData.rushJustification.trim()) { alert("Please explain the reason for the late (rush) request."); return; }
     if (!formData.startDate) { alert("Please select a start date."); return; }
     if (!formData.endDate) { alert("Please select an end date."); return; }
+    const isSubmitting = sendToGM || isReviewerCreating;
+    if (isSubmitting && formData.startDate < minDate) {
+      alert(`The start date must be on or after ${minDate} (${MIN_DAYS}-day lead time${isRush ? " for rush requests" : ""}). Please pick a later date.`);
+      return;
+    }
     if (scopeWorkTypes.length === 0) { alert("Please add at least one work type in the Scope of Works."); return; }
     const unansweredScope = scopeWorkTypes.flatMap(wt => wt.items.filter(i => i.isCustom ? (i.label.trim() && !i.status) : !i.status));
     if (unansweredScope.length > 0) { alert(`Please mark all scope items as Required or Not Required.\n${unansweredScope.length} item(s) still unanswered.`); return; }
@@ -1371,7 +1378,6 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     }
 
     // Required documents — only enforced on actual submission (not draft save)
-    const isSubmitting = sendToGM || isReviewerCreating;
     if (isSubmitting) {
       const missing = [];
       if (docModes.plans === "file"  && !plansFile && !existingDocs.plans) missing.push("Plans (upload a file)");
@@ -1387,6 +1393,34 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     }
 
     setSaving(true);
+
+    let prNumber = editPR?.pr_number;
+    if (!prNumber) {
+      try { prNumber = await fetchPRNumber(); }
+      catch (e) { alert("Could not get a PR number, nothing was saved. Please try again.\n\n" + e.message); setSaving(false); return; }
+    }
+
+    // Upload files before writing the PR, so a failed upload leaves nothing half-saved
+    const uploadDoc = async (file, folder, mode, linkUrl, existing) => {
+      if (mode === "link") return { url: linkUrl.trim(), name: linkUrl.trim() };
+      if (!file) return existing || { url: null, name: null };
+      const ext = file.name.split(".").pop();
+      const path = `pr-docs/${prNumber}/${folder}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("pr-documents").upload(path, file);
+      if (upErr) return { error: `${file.name}: ${upErr.message}` };
+      const { data: urlData } = supabase.storage.from("pr-documents").getPublicUrl(path);
+      return { url: urlData.publicUrl, name: file.name };
+    };
+    const plansRes = await uploadDoc(plansFile, "plans", docModes.plans, docLinks.plans, existingDocs.plans);
+    const torRes   = await uploadDoc(torFile,   "tor",   docModes.tor,   docLinks.tor,   existingDocs.tor);
+    const specsRes = await uploadDoc(specsFile,  "specs", docModes.specs, docLinks.specs, existingDocs.specs);
+    const uploadErrors = [plansRes, torRes, specsRes].filter(r => r.error).map(r => r.error);
+    if (uploadErrors.length > 0) {
+      alert("Some documents failed to upload, so the PR was not saved. Please try again.\n\n• " + uploadErrors.join("\n• "));
+      setSaving(false);
+      return;
+    }
+
     const gmProfile = groupManagers.find(gm => gm.id === parseInt(selectedGMId));
     // Determine initial status based on who is creating
     const isAutoApprover = can(profile, "pr.approve_budgeted"); // CM or D&C Head
@@ -1411,13 +1445,15 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       pr_reviewer_id: isReviewerCreating ? profile.id : null,
       remarks: remarks.trim() || null,
       scope_of_works: scopeWorkTypes.length > 0 ? scopeWorkTypes : null,
+      plans_file_url: plansRes.url,  plans_file_name: plansRes.name,
+      tor_file_url:   torRes.url,    tor_file_name:   torRes.name,
+      specs_file_url: specsRes.url,  specs_file_name: specsRes.name,
     };
     const { data: pr, error } = editPR
-      ? await supabase.from("purchase_requests").update(prFields).eq("pr_number", editPR.pr_number).select().single()
-      : await supabase.from("purchase_requests").insert({ ...prFields, pr_number: await fetchPRNumber(), prepared_by: profile.id }).select().single();
+      ? await supabase.from("purchase_requests").update(prFields).eq("pr_number", prNumber).select().single()
+      : await supabase.from("purchase_requests").insert({ ...prFields, pr_number: prNumber, prepared_by: profile.id }).select().single();
 
     if (error) { alert("Error saving PR: " + error.message); setSaving(false); return; }
-    const prNumber = pr.pr_number;
 
     // A draft has no RFQ/RFA yet, so its scope items can be rebuilt from the edited checklist
     if (editPR) await supabase.from("scope_items").delete().eq("pr_id", prNumber);
@@ -1428,36 +1464,6 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       await supabase.from("scope_items").insert(
         requiredScopeItems.map((item, idx) => ({ pr_id: pr.pr_number, description: item.label, quantity: null, unit_of_measure: "lot", sort_order: idx }))
       );
-    }
-
-    // Upload required documents (or use provided links)
-    const uploadDoc = async (file, folder, mode, linkUrl, existing) => {
-      if (mode === "link") return { url: linkUrl.trim(), name: linkUrl.trim() };
-      if (!file) return existing || { url: null, name: null };
-      const ext = file.name.split(".").pop();
-      const path = `pr-docs/${pr.pr_number}/${folder}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("pr-documents").upload(path, file);
-      if (upErr) {
-        alert(`Failed to upload ${folder}: ${upErr.message}`);
-        setSaving(false);
-        return { url: null, name: file.name };
-      }
-      const { data: urlData } = supabase.storage.from("pr-documents").getPublicUrl(path);
-      return { url: urlData.publicUrl, name: file.name };
-    };
-
-    const plansRes = await uploadDoc(plansFile, "plans", docModes.plans, docLinks.plans, existingDocs.plans);
-    const torRes   = await uploadDoc(torFile,   "tor",   docModes.tor,   docLinks.tor,   existingDocs.tor);
-    const specsRes = await uploadDoc(specsFile,  "specs", docModes.specs, docLinks.specs, existingDocs.specs);
-
-    const { error: docUpdateErr } = await supabase.from("purchase_requests").update({
-      plans_file_url: plansRes.url,  plans_file_name: plansRes.name,
-      tor_file_url:   torRes.url,    tor_file_name:   torRes.name,
-      specs_file_url: specsRes.url,  specs_file_name: specsRes.name,
-    }).eq("pr_number", pr.pr_number);
-
-    if (docUpdateErr) {
-      alert("Documents uploaded but failed to save references: " + docUpdateErr.message);
     }
 
     // Apply budget review + auto-approval fields for CO/CM/D&C Head creating their own PRs
@@ -1645,16 +1651,16 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
             <label style={styles.label}>Requested date range <span style={styles.required}>*</span></label>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <DatePicker
-                selected={formData.startDate ? new Date(formData.startDate) : null}
-                onChange={date => setFormData(p => ({ ...p, startDate: date ? date.toISOString().split("T")[0] : "" }))}
-                minDate={new Date(minDate)} placeholderText="Select start date *" dateFormat="MMM d, yyyy"
+                selected={fromDateStr(formData.startDate)}
+                onChange={date => setFormData(p => ({ ...p, startDate: date ? toDateStr(date) : "" }))}
+                minDate={fromDateStr(minDate)} placeholderText="Select start date *" dateFormat="MMM d, yyyy"
                 wrapperClassName="date-picker-wrapper"
                 customInput={<input style={{ ...styles.input, cursor: "pointer" }} />} />
               <span style={{ color: C.textTer, fontSize: 13, flexShrink: 0 }}>to</span>
               <DatePicker
-                selected={formData.endDate ? new Date(formData.endDate) : null}
-                onChange={date => setFormData(p => ({ ...p, endDate: date ? date.toISOString().split("T")[0] : "" }))}
-                minDate={formData.startDate ? new Date(formData.startDate) : new Date(minDate)}
+                selected={fromDateStr(formData.endDate)}
+                onChange={date => setFormData(p => ({ ...p, endDate: date ? toDateStr(date) : "" }))}
+                minDate={fromDateStr(formData.startDate || minDate)}
                 placeholderText="Select end date *" dateFormat="MMM d, yyyy"
                 wrapperClassName="date-picker-wrapper"
                 customInput={<input style={{ ...styles.input, cursor: "pointer" }} />} />
@@ -2722,7 +2728,7 @@ function ProjectsPage({ profile }) {
 
   const excelDateToISO = (value) => {
     if (typeof value === "number") { const d = XLSX.SSF.parse_date_code(value); return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`; }
-    const d = new Date(value); if (!isNaN(d)) return d.toISOString().split("T")[0]; return "";
+    const d = new Date(value); if (!isNaN(d)) return toDateStr(d); return "";
   };
 
   const handleExcelUpload = async (e) => {
@@ -2979,11 +2985,11 @@ function ProjectsPage({ profile }) {
                 </div>
                 <div>
                   <label style={styles.label}>Start date</label>
-                  <DatePicker selected={form.start_date ? new Date(form.start_date) : null} onChange={d => setForm(p => ({ ...p, start_date: d ? d.toISOString().split("T")[0] : "" }))} placeholderText="Select start date" dateFormat="MMM d, yyyy" wrapperClassName="date-picker-wrapper" customInput={<input style={{ ...styles.input, cursor: "pointer" }} />} />
+                  <DatePicker selected={fromDateStr(form.start_date)} onChange={d => setForm(p => ({ ...p, start_date: d ? toDateStr(d) : "" }))} placeholderText="Select start date" dateFormat="MMM d, yyyy" wrapperClassName="date-picker-wrapper" customInput={<input style={{ ...styles.input, cursor: "pointer" }} />} />
                 </div>
                 <div>
                   <label style={styles.label}>End date</label>
-                  <DatePicker selected={form.end_date ? new Date(form.end_date) : null} onChange={d => setForm(p => ({ ...p, end_date: d ? d.toISOString().split("T")[0] : "" }))} minDate={form.start_date ? new Date(form.start_date) : null} placeholderText="Select end date" dateFormat="MMM d, yyyy" wrapperClassName="date-picker-wrapper" customInput={<input style={{ ...styles.input, cursor: "pointer" }} />} />
+                  <DatePicker selected={fromDateStr(form.end_date)} onChange={d => setForm(p => ({ ...p, end_date: d ? toDateStr(d) : "" }))} minDate={fromDateStr(form.start_date)} placeholderText="Select end date" dateFormat="MMM d, yyyy" wrapperClassName="date-picker-wrapper" customInput={<input style={{ ...styles.input, cursor: "pointer" }} />} />
                 </div>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={styles.label}>Description</label>
@@ -5298,15 +5304,6 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
 
   const fmt = (v) => v ? new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(v) : "—";
 
-  if (loading) return (
-    <>
-      <div style={{ ...styles.pageBody, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
-        <span style={{ color: C.textTer, fontSize: 13 }}>Loading…</span>
-      </div>
-    </>
-  );
-  if (!rfp) return null;
-
   const TABS = [
     { key: "overview",    label: "Overview" },
     { key: "proposals",   label: `Proposals (${invitedVendors.filter(vi => vi.latest).length})` },
@@ -5365,6 +5362,15 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [rfp, canManage, closing, submittedCount, linkedRFA]);
+
+  if (loading) return (
+    <>
+      <div style={{ ...styles.pageBody, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
+        <span style={{ color: C.textTer, fontSize: 13 }}>Loading…</span>
+      </div>
+    </>
+  );
+  if (!rfp) return null;
 
   return (
     <>
@@ -11919,8 +11925,6 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPreviewModal, previewBodies]);
 
-  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading…</div></div>;
-
   const checklist = computeChecklist(vendors, vendorList, awardedSlot, awardReason);
   const colGrid = `repeat(${vendors.length}, 1fr)`;
   const lbl = { fontSize: 10, fontWeight: 600, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 };
@@ -12020,6 +12024,8 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [status, rfaNumber, linkedContract, awardedSlot, checklist.length, saving, actionSaving, rfaId]);
+
+  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading…</div></div>;
 
   return (
     <>
