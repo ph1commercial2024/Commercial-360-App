@@ -2710,15 +2710,19 @@ function ProjectsPage({ profile }) {
     if (!form.name) { alert("Project name is required."); return; }
     if (!form.business_unit) { alert("Business unit is required."); return; }
     setSaving(true);
+    const payload = { ...form, start_date: form.start_date || null, end_date: form.end_date || null, pr_reviewer_id: form.pr_reviewer_id || null, address: form.address || null };
+    let error;
     if (editingProject) {
-      await supabase.from("projects").update(form).eq("id", editingProject.id);
+      ({ error } = await supabase.from("projects").update(payload).eq("id", editingProject.id));
     } else {
       // Auto-generate project_code as the unique identifier (PRJ-000001)
       const { count } = await supabase.from("projects").select("*", { count: "exact", head: true });
       const projectCode = `PRJ-${String((count || 0) + 1).padStart(6, "0")}`;
-      await supabase.from("projects").insert({ ...form, project_code: projectCode });
+      ({ error } = await supabase.from("projects").insert({ ...payload, project_code: projectCode }));
     }
-    setSaving(false); closeModal(); fetchProjects();
+    setSaving(false);
+    if (error) { alert("Could not save the project:\n\n" + error.message); return; }
+    closeModal(); fetchProjects();
   };
 
   const toggleStatus = async (p) => {
@@ -2756,14 +2760,17 @@ function ProjectsPage({ profile }) {
     setImporting(true);
     const results = [];
     for (const row of importPreview) {
-      if (row.action === "skip") { results.push({ name: row.name, status: "skipped" }); continue; }
+      if (row.action === "skip" || row.action === "ask") {
+        results.push({ name: row.name, status: "skipped", message: row.action === "ask" ? "Already exists — no Overwrite/Skip chosen" : "Already exists" });
+        continue;
+      }
       if (row.action === "insert") {
         const { count: cnt } = await supabase.from("projects").select("*", { count: "exact", head: true });
         const projectCode = `PRJ-${String((cnt || 0) + 1).padStart(6, "0")}`;
         const { error } = await supabase.from("projects").insert({ name: row.name, short_name: row.short_name, project_code: projectCode, business_unit: row.business_unit, start_date: row.start_date || null, end_date: row.end_date || null, description: row.description, address: row.address || null, status: row.status || "active" });
-        results.push({ name: row.name, status: error ? "error" : "imported" });
+        results.push({ name: row.name, status: error ? "error" : "imported", message: error?.message });
       }
-      if (row.action === "overwrite") { const { error } = await supabase.from("projects").update({ name: row.name, short_name: row.short_name, business_unit: row.business_unit, start_date: row.start_date || null, end_date: row.end_date || null, description: row.description, address: row.address || null, status: row.status || "active" }).eq("name", row.name); results.push({ name: row.name, status: error ? "error" : "updated" }); }
+      if (row.action === "overwrite") { const { error } = await supabase.from("projects").update({ name: row.name, short_name: row.short_name, business_unit: row.business_unit, start_date: row.start_date || null, end_date: row.end_date || null, description: row.description, address: row.address || null, status: row.status || "active" }).eq("name", row.name); results.push({ name: row.name, status: error ? "error" : "updated", message: error?.message }); }
     }
     setImporting(false); setShowImportModal(false); setImportPreview([]); setImportResults(results); setShowImportResults(true); fetchProjects();
   };
@@ -3095,9 +3102,12 @@ function ProjectsPage({ profile }) {
             </div>
             <div style={{ padding: "16px 24px", maxHeight: 300, overflowY: "auto" }}>
               {importResults.map((r, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: i < importResults.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                  <span style={{ fontSize: 13, color: C.textPri }}>{r.name}</span>
-                  <span style={{ ...styles.badge(r.status === "imported" ? "Approved" : r.status === "updated" ? "For Review" : r.status === "skipped" ? "Draft" : "Rejected"), fontSize: 10, textTransform: "capitalize" }}>{r.status}</span>
+                <div key={i} style={{ padding: "8px 0", borderBottom: i < importResults.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ fontSize: 13, color: C.textPri }}>{r.name}</span>
+                    <span style={{ ...styles.badge(r.status === "imported" ? "Approved" : r.status === "updated" ? "For Review" : r.status === "skipped" ? "Draft" : "Rejected"), fontSize: 10, textTransform: "capitalize", flexShrink: 0 }}>{r.status}</span>
+                  </div>
+                  {r.message && <div style={{ fontSize: 11, color: r.status === "error" ? C.redText : C.textTer, marginTop: 3, wordBreak: "break-word" }}>{r.message}</div>}
                 </div>
               ))}
             </div>
