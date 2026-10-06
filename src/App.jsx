@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, createContext, useRef } from "r
 import { supabase } from "./lib/supabase";
 import { venCode, vendorRef } from "./lib/vendorCode";
 import { toDateStr, fromDateStr } from "./lib/dates";
+import { parseCostReport, decideBudget, parseAwardItems, parseVOItems, reconcileItems } from "./lib/costReport";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -572,6 +573,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
   const navItems = [
     ...(showPR       ? [{ key: "dashboard", label: "Purchase Requests", icon: "pr",       section: "Main"     }] : []),
     ...(showProjects ? [{ key: "projects",  label: "Projects",          icon: "projects", section: showPR ? null : "Main" }] : []),
+    ...(showProjects ? [{ key: "cost_reports", label: "Cost Reports",   icon: "reports",  section: null }] : []),
     ...(showRFPs     ? [{ key: "rfps",      label: "RFPs",              icon: "rfp",      section: "Sourcing" }] : []),
     ...(showVendors  ? [{ key: "vendors", label: "Vendors", icon: "users", section: showRFPs ? null : "Sourcing",
       children: [
@@ -1230,6 +1232,177 @@ async function stampPRResubmitted(prNumber, byName) {
   }
 }
 
+// ─── COST REPORT BUDGET LINES ─────────────────────────────────────────────────
+const fmtMoney = (n) => (n < 0 ? "(" : "") + "₱" + Math.abs(Number(n) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + (n < 0 ? ")" : "");
+
+async function fetchCurrentCostReport(projectId) {
+  if (!projectId) return { report: null, lines: [] };
+  const { data: report } = await supabase.from("cost_reports").select("*")
+    .eq("project_id", projectId)
+    .order("report_date", { ascending: false }).order("created_at", { ascending: false })
+    .limit(1).maybeSingle();
+  if (!report) return { report: null, lines: [] };
+  const { data: lines } = await supabase.from("cost_report_lines").select("*")
+    .eq("report_id", report.id).order("sort_order");
+  return { report, lines: (lines || []).map(l => ({ ...l, money_left: Number(l.money_left) })) };
+}
+
+// Unbudgeted reference code, e.g. STM-UB-2026-001; still recorded in budget_codes for numbering
+async function generateUBCode(projectId, project, prNumber) {
+  const prefix = project?.short_name || project?.project_code || "PRJ";
+  const year = new Date().getFullYear();
+  const { data: existing } = await supabase.from("budget_codes").select("counter")
+    .eq("project_id", projectId).eq("type", "UB").eq("year", year)
+    .order("counter", { ascending: false }).limit(1);
+  const nextCounter = existing?.length > 0 ? existing[0].counter + 1 : 1;
+  const code = `${prefix}-UB-${year}-${String(nextCounter).padStart(3, "0")}`;
+  await supabase.from("budget_codes").insert({
+    project_id: projectId, code, type: "UB", year, counter: nextCounter,
+    description: `Auto-generated for PR ${prNumber}`, is_active: true,
+  });
+  return code;
+}
+
+// What gets saved on the PR: the ticked lines with the money left at review time
+const budgetPickFields = (pick) => ({
+  budget_lines: pick.noLine ? [] : pick.picked.map(l => ({
+    code: l.code, name: l.name, group: l.group_name, money_left: l.money_left, is_contingency: l.is_contingency,
+  })),
+  cost_report_id: pick.report?.id || null,
+});
+
+const emptyBudgetPick = { noLine: false, picked: [], report: null };
+
+function BudgetLinePicker({ projectId, pick, onChange }) {
+  const [state, setState] = useState({ loading: true, report: null, lines: [] });
+  const [filter, setFilter] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setState({ loading: true, report: null, lines: [] });
+    fetchCurrentCostReport(projectId).then(r => { if (alive) setState({ loading: false, ...r }); });
+    return () => { alive = false; };
+  }, [projectId]);
+
+  const pickedCodes = new Set(pick.picked.map(l => l.code));
+  const toggle = (line) => {
+    const picked = pickedCodes.has(line.code) ? pick.picked.filter(l => l.code !== line.code) : [...pick.picked, line];
+    onChange({ ...pick, picked, report: state.report });
+  };
+  const decision = decideBudget(pick.picked, { noLine: pick.noLine });
+  const q = filter.trim().toLowerCase();
+  const visible = state.lines.filter(l => !q || `${l.code} ${l.name} ${l.items || ""} ${l.group_name || ""}`.toLowerCase().includes(q));
+
+  const chip = (l) => {
+    const [bg, color, text] = l.is_contingency ? [C.coralLight, C.coralDark, "Contingency"]
+      : l.money_left < 0 ? [C.redBg, C.redText, `Over ${fmtMoney(-l.money_left)}`]
+      : l.money_left === 0 ? [C.amberBg, C.amberText, "Nothing left"]
+      : [C.greenBg, C.greenText, `${fmtMoney(l.money_left)} left`];
+    return <span style={{ fontSize: 10.5, fontWeight: 700, background: bg, color, borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" }}>{text}</span>;
+  };
+
+  if (!projectId) return <p style={{ fontSize: 12, color: C.textTer, margin: 0 }}>Select a project first.</p>;
+  if (state.loading) return <p style={{ fontSize: 12, color: C.textTer, margin: 0 }}>Loading cost report…</p>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {state.report ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11.5, color: C.textSec }}>
+              Cost report as of <strong>{fmtShort(state.report.report_date)}</strong>. Tick every line this work belongs to.
+            </span>
+            <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search lines…" disabled={pick.noLine}
+              style={{ ...styles.input, width: 200, padding: "6px 10px", fontSize: 12 }} />
+          </div>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.white, maxHeight: 320, overflowY: "auto", opacity: pick.noLine ? 0.45 : 1 }}>
+            {visible.length === 0 && <div style={{ padding: 12, fontSize: 12, color: C.textTer }}>No lines match "{filter}".</div>}
+            {visible.map((l, i) => {
+              const header = l.group_name && l.group_name !== visible[i - 1]?.group_name ? l.group_name : null;
+              const codeTail = l.code.split(".").slice(-2).join(".");
+              return (
+                <div key={l.id}>
+                  {header && <div style={{ padding: "6px 12px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTer, background: C.surface }}>{header}</div>}
+                  {l.is_parent ? (
+                    <div style={{ padding: "7px 12px", fontSize: 12, color: C.textTer, borderTop: `1px solid ${C.border}` }}>
+                      <span style={{ fontFamily: "monospace", fontSize: 10.5, marginRight: 6 }}>{codeTail}</span>{l.name} · pick a sub-line below
+                    </div>
+                  ) : (
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, padding: `7px 12px 7px ${l.parent_code ? 28 : 12}px`, fontSize: 12.5, borderTop: `1px solid ${C.border}`, cursor: pick.noLine ? "default" : "pointer", background: pickedCodes.has(l.code) ? C.coralLight : "transparent" }}>
+                      <input type="checkbox" checked={pickedCodes.has(l.code)} disabled={pick.noLine} onChange={() => toggle(l)} style={{ accentColor: C.coral, width: 14, height: 14, flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontFamily: "monospace", fontSize: 10.5, color: C.textTer, marginRight: 6 }}>{codeTail}</span>{l.name}
+                      </span>
+                      {chip(l)}
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 7, padding: "8px 12px" }}>
+          No cost report has been uploaded for this project yet. Upload one on the Cost Reports page, or tick "No budget line covers this work".
+        </div>
+      )}
+
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: C.textPri, cursor: "pointer" }}>
+        <input type="checkbox" checked={pick.noLine} onChange={e => onChange({ ...pick, noLine: e.target.checked, report: state.report })} style={{ accentColor: C.coral }} />
+        No budget line covers this work
+      </label>
+
+      {decision.status && (
+        <div style={{ borderRadius: 8, padding: "10px 12px", border: `1px solid ${decision.status === "Budgeted" ? C.greenText : "#FCD34D"}`, background: decision.status === "Budgeted" ? C.greenBg : C.amberBg }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: decision.status === "Budgeted" ? C.greenText : C.amberText }}>{decision.status}</div>
+          <div style={{ fontSize: 12, color: C.textPri, marginTop: 2 }}>
+            {decision.status === "Budgeted"
+              ? "Every ticked line still has money left. Next: the Commercial Manager approves."
+              : <>{decision.reasons.join(" ")} Next: the Commercial Manager endorses, then the D&amp;C Head approves.</>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BudgetLinesCard({ pr }) {
+  const lines = Array.isArray(pr.budget_lines) ? pr.budget_lines : null;
+  return (
+    <div style={{ ...styles.card, marginBottom: 16 }}>
+      <h3 style={styles.cardTitle}>Budget</h3>
+      <InfoRow label="Budget status">
+        <span style={styles.badge(pr.reviewer_budget_status)}>{pr.reviewer_budget_status}</span>
+      </InfoRow>
+      {lines && lines.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+          {lines.map(l => (
+            <div key={l.code} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "9px 12px", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>{l.name}{l.group ? <span style={{ fontWeight: 400, color: C.textTer }}> · {l.group}</span> : null}</div>
+                <div style={{ fontSize: 10.5, fontFamily: "monospace", color: C.textTer }}>{l.code}</div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontSize: 10.5, color: C.textTer }}>{l.is_contingency ? "Contingency · left" : "Left on line"}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: l.money_left < 0 ? C.redText : l.money_left === 0 ? C.amberText : C.greenText }}>{fmtMoney(l.money_left)}</div>
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: C.textTer }}>Money left as of the cost report used when the PR was reviewed.</div>
+        </div>
+      ) : (
+        <InfoRow label="Budget code">
+          <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: C.coral }}>{pr.reviewer_budget_code || "—"}</span>
+        </InfoRow>
+      )}
+      {lines && lines.length > 0 && pr.reviewer_budget_status === "Unbudgeted" && pr.reviewer_budget_code && (
+        <InfoRow label="Unbudgeted ref.">
+          <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: C.coral }}>{pr.reviewer_budget_code}</span>
+        </InfoRow>
+      )}
+    </div>
+  );
+}
+
 // ─── CREATE PR PAGE ────────────────────────────────────────────────────────────
 function CreatePRPage({ setPage, profile, editPRId = null }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
@@ -1243,9 +1416,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   const [showWTDropdown, setShowWTDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [budgetStatus, setBudgetStatus] = useState("");
-  const [budgetCodeId, setBudgetCodeId] = useState("");
-  const [budgetCodes, setBudgetCodes] = useState([]);
+  const [budgetPick, setBudgetPick] = useState(emptyBudgetPick);
+  const budgetStatus = decideBudget(budgetPick.picked, { noLine: budgetPick.noLine }).status;
   const [formData, setFormData] = useState({ description: "", justification: "", rushJustification: "", startDate: "", endDate: "" });
   const [minDaysStandard, setMinDaysStandard] = useState(45);
   const [minDaysRush, setMinDaysRush] = useState(30);
@@ -1296,13 +1468,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       setEditLoading(false);
     })();
   }, [editPRId]);
-  useEffect(() => {
-    if (!selectedProjectId || !isReviewerCreating) { setBudgetCodes([]); setBudgetCodeId(""); return; }
-    supabase.from("budget_codes").select("id, code, type, description")
-      .eq("project_id", parseInt(selectedProjectId)).eq("is_active", true)
-      .order("type").order("code")
-      .then(({ data }) => setBudgetCodes(data || []));
-  }, [selectedProjectId]);
+  // Budget lines belong to one project's cost report, so changing project clears the selection
+  useEffect(() => { setBudgetPick(emptyBudgetPick); }, [selectedProjectId]);
 
   const fetchProjects = async () => {
     const { data } = await supabase.from("projects").select("id, name, business_unit, project_code, short_name").eq("status", "active").order("name");
@@ -1373,8 +1540,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     if (missingRemarksScope.length > 0) { alert(`Please provide remarks for all "Not Required" items.\n${missingRemarksScope.length} item(s) missing remarks.`); return; }
     if (!isReviewerCreating && sendToGM && !selectedGMId) { alert("Please select a Manager to send to."); return; }
     if (isReviewerCreating) {
-      if (!budgetStatus) { alert("Please tag this PR as Budgeted or Unbudgeted before submitting."); return; }
-      if (budgetStatus === "Budgeted" && !budgetCodeId) { alert("Please select a budget code."); return; }
+      if (!budgetStatus) { alert('Please tick at least one budget line, or "No budget line covers this work".'); return; }
     }
 
     // Required documents — only enforced on actual submission (not draft save)
@@ -1469,28 +1635,15 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     // Apply budget review + auto-approval fields for CO/CM/D&C Head creating their own PRs
     if (isReviewerCreating) {
       const now = new Date().toISOString();
-      const selectedCode = budgetCodes.find(c => c.id === parseInt(budgetCodeId));
-      let finalBudgetCode = budgetStatus === "Budgeted" ? (selectedCode?.code || null) : null;
-
-      if (budgetStatus === "Unbudgeted") {
-        const proj = projects.find(p => p.id === parseInt(selectedProjectId));
-        const projectCode = proj?.short_name || proj?.project_code || "PRJ";
-        const year = new Date().getFullYear();
-        const { data: existing } = await supabase.from("budget_codes").select("counter")
-          .eq("project_id", parseInt(selectedProjectId)).eq("type", "UB").eq("year", year)
-          .order("counter", { ascending: false }).limit(1);
-        const nextCounter = existing?.length > 0 ? existing[0].counter + 1 : 1;
-        finalBudgetCode = `${projectCode}-UB-${year}-${String(nextCounter).padStart(3, "0")}`;
-        await supabase.from("budget_codes").insert({
-          project_id: parseInt(selectedProjectId), code: finalBudgetCode, type: "UB",
-          year, counter: nextCounter, description: `Auto-generated for PR ${prNumber}`, is_active: true,
-        });
-      }
+      const finalBudgetCode = budgetStatus === "Budgeted"
+        ? budgetPick.picked.map(l => l.code).join(", ")
+        : await generateUBCode(parseInt(selectedProjectId), projects.find(p => p.id === parseInt(selectedProjectId)), prNumber);
 
       let budgetUpdate = {
         reviewer_budget_status: budgetStatus,
         reviewer_budget_code: finalBudgetCode,
         reviewed_at: now,
+        ...budgetPickFields(budgetPick),
       };
       if (isAutoApprover && budgetStatus === "Budgeted") {
         budgetUpdate = { ...budgetUpdate, status: "Approved", current_step: "Approved",
@@ -1842,37 +1995,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
         {/* Section 4b — Budget Review (CO/CM/D&C Head creating their own PR) */}
         {isReviewerCreating && (
           <div style={{ ...styles.card, marginBottom: 16, borderColor: budgetStatus ? C.border : "#FCD34D" }}>
-            <h3 style={{ ...styles.cardTitle, borderBottomColor: C.coral, color: C.coral }}>Budget Assessment <span style={styles.required}>*</span></h3>
-            <p style={{ fontSize: 12, color: C.textSec, margin: "0 0 14px" }}>As the reviewer, tag this PR's budget status before submitting.</p>
-            <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-              {["Budgeted", "Unbudgeted"].map(opt => (
-                <label key={opt} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "10px 16px",
-                  borderRadius: 8, border: `1px solid ${budgetStatus === opt ? (opt === "Budgeted" ? "#86EFAC" : "#FCA5A5") : C.border}`,
-                  background: budgetStatus === opt ? (opt === "Budgeted" ? C.greenBg : C.redBg) : C.white, flex: 1 }}>
-                  <input type="radio" name="budgetStatus" value={opt} checked={budgetStatus === opt}
-                    onChange={() => { setBudgetStatus(opt); setBudgetCodeId(""); }} style={{ accentColor: C.coral }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: budgetStatus === opt ? (opt === "Budgeted" ? C.greenText : C.redText) : C.textPri }}>{opt}</span>
-                </label>
-              ))}
-            </div>
-            {budgetStatus === "Budgeted" && (
-              <div>
-                <label style={styles.label}>Budget Code <span style={styles.required}>*</span></label>
-                <select value={budgetCodeId} onChange={e => setBudgetCodeId(e.target.value)} style={styles.input}>
-                  <option value="">Select budget code…</option>
-                  {budgetCodes.length === 0 ? (
-                    <option disabled>No active budget codes for this project</option>
-                  ) : budgetCodes.map(c => (
-                    <option key={c.id} value={c.id}>{c.code}{c.description ? ` — ${c.description}` : ""}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {budgetStatus === "Unbudgeted" && (
-              <div style={{ fontSize: 12, color: C.amberText, background: C.amberBg, borderRadius: 6, padding: "8px 12px" }}>
-                A UB budget code will be auto-generated when this PR is submitted.
-              </div>
-            )}
+            <h3 style={{ ...styles.cardTitle, borderBottomColor: C.coral, color: C.coral }}>Budget lines <span style={styles.required}>*</span></h3>
+            <BudgetLinePicker projectId={selectedProjectId ? parseInt(selectedProjectId) : null} pick={budgetPick} onChange={setBudgetPick} />
           </div>
         )}
 
@@ -1994,9 +2118,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   const [rejectNote, setRejectNote] = useState("");
 
   // Reviewer panel state
-  const [rvBudgetStatus, setRvBudgetStatus] = useState("");
-  const [rvBudgetCodeId, setRvBudgetCodeId] = useState("");
-  const [projectBudgetCodes, setProjectBudgetCodes] = useState([]);
+  const [rvBudgetPick, setRvBudgetPick] = useState(emptyBudgetPick);
   const [rvRemainingBudget, setRvRemainingBudget] = useState("");
   const [rvProjectedCost, setRvProjectedCost] = useState("");
   const [rvRefFile, setRvRefFile] = useState(null);
@@ -2023,7 +2145,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
         id, pr_number, project_id, prepared_by, description, justification, status, current_step,
         is_rush, rush_justification, start_date, end_date, created_at,
         budget_status, budget_code, reviewed_at, approved1_at, approved2_at, rejected_at, rejection_reason,
-        reviewer_budget_status, reviewer_budget_code,
+        reviewer_budget_status, reviewer_budget_code, budget_lines, cost_report_id,
         plans_file_url, plans_file_name,
         tor_file_url, tor_file_name,
         specs_file_url, specs_file_name,
@@ -2037,15 +2159,6 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
       setPR(data);
       if (data.scope_of_works) setScopeOfWorks(data.scope_of_works);
       setA1BudgetStatus(data.budget_status || "");
-      // Fetch active budget codes for this PR's project
-      if (data.project_id) {
-        const { data: codes } = await supabase.from("budget_codes")
-          .select("id, code, type, description")
-          .eq("project_id", data.project_id)
-          .eq("is_active", true)
-          .order("type").order("code");
-        if (codes) setProjectBudgetCodes(codes);
-      }
     }
     const { data: items } = await supabase.from("scope_items").select("*").eq("pr_id", prId).order("sort_order");
     if (items) setScopeItems(items);
@@ -2121,40 +2234,25 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   };
 
   const handleReviewComplete = async () => {
-    if (!rvBudgetStatus) { alert("Please tag this PR as Budgeted or Unbudgeted."); return; }
-    if (rvBudgetStatus === "Budgeted" && !rvBudgetCodeId) { alert("Please select a budget code."); return; }
+    const rvBudgetStatus = decideBudget(rvBudgetPick.picked, { noLine: rvBudgetPick.noLine }).status;
+    if (!rvBudgetStatus) { alert('Please tick at least one budget line, or "No budget line covers this work".'); return; }
     setRvUploading(true);
 
-    let finalBudgetCode = null;
+    const finalBudgetCode = rvBudgetStatus === "Budgeted"
+      ? rvBudgetPick.picked.map(l => l.code).join(", ")
+      : await generateUBCode(pr.project_id, pr.projects, pr.pr_number);
 
-    if (rvBudgetStatus === "Budgeted") {
-      // Use selected budget code
-      const selected = projectBudgetCodes.find(c => c.id === parseInt(rvBudgetCodeId));
-      finalBudgetCode = selected?.code || null;
-    } else {
-      // Auto-generate UB code: [PROJECT_CODE]-UB-[YEAR]-[COUNTER]
-      const project = pr.projects;
-      const projectCode = project?.short_name || project?.project_code || "PRJ";
-      const year = new Date().getFullYear();
-      const { data: existing } = await supabase.from("budget_codes").select("counter")
-        .eq("project_id", pr.project_id).eq("type", "UB").eq("year", year)
-        .order("counter", { ascending: false }).limit(1);
-      const nextCounter = existing && existing.length > 0 ? existing[0].counter + 1 : 1;
-      finalBudgetCode = `${projectCode}-UB-${year}-${String(nextCounter).padStart(3, "0")}`;
-      // Insert the auto-generated UB code into budget_codes for traceability
-      await supabase.from("budget_codes").insert({
-        project_id: pr.project_id, code: finalBudgetCode, type: "UB",
-        year, counter: nextCounter, description: `Auto-generated for PR ${pr.pr_number}`, is_active: true,
-      });
-    }
-
-    await supabase.from("purchase_requests").update({
+    const { error } = await supabase.from("purchase_requests").update({
       status: "Under Review", current_step: "Under Review",
       reviewer_budget_status: rvBudgetStatus,
       reviewer_budget_code: finalBudgetCode,
       reviewed_at: new Date().toISOString(),
+      ...budgetPickFields(rvBudgetPick),
     }).eq("pr_number", prId);
-    setRvUploading(false); await fetchPR();
+    setRvUploading(false);
+    if (error) { alert("Could not save the review:\n\n" + error.message); return; }
+    setRvBudgetPick(emptyBudgetPick);
+    await fetchPR();
   };
 
   const autoCreateRFQ = async (prData) => {
@@ -2357,7 +2455,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
       ),
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, canSendToManager, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canEdit, canCreateRFA, canCreateRFQ]);
+  }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, rvBudgetPick, canSendToManager, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canEdit, canCreateRFA, canCreateRFQ]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR details…</div></div>;
   if (!pr) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
@@ -2419,43 +2517,10 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
         {/* PR Reviewer panel */}
         {canReview && (
           <div style={{ ...styles.card, marginBottom: 16, border: `1px solid ${C.tealText}`, background: C.tealBg }}>
-            <h3 style={{ ...styles.cardTitle, borderBottomColor: C.tealText, color: C.tealText }}>PR Reviewer — Evaluation</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-              <div>
-                <label style={styles.label}>Budget status <span style={styles.required}>*</span></label>
-                <select value={rvBudgetStatus} onChange={e => { setRvBudgetStatus(e.target.value); setRvBudgetCodeId(""); }} style={styles.input}>
-                  <option value="">Select…</option>
-                  <option value="Budgeted">Budgeted</option>
-                  <option value="Unbudgeted">Unbudgeted</option>
-                </select>
-              </div>
-              {rvBudgetStatus === "Budgeted" && (
-                <div>
-                  <label style={styles.label}>Budget code <span style={styles.required}>*</span></label>
-                  {projectBudgetCodes.length === 0 ? (
-                    <div style={{ fontSize: 12, color: C.amberText, background: C.amberBg, border: `1px solid #FCD34D`, borderRadius: 7, padding: "8px 10px" }}>
-                      No active budget codes for this project. Please add codes in Settings first.
-                    </div>
-                  ) : (
-                    <select value={rvBudgetCodeId} onChange={e => setRvBudgetCodeId(e.target.value)} style={styles.input}>
-                      <option value="">Select budget code…</option>
-                      {projectBudgetCodes.map(c => (
-                        <option key={c.id} value={c.id}>{c.code}{c.description ? ` — ${c.description}` : ""}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
-              {rvBudgetStatus === "Unbudgeted" && (
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  <div style={{ background: C.amberBg, border: `1px solid #FCD34D`, borderRadius: 7, padding: "8px 12px", fontSize: 12, color: C.amberText }}>
-                    A <strong>UB code</strong> will be auto-generated for this project upon endorsement.
-                  </div>
-                </div>
-              )}
-            </div>
-            <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>
-              Complete your evaluation above then use the buttons in the top right to endorse or reject.
+            <h3 style={{ ...styles.cardTitle, borderBottomColor: C.tealText, color: C.tealText }}>PR Reviewer — Budget lines</h3>
+            <BudgetLinePicker projectId={pr.project_id} pick={rvBudgetPick} onChange={setRvBudgetPick} />
+            <p style={{ fontSize: 11, color: C.textTer, margin: "12px 0 0" }}>
+              When done, click <strong>Complete Review</strong> at the top right. Budgeted or Unbudgeted is set from the lines you tick.
             </p>
           </div>
         )}
@@ -2488,7 +2553,8 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
           <div style={{ ...styles.card, marginBottom: 16, border: `1px solid ${C.amberText}`, background: C.amberBg }}>
             <h3 style={{ ...styles.cardTitle, borderBottomColor: C.amberText, color: C.amberText }}>Approver 2 — Final Approval</h3>
             <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: C.textSec }}>
-              This is an <strong>unbudgeted</strong> PR. Budget code: <strong style={{ fontFamily: "monospace", color: C.coral }}>{pr.reviewer_budget_code || "—"}</strong>
+              This is an <strong>unbudgeted</strong> PR. Reference: <strong style={{ fontFamily: "monospace", color: C.coral }}>{pr.reviewer_budget_code || "—"}</strong>
+              {Array.isArray(pr.budget_lines) && pr.budget_lines.length > 0 && <> · see the Budget card below for which lines are short.</>}
             </div>
             <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>
   Review the details above then use the buttons in the top right to approve or reject.
@@ -2531,17 +2597,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
         </div>
 
         {/* Budget — only shown after reviewer evaluation */}
-        {pr.reviewer_budget_status && (
-          <div style={{ ...styles.card, marginBottom: 16 }}>
-            <h3 style={styles.cardTitle}>Budget</h3>
-            <InfoRow label="Budget status">
-              <span style={styles.badge(pr.reviewer_budget_status)}>{pr.reviewer_budget_status}</span>
-            </InfoRow>
-            <InfoRow label="Budget code">
-              <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: C.coral }}>{pr.reviewer_budget_code || "—"}</span>
-            </InfoRow>
-          </div>
-        )}
+        {pr.reviewer_budget_status && <BudgetLinesCard pr={pr} />}
 
         {/* Work request details */}
         <div style={{ ...styles.card, marginBottom: 16 }}>
@@ -3121,337 +3177,379 @@ function ProjectsPage({ profile }) {
   );
 }
 
-// ─── BUDGET CODES PAGE ────────────────────────────────────────────────────────
-function BudgetCodesPage({ profile }) {
+// ─── COST REPORTS PAGE ────────────────────────────────────────────────────────
+const sheetRows = (wb, name) => {
+  const real = wb.SheetNames.find(n => n.trim().toLowerCase() === name);
+  return real ? XLSX.utils.sheet_to_json(wb.Sheets[real], { header: 1, defval: "", raw: true }) : undefined;
+};
+
+function CostReportsPage({ profile }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
-  const [bcProjects, setBcProjects] = useState([]);
-  const [bcCodes, setBcCodes]       = useState([]);
-  const [bcFilterProject, setBcFilterProject] = useState("");
-  const [bcFormProject, setBcFormProject]     = useState("");
-  const [bcFormType, setBcFormType]           = useState("");
-  const [bcFormYear, setBcFormYear]           = useState(String(new Date().getFullYear()));
-  const [bcFormDesc, setBcFormDesc]           = useState("");
-  const [bcSaving, setBcSaving]               = useState(false);
-  const [bcLoading, setBcLoading]             = useState(true);
-  const [bcImportPreview, setBcImportPreview] = useState([]);
-  const [bcShowImport, setBcShowImport]       = useState(false);
-  const [bcImporting, setBcImporting]         = useState(false);
+  const canUpload = can(profile, "project.edit");
+  const [projects, setProjects] = useState([]);
+  const [projectId, setProjectId] = useState("");
+  const [versions, setVersions] = useState([]);
+  const [reportId, setReportId] = useState("");
+  const [lines, setLines] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState("awarded");
+  const [openLine, setOpenLine] = useState(null);
+  const [upload, setUpload] = useState(null); // { fileName, parsed, items, recon, projectId, reportDate, error }
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef(null);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    supabase.from("projects").select("id, name, short_name, project_code").eq("status", "active").order("name")
+      .then(({ data }) => {
+        setProjects(data || []);
+        if (data?.length) setProjectId(p => p || String(data[0].id));
+      });
+  }, []);
 
-  const fetchData = async () => {
-    setBcLoading(true);
-    const { data: projects } = await supabase.from("projects").select("id, name, project_code").eq("status", "active").order("name");
-    if (projects) setBcProjects(projects);
-    const { data: codes } = await supabase.from("budget_codes").select("*, projects(name, project_code)").order("created_at", { ascending: false });
-    if (codes) setBcCodes(codes);
-    setBcLoading(false);
+  const loadVersions = async (pid, keepReportId) => {
+    if (!pid) { setVersions([]); setReportId(""); setLines([]); setItems([]); return; }
+    setLoading(true);
+    const { data } = await supabase.from("cost_reports").select("*").eq("project_id", parseInt(pid))
+      .order("report_date", { ascending: false }).order("created_at", { ascending: false });
+    setVersions(data || []);
+    const rid = keepReportId || (data?.[0]?.id ? String(data[0].id) : "");
+    setReportId(rid);
+    if (!rid) { setLines([]); setItems([]); setLoading(false); }
   };
 
-  const addBudgetCode = async () => {
-    if (!bcFormProject) { alert("Please select a project."); return; }
-    if (!bcFormType)    { alert("Please select a budget type."); return; }
-    const project = bcProjects.find(p => p.id === parseInt(bcFormProject));
-    const year = parseInt(bcFormYear) || new Date().getFullYear();
-    const { data: existing } = await supabase.from("budget_codes").select("counter")
-      .eq("project_id", parseInt(bcFormProject)).eq("type", bcFormType).eq("year", year)
-      .order("counter", { ascending: false }).limit(1);
-    const nextCounter = existing && existing.length > 0 ? existing[0].counter + 1 : 1;
-    const code = `${project.project_code}-${bcFormType}-${year}-${String(nextCounter).padStart(3, "0")}`;
-    setBcSaving(true);
-    const { error } = await supabase.from("budget_codes").insert({
-      project_id: parseInt(bcFormProject), code, type: bcFormType, year, counter: nextCounter,
-      description: bcFormDesc.trim() || null, is_active: true,
-    });
-    if (error) { alert("Error: " + error.message); setBcSaving(false); return; }
-    setBcFormProject(""); setBcFormType(""); setBcFormYear(String(new Date().getFullYear())); setBcFormDesc("");
-    setBcSaving(false);
-    fetchData();
-  };
+  useEffect(() => { loadVersions(projectId); }, [projectId]);
 
-  const deactivateBudgetCode  = async (id) => { await supabase.from("budget_codes").update({ is_active: false }).eq("id", id); fetchData(); };
-  const reactivateBudgetCode  = async (id) => { await supabase.from("budget_codes").update({ is_active: true  }).eq("id", id); fetchData(); };
+  useEffect(() => {
+    if (!reportId) return;
+    setLoading(true);
+    setOpenLine(null);
+    Promise.all([
+      supabase.from("cost_report_lines").select("*").eq("report_id", parseInt(reportId)).order("sort_order"),
+      supabase.from("cost_report_items").select("*").eq("report_id", parseInt(reportId)).order("id"),
+    ]).then(([l, it]) => { setLines(l.data || []); setItems(it.data || []); setLoading(false); });
+  }, [reportId]);
 
-  // Export current codes to Excel
-  const exportCodes = () => {
-    const rows = bcCodes.map(bc => ({
-      "Code":         bc.code,
-      "Project Name": bc.projects?.name || "",
-      "Project Code": bc.projects?.project_code || "",
-      "Type":         bc.type,
-      "Year":         bc.year,
-      "Description":  bc.description || "",
-      "Status":       bc.is_active ? "Active" : "Inactive",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [{ wch: 28 },{ wch: 30 },{ wch: 14 },{ wch: 10 },{ wch: 8 },{ wch: 32 },{ wch: 10 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Budget Codes");
-    XLSX.writeFile(wb, `budget-codes-${new Date().toISOString().slice(0,10)}.xlsx`);
-  };
-
-  // Download blank import template
-  const downloadTemplate = () => {
-    const instructions = [
-      ["INSTRUCTIONS"],
-      ["Fill in the 'Budget Codes' sheet. Do NOT modify column headers."],
-      ["Project Code must exactly match an existing active project code."],
-      ["Type must be one of: CAPEX, OPEX, MAINT"],
-      ["Year must be a 4-digit year e.g. 2026"],
-      ["Description is optional."],
-      ["The system will auto-generate the full code and counter on import."],
-    ];
-    const example = [
-      ["Project Code", "Type", "Year", "Description"],
-      ["CON", "CAPEX", 2026, "Main construction budget"],
-      ["CON", "OPEX",  2026, "Operating expenses"],
-      ["ELE", "MAINT", 2026, ""],
-    ];
-    const wsInstr = XLSX.utils.aoa_to_sheet(instructions);
-    const wsData  = XLSX.utils.aoa_to_sheet(example);
-    wsData["!cols"] = [{ wch: 16 },{ wch: 10 },{ wch: 8 },{ wch: 32 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsData,  "Budget Codes");
-    XLSX.utils.book_append_sheet(wb, wsInstr, "Instructions");
-    XLSX.writeFile(wb, "budget-codes-template.xlsx");
-  };
-
-  // Parse uploaded Excel file into preview rows
-  const handleImportFile = (file) => {
+  const pickFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const wb = XLSX.read(e.target.result, { type: "array" });
-      const ws = wb.Sheets["Budget Codes"] || wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      const VALID_TYPES = ["CAPEX", "OPEX", "MAINT"];
-      const preview = rows.map((r, i) => {
-        const projectCode = String(r["Project Code"] || "").trim().toUpperCase();
-        const type        = String(r["Type"] || "").trim().toUpperCase();
-        const year        = parseInt(r["Year"]) || 0;
-        const description = String(r["Description"] || "").trim();
-        const project     = bcProjects.find(p => p.project_code?.toUpperCase() === projectCode);
-        const errors = [];
-        if (!projectCode)              errors.push("Missing project code");
-        else if (!project)             errors.push(`Project code "${projectCode}" not found`);
-        if (!VALID_TYPES.includes(type)) errors.push(`Type must be CAPEX, OPEX, or MAINT`);
-        if (!year || year < 2020)      errors.push("Invalid year");
-        return { row: i + 2, projectCode, type, year, description, project, errors, valid: errors.length === 0 };
-      }).filter(r => r.projectCode || r.type); // skip blank rows
-      setBcImportPreview(preview);
-      setBcShowImport(true);
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: "array" });
+        const mainName = wb.SheetNames.find(n => n.trim().toLowerCase() === "budget vs awarded") || wb.SheetNames[0];
+        const parsed = parseCostReport(XLSX.utils.sheet_to_json(wb.Sheets[mainName], { header: 1, defval: "", raw: true }));
+        if (parsed.lines.length === 0) throw new Error(`No budget lines were found in the "${mainName}" sheet.`);
+        const awards = parseAwardItems(sheetRows(wb, "wpp"));
+        const vos = parseVOItems(sheetRows(wb, "pmis"));
+        const all = [...awards, ...vos];
+        setUpload({
+          fileName: file.name, sheetName: mainName, parsed, items: all, awards: awards.length, vos: vos.length,
+          recon: reconcileItems(parsed.lines, all), projectId, reportDate: parsed.reportDate || toDateStr(new Date()), error: null,
+        });
+      } catch (err) {
+        setUpload({ fileName: file.name, parsed: null, projectId, reportDate: "", error: err.message });
+      }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  // Execute the import
-  const confirmImport = async () => {
-    const validRows = bcImportPreview.filter(r => r.valid);
-    if (validRows.length === 0) { alert("No valid rows to import."); return; }
-    setBcImporting(true);
-    let inserted = 0, failed = 0;
-    for (const row of validRows) {
-      const year = row.year;
-      const { data: existing } = await supabase.from("budget_codes").select("counter")
-        .eq("project_id", row.project.id).eq("type", row.type).eq("year", year)
-        .order("counter", { ascending: false }).limit(1);
-      const nextCounter = existing && existing.length > 0 ? existing[0].counter + 1 : 1;
-      const code = `${row.project.project_code}-${row.type}-${year}-${String(nextCounter).padStart(3, "0")}`;
-      const { error } = await supabase.from("budget_codes").insert({
-        project_id: row.project.id, code, type: row.type, year, counter: nextCounter,
-        description: row.description || null, is_active: true,
-      });
-      if (error) failed++; else inserted++;
+  const saveUpload = async () => {
+    if (!upload?.parsed || !upload.projectId || !upload.reportDate) return;
+    setSaving(true);
+    const { data: report, error } = await supabase.from("cost_reports").insert({
+      project_id: parseInt(upload.projectId),
+      report_date: upload.reportDate,
+      file_name: upload.fileName,
+      project_text: upload.parsed.projectText,
+      uploaded_by: profile?.id || null,
+      uploaded_by_name: profile?.full_name || null,
+    }).select().single();
+    if (error) { setSaving(false); alert("Could not save the cost report:\n\n" + error.message); return; }
+    const lineRows = upload.parsed.lines.map(l => ({
+      report_id: report.id, sort_order: l.sort_order, group_name: l.group, code: l.code, items: l.items, name: l.name,
+      qty: l.qty, unit: l.unit, approved_budget: l.approved_budget, awarded: l.awarded, wp_for_approval: l.wp_for_approval,
+      anticipated: l.anticipated, vo_approved: l.vo_approved, vo_for_approval: l.vo_for_approval, vo_waiting: l.vo_waiting,
+      vo_ongoing: l.vo_ongoing, vo_anticipated: l.vo_anticipated, projected_cost: l.projected_cost, money_left: l.money_left,
+      parent_code: l.parent_code, is_parent: l.is_parent, is_contingency: l.is_contingency,
+    }));
+    const { error: linesErr } = await supabase.from("cost_report_lines").insert(lineRows);
+    const { error: itemsErr } = !linesErr && upload.items.length
+      ? await supabase.from("cost_report_items").insert(upload.items.map(i => ({ ...i, report_id: report.id })))
+      : { error: null };
+    if (linesErr || itemsErr) {
+      await supabase.from("cost_reports").delete().eq("id", report.id);
+      setSaving(false);
+      alert("Could not save the report, so nothing was saved:\n\n" + (linesErr || itemsErr).message);
+      return;
     }
-    setBcImporting(false);
-    setBcShowImport(false);
-    setBcImportPreview([]);
-    fetchData();
-    alert(`Import complete: ${inserted} added${failed > 0 ? `, ${failed} failed` : ""}.`);
+    setSaving(false);
+    setUpload(null);
+    if (String(report.project_id) !== projectId) setProjectId(String(report.project_id));
+    else await loadVersions(projectId, String(report.id));
   };
-
-  const filtered = bcCodes.filter(c => !bcFilterProject || String(c.project_id) === bcFilterProject);
-  const previewProject = bcProjects.find(p => p.id === parseInt(bcFormProject));
 
   useEffect(() => {
     setHeaderContent({
-      subtitle: "Manage project budget codes",
-      actions: (
+      subtitle: "Budget, awards and projected cost per project, from the cost report Excel",
+      actions: canUpload ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button style={styles.btnGhost} onClick={downloadTemplate}>⬇ Download Template</button>
-          <label style={{ ...styles.btnSecondary, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            ⬆ Import Excel
-            <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={e => { handleImportFile(e.target.files[0]); e.target.value = ""; }} />
-          </label>
-          <button style={styles.btnGhost} onClick={exportCodes} disabled={bcCodes.length === 0}>⬇ Export Codes</button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={pickFile} />
+          <button style={styles.btnPrimary} onClick={() => fileRef.current?.click()}>↑ Upload cost report</button>
         </div>
-      ),
+      ) : null,
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [bcCodes.length]);
+  }, [canUpload, projectId]);
+
+  const current = versions.find(v => String(v.id) === reportId);
+  const isLatest = versions[0] && String(versions[0].id) === reportId;
+  const top = lines.filter(l => !l.parent_code);
+  const sum = (f) => top.reduce((a, l) => a + f(l), 0);
+  const n = (v) => Number(v || 0);
+  const awardedOf = (l) => n(l.awarded) + n(l.vo_approved);
+  const varianceOf = (l) => n(l.approved_budget) - n(l.projected_cost);
+  const anticipatedOf = (l) => n(l.anticipated) + n(l.vo_anticipated);
+  const totals = {
+    budget: sum(l => n(l.approved_budget)), awarded: sum(awardedOf), left: sum(l => n(l.money_left)),
+    projected: sum(l => n(l.projected_cost)), variance: sum(varianceOf),
+  };
+  const overAwarded = lines.filter(l => !l.is_parent && n(l.money_left) < 0).length;
+  const overProjected = lines.filter(l => !l.is_parent && varianceOf(l) < 0).length;
+
+  const td = { padding: "7px 10px", borderTop: `1px solid ${C.border}`, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" };
+  const th = { padding: "9px 10px", background: C.brandDark, color: "#E5E7EB", fontSize: 11, fontWeight: 600, textAlign: "right", whiteSpace: "nowrap", position: "sticky", top: 0 };
+  const amt = (v, bold) => { v = n(v); return v === 0 ? <span style={{ color: C.textTer }}>–</span> : <span style={{ color: v < 0 ? C.redText : "inherit", fontWeight: v < 0 || bold ? 600 : 400 }}>{fmtMoney(v)}</span>; };
+
+  const tiles = tab === "awarded"
+    ? [["Approved budget", totals.budget, `${lines.length} lines`],
+       ["Awarded", totals.awarded, "incl. approved variation orders"],
+       ["Remaining budget", totals.left, overAwarded ? `${overAwarded} line${overAwarded > 1 ? "s" : ""} over budget` : "no line over budget"]]
+    : [["Approved budget", totals.budget, `${lines.length} lines`],
+       ["Projected cost at completion", totals.projected, "incl. anticipated and pending items"],
+       ["Variance", totals.variance, overProjected ? `${overProjected} line${overProjected > 1 ? "s" : ""} projected over budget` : "no line projected over budget"]];
+  const isMoneyTile = (k) => k === "Remaining budget" || k === "Variance";
+
+  // A parent's own items are on its sub-lines
+  const itemsFor = (line) => {
+    const codes = new Set([line.code, ...(line.is_parent ? lines.filter(l => l.parent_code === line.code).map(l => l.code) : [])]);
+    return items.filter(i => codes.has(i.code));
+  };
+  const linesByCode = new Map(lines.map(l => [l.code, l]));
 
   return (
-    <>
-      <div style={{ ...styles.pageBody, maxWidth: 1100 }}>
-        <div style={{ marginBottom: 22 }}>
-          <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 600, color: C.textPri, letterSpacing: "-0.02em" }}>Budget Codes</h2>
-          <p style={{ margin: 0, fontSize: 12, color: C.textSec }}>
-            Pre-establish budget codes per project. Format: <strong>[PROJECT CODE]-[TYPE]-[YEAR]-[COUNTER]</strong>
-          </p>
-        </div>
-
-        {/* Add form */}
-        <div style={{ ...styles.card, marginBottom: 20 }}>
-          <h3 style={styles.cardTitle}>Add new budget code</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={styles.label}>Project <span style={styles.required}>*</span></label>
-              <select value={bcFormProject} onChange={e => setBcFormProject(e.target.value)} style={styles.input}>
-                <option value="">Select project…</option>
-                {bcProjects.map(p => <option key={p.id} value={p.id}>{p.name} ({p.project_code})</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={styles.label}>Type <span style={styles.required}>*</span></label>
-              <select value={bcFormType} onChange={e => setBcFormType(e.target.value)} style={styles.input}>
-                <option value="">Select type…</option>
-                <option value="CAPEX">CAPEX — Capital Expenditure</option>
-                <option value="OPEX">OPEX — Operating Expenditure</option>
-                <option value="MAINT">MAINT — Maintenance</option>
-              </select>
-            </div>
-            <div>
-              <label style={styles.label}>Year</label>
-              <input type="number" value={bcFormYear} onChange={e => setBcFormYear(e.target.value)}
-                style={styles.input} min="2020" max="2099" />
-            </div>
-            <div>
-              <label style={styles.label}>Description</label>
-              <input value={bcFormDesc} onChange={e => setBcFormDesc(e.target.value)}
-                placeholder="Optional label…" style={styles.input} />
-            </div>
-          </div>
-          {bcFormProject && bcFormType && previewProject && (
-            <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: C.textSec }}>Preview:</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.coral, fontFamily: "monospace", background: C.coralLight, padding: "2px 10px", borderRadius: 5 }}>
-                {`${previewProject.project_code}-${bcFormType}-${bcFormYear}-XXX`}
-              </span>
-              <span style={{ fontSize: 11, color: C.textTer }}>Counter auto-assigned on save</span>
-            </div>
-          )}
-          <button style={styles.btnPrimary} onClick={addBudgetCode} disabled={bcSaving}>
-            {bcSaving ? "Adding…" : "+ Add budget code"}
-          </button>
-        </div>
-
-        {/* Filter + list */}
-        <div style={{ ...styles.card }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.textPri }}>All budget codes</h3>
-            <select value={bcFilterProject} onChange={e => setBcFilterProject(e.target.value)} style={{ ...styles.input, width: 240 }}>
-              <option value="">All projects</option>
-              {bcProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          {bcLoading ? (
-            <div style={{ fontSize: 13, color: C.textTer }}>Loading…</div>
-          ) : filtered.length === 0 ? (
-            <div style={{ fontSize: 13, color: C.textTer }}>No budget codes found.</div>
-          ) : (
-            <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: C.offWhite }}>
-                    {["Code", "Project", "Type", "Year", "Description", "Status", ""].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.textTer, fontSize: 11, letterSpacing: "0.03em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((bc, i) => (
-                    <tr key={bc.id} style={{ borderBottom: i < filtered.length - 1 ? "1px dashed #E5E7EB" : "none", opacity: bc.is_active ? 1 : 0.55 }}>
-                      <td style={{ padding: "11px 14px", fontFamily: "monospace", fontWeight: 700, color: bc.is_active ? C.coral : C.textTer }}>{bc.code}</td>
-                      <td style={{ padding: "11px 14px", color: C.textSec }}>{bc.projects?.name}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: C.coralLight, color: C.coral }}>{bc.type}</span>
-                      </td>
-                      <td style={{ padding: "11px 14px", color: C.textSec }}>{bc.year}</td>
-                      <td style={{ padding: "11px 14px", color: C.textSec }}>{bc.description || "—"}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: bc.is_active ? C.greenBg : C.grayBg, color: bc.is_active ? C.greenText : C.textTer }}>
-                          {bc.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "11px 14px", textAlign: "right" }}>
-                        {bc.is_active ? (
-                          <button onClick={() => deactivateBudgetCode(bc.id)}
-                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: C.textTer, fontFamily: "inherit", textDecoration: "underline" }}
-                            onMouseOver={e => e.currentTarget.style.color = C.redText}
-                            onMouseOut={e => e.currentTarget.style.color = C.textTer}>Deactivate</button>
-                        ) : (
-                          <button onClick={() => reactivateBudgetCode(bc.id)}
-                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: C.textTer, fontFamily: "inherit", textDecoration: "underline" }}
-                            onMouseOver={e => e.currentTarget.style.color = C.greenText}
-                            onMouseOut={e => e.currentTarget.style.color = C.textTer}>Reactivate</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+    <div style={{ ...styles.pageBody, maxWidth: 1200 }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
+        <select value={projectId} onChange={e => setProjectId(e.target.value)} style={{ ...styles.input, width: 300 }}>
+          {projects.length === 0 && <option value="">No active projects</option>}
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        {versions.length > 0 && (
+          <select value={reportId} onChange={e => setReportId(e.target.value)} style={{ ...styles.input, width: 320 }}>
+            {versions.map((v, i) => (
+              <option key={v.id} value={v.id}>
+                {fmtShort(v.report_date)}{i === 0 ? " · current" : ""} · uploaded {fmtShort(v.created_at)}{v.uploaded_by_name ? ` by ${v.uploaded_by_name}` : ""}
+              </option>
+            ))}
+          </select>
+        )}
+        {current && !isLatest && (
+          <span style={{ fontSize: 12, color: C.amberText, background: C.amberBg, borderRadius: 6, padding: "4px 10px" }}>Older version. PRs use the current report.</span>
+        )}
       </div>
 
-      {/* Import Preview Modal */}
-      {bcShowImport && (
-        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 700, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "85vh" }}>
-            <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri }}>Import Preview</div>
-              <div style={{ fontSize: 12, color: C.textSec, marginTop: 2 }}>
-                {bcImportPreview.filter(r => r.valid).length} valid · {bcImportPreview.filter(r => !r.valid).length} with errors (errors will be skipped)
+      {loading ? (
+        <div style={{ ...styles.card, color: C.textTer, fontSize: 13 }}>Loading…</div>
+      ) : !current ? (
+        <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.textPri, marginBottom: 6 }}>No cost report for this project yet</div>
+          <div style={{ fontSize: 12.5, color: C.textSec }}>
+            {canUpload ? 'Click "Upload cost report" and choose the project\'s budget Excel. The "Budget Vs Awarded", "WPP" and "PMIs" sheets are read.' : "Ask a Commercial Officer to upload one."}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 2, marginBottom: 14, background: C.white, borderRadius: 10, padding: 4, border: `1px solid ${C.border}`, width: "fit-content" }}>
+            {[["awarded", "Budget vs Awarded"], ["forecast", "Cost Report"]].map(([k, label]) => (
+              <button key={k} onClick={() => setTab(k)}
+                style={{ padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 12, fontWeight: tab === k ? 600 : 400, background: tab === k ? C.coral : "transparent", color: tab === k ? C.white : C.textSec, fontFamily: "inherit" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 14 }}>
+            {tiles.map(([k, v, s]) => (
+              <div key={k} style={{ ...styles.card, padding: "12px 14px" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.06em" }}>{k}</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: isMoneyTile(k) ? (v < 0 ? C.redText : C.greenText) : C.textPri, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(v)}</div>
+                <div style={{ fontSize: 11, color: C.textSec, marginTop: 2 }}>{s}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11.5, color: C.textSec, marginBottom: 8 }}>
+            Report date <strong>{fmtShort(current.report_date)}</strong> · file {current.file_name || "—"} · {tab === "awarded"
+              ? <>Remaining = approved budget − awarded. <strong>Click a line</strong> to see the awards and variation orders behind it. PRs are checked against this tab.</>
+              : <>Variance = approved budget − projected cost at completion (includes anticipated and pending items). For information only; it doesn't affect PRs.</>}
+          </div>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "auto", maxHeight: "70vh", background: C.white }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 760, fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...th, textAlign: "left" }}>Budget code</th>
+                  <th style={{ ...th, textAlign: "left" }}>Particulars</th>
+                  <th style={th}>Approved budget</th>
+                  {tab === "forecast" && <th style={th} title="Awarded work packages + approved variation orders">Awarded</th>}
+                  {tab === "forecast" && <th style={th} title="Work packages anticipated + VOs anticipated (waiting for proposal)">Anticipated</th>}
+                  <th style={th}>{tab === "awarded" ? "Awarded" : "Projected cost at completion"}</th>
+                  <th style={th}>{tab === "awarded" ? "Remaining budget" : "Variance"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((l, i) => {
+                  const header = l.group_name && l.group_name !== lines[i - 1]?.group_name ? l.group_name : null;
+                  const sub = !!l.parent_code;
+                  return (
+                    <React.Fragment key={l.id}>
+                      {header && <tr><td colSpan={tab === "forecast" ? 7 : 5} style={{ ...td, textAlign: "left", fontWeight: 700, background: C.border, color: C.textPri }}>{header}</td></tr>}
+                      <tr onClick={() => setOpenLine(l)}
+                        style={{ background: sub ? C.surface : C.white, cursor: "pointer" }}
+                        onMouseOver={e => { e.currentTarget.style.background = C.coralLight; }}
+                        onMouseOut={e => { e.currentTarget.style.background = sub ? C.surface : C.white; }}>
+                        <td style={{ ...td, textAlign: "left", fontFamily: "monospace", fontSize: 11, color: C.textSec }}>{l.code}</td>
+                        <td style={{ ...td, textAlign: "left", whiteSpace: "normal", paddingLeft: sub ? 24 : 10, fontWeight: l.is_parent ? 600 : 400 }}>
+                          {l.name}{l.is_contingency && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: C.coralDark, background: C.coralLight, borderRadius: 99, padding: "1px 7px" }}>Contingency</span>}
+                        </td>
+                        <td style={td}>{amt(l.approved_budget)}</td>
+                        {tab === "forecast" && <td style={td}>{amt(awardedOf(l))}</td>}
+                        {tab === "forecast" && <td style={td}>{amt(anticipatedOf(l))}</td>}
+                        <td style={td}>{tab === "awarded" ? amt(awardedOf(l)) : amt(l.projected_cost)}</td>
+                        <td style={{ ...td, fontWeight: 600 }}>{tab === "awarded" ? amt(l.money_left, true) : amt(varianceOf(l), true)}</td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {openLine && (() => {
+        const list = itemsFor(openLine);
+        const awards = list.filter(i => i.kind === "award");
+        const vos = list.filter(i => i.kind === "vo");
+        const found = list.reduce((a, i) => a + n(i.amount), 0);
+        const expected = awardedOf(openLine);
+        const ok = Math.abs(found - expected) <= 0.01;
+        const row = (i) => (
+          <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderTop: `1px solid ${C.border}` }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: C.textPri }}>{i.description || "—"}</div>
+              <div style={{ fontSize: 11, color: C.textTer, marginTop: 1 }}>
+                {[i.ref, i.sub_ref, i.kind === "award" ? i.vendor : i.category, openLine.is_parent ? linesByCode.get(i.code)?.name : null].filter(Boolean).join(" · ")}
               </div>
             </div>
-            <div style={{ overflowY: "auto", flex: 1 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: C.offWhite, position: "sticky", top: 0 }}>
-                    {["Row", "Project Code", "Type", "Year", "Description", "Status"].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 600, color: C.textTer, fontSize: 11, letterSpacing: "0.03em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {bcImportPreview.map((r, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}`, background: r.valid ? "transparent" : "#FFF5F5" }}>
-                      <td style={{ padding: "9px 14px", color: C.textTer }}>{r.row}</td>
-                      <td style={{ padding: "9px 14px", fontFamily: "monospace", color: C.textPri }}>{r.projectCode}</td>
-                      <td style={{ padding: "9px 14px", color: C.textPri }}>{r.type}</td>
-                      <td style={{ padding: "9px 14px", color: C.textSec }}>{r.year}</td>
-                      <td style={{ padding: "9px 14px", color: C.textSec }}>{r.description || "—"}</td>
-                      <td style={{ padding: "9px 14px" }}>
-                        {r.valid
-                          ? <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: C.greenBg, color: C.greenText }}>✓ Valid</span>
-                          : <span style={{ fontSize: 10, color: C.redText }}>{r.errors.join("; ")}</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ fontSize: 13, fontWeight: 600, color: n(i.amount) < 0 ? C.redText : C.textPri, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{fmtMoney(i.amount)}</div>
+          </div>
+        );
+        return (
+          <div className="modal-backdrop" onClick={() => setOpenLine(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 620, maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 8px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}>
+              <div style={{ padding: "18px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri }}>{openLine.name}</div>
+                  <div style={{ fontSize: 11, fontFamily: "monospace", color: C.textTer, marginTop: 2 }}>{openLine.code}{openLine.group_name ? ` · ${openLine.group_name}` : ""}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontSize: 10.5, color: C.textTer }}>Awarded</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(expected)}</div>
+                </div>
+              </div>
+              <div style={{ padding: "8px 22px 16px", overflowY: "auto" }}>
+                {[["Awarded work packages", awards], ["Approved variation orders and claims", vos]].map(([title, arr]) => (
+                  <div key={title} style={{ marginTop: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTer, marginBottom: 2 }}>
+                      <span>{title}</span><span>{arr.length ? fmtMoney(arr.reduce((a, i) => a + n(i.amount), 0)) : "none"}</span>
+                    </div>
+                    {arr.map(row)}
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "12px 22px", borderTop: `1px solid ${C.border}`, background: C.offWhite, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: ok ? C.greenText : C.amberText }}>
+                  {ok ? "✓ Items add up to the Awarded amount" : `Items add up to ${fmtMoney(found)}, but the report shows ${fmtMoney(expected)}.`}
+                </span>
+                <button style={styles.btnSecondary} onClick={() => setOpenLine(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {upload && (
+        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 560, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}>
+            <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri }}>Upload cost report</div>
+              <div style={{ fontSize: 12, color: C.textTer, marginTop: 2 }}>{upload.fileName}{upload.sheetName ? ` · sheet "${upload.sheetName}"` : ""}</div>
+            </div>
+            <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              {upload.error ? (
+                <div style={{ fontSize: 13, color: C.redText, background: C.redBg, border: "1px solid #FCA5A5", borderRadius: 8, padding: "10px 12px" }}>{upload.error}</div>
+              ) : (
+                <>
+                  <div>
+                    <label style={styles.label}>Project</label>
+                    <select value={upload.projectId} onChange={e => setUpload(u => ({ ...u, projectId: e.target.value }))} style={styles.input}>
+                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {upload.parsed.projectText && (
+                      <p style={styles.hint}>The file says: "{upload.parsed.projectText}". Make sure the project above is right.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label style={styles.label}>Report date</label>
+                    <DatePicker selected={fromDateStr(upload.reportDate)} onChange={d => setUpload(u => ({ ...u, reportDate: d ? toDateStr(d) : "" }))}
+                      dateFormat="MMM d, yyyy" wrapperClassName="date-picker-wrapper" customInput={<input style={{ ...styles.input, cursor: "pointer" }} />} />
+                    <p style={styles.hint}>{upload.parsed.reportDate ? "Read from the file. Correct it if needed." : "No date found in the file. Pick the report date."}</p>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: C.textSec, background: C.surface, borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+                    {(() => {
+                      const ls = upload.parsed.lines;
+                      const groups = [...new Set(ls.map(l => l.group).filter(Boolean))];
+                      const total = ls.filter(l => !l.parent_code).reduce((a, l) => a + l.approved_budget, 0);
+                      return <span><strong style={{ color: C.textPri }}>{ls.length} budget lines</strong>{groups.length ? ` in ${groups.join(", ")}` : ""} · approved budget {fmtMoney(total)}. Check this matches the TOTAL row in your Excel.</span>;
+                    })()}
+                    <span>
+                      <strong style={{ color: C.textPri }}>{upload.awards} awarded work packages</strong> (WPP sheet) and <strong style={{ color: C.textPri }}>{upload.vos} approved variation orders/claims</strong> (PMIs sheet).
+                    </span>
+                    {upload.recon.mismatches.length === 0 && upload.recon.unmatched.length === 0 ? (
+                      <span style={{ color: C.greenText, fontWeight: 600 }}>✓ Items add up to every line's Awarded amount.</span>
+                    ) : (
+                      <span style={{ color: C.amberText }}>
+                        {upload.recon.mismatches.length > 0 && <>{upload.recon.mismatches.length} line{upload.recon.mismatches.length > 1 ? "s don't" : " doesn't"} add up: {upload.recon.mismatches.slice(0, 3).map(m => m.code.split(".").slice(-2).join(".")).join(", ")}{upload.recon.mismatches.length > 3 ? "…" : ""}. </>}
+                        {upload.recon.unmatched.length > 0 && <>{upload.recon.unmatched.length} item code{upload.recon.unmatched.length > 1 ? "s aren't" : " isn't"} in the budget lines: {upload.recon.unmatched.slice(0, 3).map(u => u.code).join(", ")}. </>}
+                        You can still save; the line details will show the difference.
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 8, background: C.offWhite }}>
-              <button style={styles.btnSecondary} onClick={() => { setBcShowImport(false); setBcImportPreview([]); }}>Cancel</button>
-              <button style={styles.btnPrimary} onClick={confirmImport} disabled={bcImporting || bcImportPreview.filter(r => r.valid).length === 0}>
-                {bcImporting ? "Importing…" : `Import ${bcImportPreview.filter(r => r.valid).length} codes`}
-              </button>
+              <button style={styles.btnSecondary} onClick={() => setUpload(null)} disabled={saving}>Cancel</button>
+              {!upload.error && (
+                <button style={styles.btnPrimary} onClick={saveUpload} disabled={saving || !upload.projectId || !upload.reportDate}>
+                  {saving ? "Saving…" : "Save as current report"}
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -3472,19 +3570,6 @@ function SettingsPage({ profile }) {
 
   const canManage = profile?.is_admin === true;
   const isSuperAdmin = profile?.is_admin === true;
-  const canManageBudgetCodes = profile?.is_admin === true;
-
-  // Budget codes state
-  const [bcProjects, setBcProjects] = useState([]);
-  const [bcCodes, setBcCodes]       = useState([]);
-  const [bcFilterProject, setBcFilterProject] = useState("");
-  const [bcFormProject, setBcFormProject]     = useState("");
-  const [bcFormType, setBcFormType]           = useState("");
-  const [bcFormYear, setBcFormYear]           = useState(String(new Date().getFullYear()));
-  const [bcFormDesc, setBcFormDesc]           = useState("");
-  const [bcSaving, setBcSaving]               = useState(false);
-  const [bcLoading, setBcLoading]             = useState(false);
-
   const [classRules, setClassRulesState] = useState(DEFAULT_CLASS_RULES);
   const [savingRules, setSavingRules] = useState(false);
   const [rulesSaved, setRulesSaved] = useState(false);
@@ -3504,47 +3589,7 @@ function SettingsPage({ profile }) {
   const [newTC, setNewTC] = useState("");
   const [savingTC, setSavingTC] = useState(false);
 
-  useEffect(() => { fetchBusinessUnits(); fetchLeadTimes(); fetchGroupManagers(); fetchAllUsers(); fetchClassRulesSettings(); fetchFieldReqsSettings(); fetchBudgetCodeData(); fetchTradeCategories(); }, []);
-
-  const fetchBudgetCodeData = async () => {
-    setBcLoading(true);
-    const { data: projects } = await supabase.from("projects").select("id, name, project_code").eq("status", "active").order("name");
-    if (projects) setBcProjects(projects);
-    const { data: codes } = await supabase.from("budget_codes").select("*, projects(name, project_code)").order("created_at", { ascending: false });
-    if (codes) setBcCodes(codes);
-    setBcLoading(false);
-  };
-
-  const addBudgetCode = async () => {
-    if (!bcFormProject) { alert("Please select a project."); return; }
-    if (!bcFormType)    { alert("Please select a budget type."); return; }
-    const project = bcProjects.find(p => p.id === parseInt(bcFormProject));
-    const year = parseInt(bcFormYear) || new Date().getFullYear();
-    const { data: existing } = await supabase.from("budget_codes").select("counter")
-      .eq("project_id", parseInt(bcFormProject)).eq("type", bcFormType).eq("year", year)
-      .order("counter", { ascending: false }).limit(1);
-    const nextCounter = existing && existing.length > 0 ? existing[0].counter + 1 : 1;
-    const code = `${project.project_code}-${bcFormType}-${year}-${String(nextCounter).padStart(3, "0")}`;
-    setBcSaving(true);
-    const { error } = await supabase.from("budget_codes").insert({
-      project_id: parseInt(bcFormProject), code, type: bcFormType, year, counter: nextCounter,
-      description: bcFormDesc.trim() || null, is_active: true,
-    });
-    if (error) { alert("Error: " + error.message); setBcSaving(false); return; }
-    setBcFormProject(""); setBcFormType(""); setBcFormYear(String(new Date().getFullYear())); setBcFormDesc("");
-    setBcSaving(false);
-    fetchBudgetCodeData();
-  };
-
-  const deactivateBudgetCode = async (id) => {
-    await supabase.from("budget_codes").update({ is_active: false }).eq("id", id);
-    fetchBudgetCodeData();
-  };
-
-  const reactivateBudgetCode = async (id) => {
-    await supabase.from("budget_codes").update({ is_active: true }).eq("id", id);
-    fetchBudgetCodeData();
-  };
+  useEffect(() => { fetchBusinessUnits(); fetchLeadTimes(); fetchGroupManagers(); fetchAllUsers(); fetchClassRulesSettings(); fetchFieldReqsSettings(); fetchTradeCategories(); }, []);
 
   const fetchClassRulesSettings = async () => {
     const { data } = await supabase.from("settings").select("value").eq("key", "classification_rules").maybeSingle();
@@ -4213,99 +4258,6 @@ function SettingsPage({ profile }) {
               </div>
             );
           })()}
-
-          {/* Budget Codes */}
-          {settingsSection === "budget_codes" && (
-            <div style={{ ...styles.card, marginBottom: 16 }}>
-              <h3 style={styles.cardTitle}>Budget codes</h3>
-              <p style={{ fontSize: 12, color: C.textSec, margin: "0 0 16px" }}>Generate and manage budget codes for projects. Codes are auto-sequenced per project, type, and year.</p>
-
-              {canManageBudgetCodes && (
-                <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 20, background: C.offWhite }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.textSec, marginBottom: 12 }}>Add new budget code</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 10, marginBottom: 10 }}>
-                    <div>
-                      <label style={styles.label}>Project</label>
-                      <select value={bcFormProject} onChange={e => setBcFormProject(e.target.value)} style={{ ...styles.input }}>
-                        <option value="">Select project…</option>
-                        {bcProjects.map(p => <option key={p.id} value={p.id}>{p.name} ({p.project_code})</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={styles.label}>Budget type</label>
-                      <select value={bcFormType} onChange={e => setBcFormType(e.target.value)} style={{ ...styles.input }}>
-                        <option value="">Select type…</option>
-                        {["OPEX", "CAPEX", "GRANT", "OTHER"].map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={styles.label}>Year</label>
-                      <input type="number" value={bcFormYear} onChange={e => setBcFormYear(e.target.value)} style={{ ...styles.input }}
-                        onFocus={e => e.target.style.borderColor = C.coral} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={styles.label}>Description (optional)</label>
-                    <input value={bcFormDesc} onChange={e => setBcFormDesc(e.target.value)} placeholder="Brief description…" style={{ ...styles.input }}
-                      onFocus={e => e.target.style.borderColor = C.coral} onBlur={e => e.target.style.borderColor = C.border} />
-                  </div>
-                  <button style={styles.btnPrimary} onClick={addBudgetCode} disabled={bcSaving}>{bcSaving ? "Creating…" : "Create budget code"}</button>
-                </div>
-              )}
-
-              {/* Filter */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
-                <label style={{ ...styles.label, margin: 0, whiteSpace: "nowrap" }}>Filter by project:</label>
-                <select value={bcFilterProject} onChange={e => setBcFilterProject(e.target.value)} style={{ ...styles.input, flex: 1 }}>
-                  <option value="">All projects</option>
-                  {bcProjects.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
-                </select>
-              </div>
-
-              {bcLoading ? (
-                <div style={{ fontSize: 13, color: C.textTer }}>Loading…</div>
-              ) : bcCodes.filter(c => !bcFilterProject || String(c.project_id) === bcFilterProject).length === 0 ? (
-                <div style={{ fontSize: 13, color: C.textTer }}>No budget codes found.</div>
-              ) : (
-                <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-                  {/* Header */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 60px 1fr 80px", gap: 8, padding: "8px 14px", background: C.offWhite, borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 600, color: C.textSec }}>
-                    <span>Code</span>
-                    <span>Type</span>
-                    <span>Year</span>
-                    <span>Description</span>
-                    <span>Status</span>
-                  </div>
-                  {bcCodes
-                    .filter(c => !bcFilterProject || String(c.project_id) === bcFilterProject)
-                    .map((c, i, arr) => (
-                      <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr 80px 60px 1fr 80px", gap: 8, padding: "10px 14px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center", transition: "background 0.15s" }}
-                        onMouseOver={e => e.currentTarget.style.background = C.offWhite}
-                        onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: C.textPri, fontFamily: "monospace" }}>{c.code}</span>
-                        <span style={{ fontSize: 12, color: C.textSec }}>{c.type}</span>
-                        <span style={{ fontSize: 12, color: C.textSec }}>{c.year}</span>
-                        <span style={{ fontSize: 12, color: C.textTer }}>{c.description || "—"}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99, background: c.is_active ? C.greenBg : C.grayBg, color: c.is_active ? C.greenText : C.textTer }}>
-                            {c.is_active ? "Active" : "Inactive"}
-                          </span>
-                          {canManageBudgetCodes && (
-                            c.is_active
-                              ? <button onClick={() => deactivateBudgetCode(c.id)} title="Deactivate" style={{ background: "none", border: "none", cursor: "pointer", color: C.textTer, fontSize: 11, padding: 2 }}
-                                  onMouseOver={e => e.currentTarget.style.color = C.redText}
-                                  onMouseOut={e => e.currentTarget.style.color = C.textTer}>Off</button>
-                              : <button onClick={() => reactivateBudgetCode(c.id)} title="Reactivate" style={{ background: "none", border: "none", cursor: "pointer", color: C.textTer, fontSize: 11, padding: 2 }}
-                                  onMouseOver={e => e.currentTarget.style.color = C.greenText}
-                                  onMouseOut={e => e.currentTarget.style.color = C.textTer}>On</button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          )}
 
         </div>
       </div>
@@ -15582,7 +15534,7 @@ export default function App() {
     contracts:       "Contracts",
     contract_detail: "Contract Detail",
     settings:        "Settings",
-    budget_codes:    "Budget Codes",
+    cost_reports:    "Cost Reports",
   };
 
   const pageMap = {
@@ -15599,7 +15551,7 @@ export default function App() {
     vendors_acc:  <VendorsPage key="vendors_acc"  profile={profile} tab="accreditation"  sidebarCollapsed={sidebarCollapsed} />,
     reports:    <PlaceholderPage title="Reports" />,
     users:        <UsersPage        profile={profile} />,
-    budget_codes: <BudgetCodesPage profile={profile} />,
+    cost_reports: <CostReportsPage profile={profile} />,
     rfa_list:        <RFAListPage       profile={profile} setPage={setPage} setSelectedRFAId={setSelectedRFAId} setRfaPRId={setRfaPRId} />,
     rfa_form:        <RFAFormPage       profile={profile} setPage={setPage} rfaId={selectedRFAId} prId={rfaPRId} setSelectedPRId={setSelectedPRId} setSelectedContractId={setSelectedContractId} />,
     contracts:       <ContractsListPage profile={profile} setPage={setPage} setSelectedContractId={setSelectedContractId} />,
