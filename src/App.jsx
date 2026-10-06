@@ -9668,10 +9668,22 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
       (vs || []).filter(v => v.opened_at || v.submitted_at).forEach(v => next.add(v.id));
       return next;
     });
-    const { data: av } = await supabase.from("vendors")
-      .select("id, vendor_code, accreditation_status, vendor_company_info(company_name, rfq_email)")
+    // vendor_company_info has no foreign key to vendors (linked by vendor code), so it can't be embedded
+    const { data: av, error: avErr } = await supabase.from("vendors")
+      .select("id, vendor_code, accreditation_status")
       .eq("accreditation_status", "Accredited");
-    setAccreditedVendors(av || []);
+    if (avErr) console.error("Accredited vendors error:", avErr);
+    let accredited = av || [];
+    if (accredited.length) {
+      const { data: ciList } = await supabase.from("vendor_company_info")
+        .select("vendor_id, company_name, rfq_email")
+        .in("vendor_id", accredited.map(v => vendorRef(v)));
+      const ciMap = Object.fromEntries((ciList || []).map(ci => [ci.vendor_id, ci]));
+      accredited = accredited
+        .map(v => ({ ...v, vendor_company_info: ciMap[vendorRef(v)] || null }))
+        .sort((a, b) => (a.vendor_company_info?.company_name || "").localeCompare(b.vendor_company_info?.company_name || ""));
+    }
+    setAccreditedVendors(accredited);
     if (data?.pr_id) {
       const { data: si } = await supabase.from("scope_items").select("*").eq("pr_id", data.pr_id).order("sort_order");
       setScopeItems(si || []);
@@ -10330,6 +10342,9 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
                         <option key={v.id} value={v.id}>{(() => { const ci = Array.isArray(v.vendor_company_info) ? v.vendor_company_info[0] : v.vendor_company_info; const code = v.vendor_code || venCode(v.id); return ci?.company_name ? `${code}: ${ci.company_name}` : `${code}: No company name`; })()}</option>
                       ))}
                     </select>
+                    {accreditedVendors.length === 0 && (
+                      <p style={{ fontSize: 11, color: C.amberText, marginTop: 4 }}>No accredited vendors yet. Accredit vendors on the Vendors page, or use Ad-hoc.</p>
+                    )}
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
