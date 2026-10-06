@@ -2,6 +2,7 @@
 import { supabase } from "./lib/supabase";
 import { resolveVendorFromTokens } from "./lib/vendorDeduplication";
 import { venCode } from "./lib/vendorCode";
+import { splitKey } from "./lib/scopeOfWorks";
 
 const C = {
   coral:      "#3F3F3F",
@@ -699,6 +700,26 @@ function VBondRow({ label, color, auto, total, autoLabel, pctVal, onPct, isOverr
   );
 }
 
+function ScopeExclusions({ items, compact = false }) {
+  if (!items.length) return null;
+  return (
+    <div style={{ background: "#FEF3E2", border: "1px solid #FCD34D", borderRadius: 12, padding: compact ? "12px 16px" : "16px 18px", marginBottom: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#92580A", marginBottom: 4 }}>Not part of your scope: by others</div>
+      <div style={{ fontSize: 12, color: "#5F5E5A", marginBottom: compact ? 6 : 10 }}>
+        {compact
+          ? "Do not price these. They are done or supplied by others; coordinate with them on site."
+          : "These works are done or supplied by others and are excluded from this RFQ. Do not include them in your price. Your work must coordinate with them on site."}
+      </div>
+      {items.map(e => (
+        <div key={e.work + e.type} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderTop: "1px solid #FCD34D", fontSize: 13 }}>
+          <span style={{ color: "#1C1C1E" }}><strong>{e.work}</strong> <span style={{ color: "#8E8E93" }}>· {e.type}</span></span>
+          <span style={{ fontWeight: 600, color: "#92580A", whiteSpace: "nowrap" }}>{e.who || "By others"}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── VENDOR RFQ PAGE ─────────────────────────────────────────────────────────
 function VendorRFQPage({ token }) {
   const [loading, setLoading]           = useState(true);
@@ -706,6 +727,7 @@ function VendorRFQPage({ token }) {
   const [rfqVendor, setRfqVendor]       = useState(null);
   const [rfq, setRfq]                   = useState(null);
   const [pr, setPr]                     = useState(null);
+  const [exclusions, setExclusions]     = useState([]);
   const [submitted, setSubmitted]       = useState(false);
   const [submitting, setSubmitting]     = useState(false);
   const [deactivated, setDeactivated]   = useState(false);
@@ -813,6 +835,16 @@ function VendorRFQPage({ token }) {
       if (vRow.confirmed_at) setView("proposal");
 
       const prId = rfqRow.pr_id;
+      if (prId) {
+        supabase.from("purchase_requests").select("scope_of_works").eq("pr_number", prId).maybeSingle()
+          .then(({ data }) => {
+            const sw = data?.scope_of_works;
+            if (!sw || Array.isArray(sw)) return;
+            setExclusions(Object.entries(sw.byOthers || {})
+              .filter(([k]) => (sw.types || []).includes(splitKey(k)[0]))
+              .map(([k, who]) => ({ type: splitKey(k)[0], work: splitKey(k)[1], who })));
+          });
+      }
       if (prId && !source?.items?.length) {
         const { data: si } = await supabase.from("scope_items").select("*").eq("pr_id", prId).order("sort_order");
         setLineItems((si || []).map(s => ({
@@ -1222,6 +1254,8 @@ function VendorRFQPage({ token }) {
         </div>
       )}
 
+      <ScopeExclusions items={exclusions} />
+
       {/* Supporting Documents */}
       {[pr?.plans_file_url, pr?.tor_file_url, pr?.specs_file_url].some(Boolean) && (
         <div style={{ ...card }}>
@@ -1364,6 +1398,8 @@ function VendorRFQPage({ token }) {
       )}
 
       {/* â”€â”€ Section 1: Cost Proposal â”€â”€ */}
+      <ScopeExclusions items={exclusions} compact />
+
       <div style={{ ...card }}>
         <div style={sTitle}>1. Cost Proposal <span style={{ color: "#3F3F3F" }}>*</span></div>
         <div style={{ overflowX: "auto" }}>

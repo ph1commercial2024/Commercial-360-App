@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabase";
 import { venCode, vendorRef } from "./lib/vendorCode";
 import { toDateStr, fromDateStr } from "./lib/dates";
 import { parseCostReport, decideBudget, parseAwardItems, parseVOItems, reconcileItems } from "./lib/costReport";
+import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -1219,6 +1220,338 @@ const SCOPE_WORK_TYPES = [
   ]},
 ];
 
+// ─── SCOPE OF WORKS EDITOR / VIEW ─────────────────────────────────────────────
+const scopeItemsFor = (scope, wt) => {
+  const def = SCOPE_WORK_TYPES.find(t => t.name === wt);
+  const groups = def ? def.groups.map(g => ({ group: g.group, items: g.items })) : [];
+  const own = scope.custom[wt] || [];
+  if (own.length) groups.push({ group: "Added by you", items: own, custom: true });
+  return groups;
+};
+
+function ScopeOfWorksEditor({ scope, onChange }) {
+  const [step, setStep] = useState(1);
+  const [ownDraft, setOwnDraft] = useState({});
+  const st = scopeStats(scope);
+  const set = (patch) => onChange({ ...scope, ...patch, confirmed: patch.confirmed ?? false });
+
+  const toggleType = (wt) => {
+    if (scope.types.includes(wt)) {
+      const had = scope.included.filter(k => splitKey(k)[0] === wt).length;
+      if (had && !window.confirm(`Remove ${wt}? Its ${had} included work${had > 1 ? "s" : ""} and their quantities will be removed.`)) return;
+      const keep = (k) => splitKey(k)[0] !== wt;
+      set({
+        types: scope.types.filter(t => t !== wt),
+        included: scope.included.filter(keep),
+        byOthers: Object.fromEntries(Object.entries(scope.byOthers).filter(([k]) => keep(k))),
+        lines: Object.fromEntries(Object.entries(scope.lines).filter(([k]) => keep(k))),
+      });
+    } else {
+      set({ types: SCOPE_WORK_TYPES.map(t => t.name).filter(n => n === wt || scope.types.includes(n)).concat(scope.types.filter(t => !SCOPE_WORK_TYPES.some(d => d.name === t))) });
+    }
+  };
+  const hasQty = (k) => (scope.lines[k] || []).some(l => l.spec || l.qty);
+  const include = (k) => {
+    if (scope.included.includes(k)) {
+      if (hasQty(k) && !window.confirm("This work has quantities entered. Remove it from the scope?")) return;
+      set({ included: scope.included.filter(x => x !== k) });
+    } else {
+      const byOthers = { ...scope.byOthers }; delete byOthers[k];
+      set({ included: [...scope.included, k], byOthers, lines: scope.lines[k] ? scope.lines : { ...scope.lines, [k]: [emptyLine(defaultUnit(splitKey(k)[1]))] } });
+    }
+  };
+  const markByOthers = (k) => {
+    const byOthers = { ...scope.byOthers };
+    if (k in byOthers) { delete byOthers[k]; set({ byOthers }); return; }
+    if (scope.included.includes(k) && hasQty(k) && !window.confirm("This work has quantities entered. Mark it By others and remove it from the scope?")) return;
+    byOthers[k] = "";
+    set({ byOthers, included: scope.included.filter(x => x !== k) });
+  };
+  const addOwn = (wt) => {
+    const label = (ownDraft[wt] || "").trim();
+    if (!label) return;
+    const k = scopeKey(wt, label);
+    if (scopeItemsFor(scope, wt).some(g => g.items.includes(label))) { alert(`"${label}" is already in ${wt}.`); return; }
+    set({
+      custom: { ...scope.custom, [wt]: [...(scope.custom[wt] || []), label] },
+      included: [...scope.included, k],
+      lines: { ...scope.lines, [k]: [emptyLine(defaultUnit(label))] },
+    });
+    setOwnDraft(d => ({ ...d, [wt]: "" }));
+  };
+  const setLine = (k, i, field, value) => set({ lines: { ...scope.lines, [k]: scope.lines[k].map((l, j) => j === i ? { ...l, [field]: value } : l) } });
+  const addLine = (k) => set({ lines: { ...scope.lines, [k]: [...scope.lines[k], emptyLine(scope.lines[k][0]?.unit || "")] } });
+  const removeLine = (k, i) => set({ lines: { ...scope.lines, [k]: scope.lines[k].filter((_, j) => j !== i) } });
+
+  const includedByType = (wt) => scope.included.filter(k => splitKey(k)[0] === wt);
+  const bad = { borderColor: "#FCD34D", background: C.amberBg };
+  const stepDefs = [
+    ["Work types", `${st.types} chosen`, st.types > 0],
+    ["Works", `${st.items} included${st.byOthers ? ` · ${st.byOthers} by others` : ""}`, st.items > 0 && !st.missingWho],
+    ["Quantities", `${st.done} of ${st.lines} lines complete`, st.lines > 0 && st.done === st.lines],
+    ["Summary", scope.confirmed ? "confirmed" : "review & confirm", scope.confirmed],
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+        {stepDefs.map(([t, s, done], i) => (
+          <button key={t} type="button" onClick={() => setStep(i + 1)}
+            style={{ border: "none", borderRight: i < 3 ? `1px solid ${C.border}` : "none", borderBottom: `3px solid ${step === i + 1 ? C.coral : "transparent"}`, background: step === i + 1 ? C.coralLight : C.white, padding: "9px 12px", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: done ? C.greenText : step === i + 1 ? C.coral : C.textTer }}>{done ? "✓ " : ""}Step {i + 1}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.textPri }}>{t}</div>
+            <div style={{ fontSize: 11, color: C.textTer }}>{s}</div>
+          </button>
+        ))}
+      </div>
+
+      {step === 1 && (
+        <>
+          <div style={{ fontSize: 12.5, color: C.textSec }}>What kind of work is this request for? Click every type that applies.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
+            {SCOPE_WORK_TYPES.map(t => {
+              const on = scope.types.includes(t.name);
+              const n = t.groups.reduce((a, g) => a + g.items.length, 0);
+              return (
+                <button key={t.name} type="button" onClick={() => toggleType(t.name)}
+                  style={{ display: "flex", gap: 10, alignItems: "flex-start", textAlign: "left", padding: "10px 12px", borderRadius: 9, cursor: "pointer", fontFamily: "inherit", border: `1px solid ${on ? C.coral : C.borderMid}`, background: on ? C.coralLight : C.white }}>
+                  <span style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1, border: `1.5px solid ${on ? C.coral : C.borderMid}`, background: on ? C.coral : "transparent", color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{on ? "✓" : ""}</span>
+                  <span><span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.textPri }}>{t.name}</span><span style={{ fontSize: 11, color: C.textTer }}>{n} suggested works</span></span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <div style={{ fontSize: 12.5, color: C.textSec }}>Click <strong>Include</strong> for every work this request covers. Anything left blank is excluded.</div>
+          <div style={{ display: "flex", gap: 10, border: "1px solid #FCD34D", background: C.amberBg, borderRadius: 9, padding: "9px 12px", fontSize: 12.5, color: C.textPri }}>
+            <span>⚠</span>
+            <span><strong style={{ color: C.amberText }}>Is any of this work being done or supplied by someone else?</strong> Mark it <strong style={{ color: C.amberText }}>By others</strong> and say who. Vendors see it as an exclusion they must coordinate with.</span>
+          </div>
+          {scope.types.length === 0 && <div style={{ fontSize: 12.5, color: C.textTer }}>Choose at least one work type in step 1.</div>}
+          {scope.types.map(wt => {
+            const groups = scopeItemsFor(scope, wt);
+            const inc = includedByType(wt).length;
+            const bo = Object.keys(scope.byOthers).filter(k => splitKey(k)[0] === wt).length;
+            return (
+              <div key={wt} style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 14px", background: C.offWhite, borderBottom: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri }}>{wt}</span>
+                  <span style={{ fontSize: 11.5, color: C.textSec }}>{inc} included{bo ? ` · ${bo} by others` : ""}</span>
+                </div>
+                <div style={{ padding: "8px 14px 12px" }}>
+                  {groups.map(g => (
+                    <div key={g.group || "items"}>
+                      {g.group && <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.05em", padding: "8px 0 4px" }}>{g.group}</div>}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(330px, 1fr))", gap: "3px 12px" }}>
+                        {g.items.map(it => {
+                          const k = scopeKey(wt, it);
+                          const on = scope.included.includes(k);
+                          const isBo = k in scope.byOthers;
+                          const who = scope.byOthers[k] || "";
+                          const btn = (active, bg, color) => ({ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "3px 9px", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", border: `1px solid ${active ? bg : C.borderMid}`, background: active ? bg : C.white, color: active ? color : C.textSec });
+                          return (
+                            <div key={it} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "4px 8px", alignItems: "center", padding: "5px 8px", borderRadius: 7, border: `1px solid ${on ? C.coralMid : isBo ? "#FCD34D" : "transparent"}`, background: on ? C.coralLight : isBo ? C.amberBg : "transparent" }}>
+                              <span style={{ fontSize: 12.5, fontWeight: on ? 600 : 400, color: C.textPri }}>{it}</span>
+                              <span style={{ display: "flex", gap: 4 }}>
+                                <button type="button" onClick={() => include(k)} style={btn(on, C.coral, "#fff")}>{on ? "✓ " : ""}Include</button>
+                                <button type="button" onClick={() => markByOthers(k)} style={btn(isBo, C.amberText, "#fff")}>{isBo ? "✓ " : ""}By others</button>
+                              </span>
+                              {isBo && (
+                                <span style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "center", fontSize: 11.5, fontWeight: 600, color: C.amberText }}>
+                                  Who?
+                                  <select value={who} onChange={e => set({ byOthers: { ...scope.byOthers, [k]: e.target.value } })}
+                                    style={{ ...styles.input, width: "auto", padding: "3px 8px", fontSize: 12, ...(who ? {} : bad) }}>
+                                    <option value="">Choose…</option>
+                                    {BY_OTHERS_WHO.map(w => <option key={w}>{w}</option>)}
+                                  </select>
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <input value={ownDraft[wt] || ""} onChange={e => setOwnDraft(d => ({ ...d, [wt]: e.target.value }))}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addOwn(wt); } }}
+                      placeholder={`Add your own work to ${wt}…`} style={{ ...styles.input, flex: 1 }} />
+                    <button type="button" style={styles.btnSecondary} onClick={() => addOwn(wt)}>+ Add work</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {step === 3 && (
+        <>
+          <div style={{ fontSize: 12.5, color: C.textSec }}>
+            Every line needs a spec or size, a quantity and a unit. Add a line for each size or spec. "Per Specifications 09 30 00" is fine when the spec document covers it.
+          </div>
+          {st.items === 0 && <div style={{ fontSize: 12.5, color: C.textTer }}>Include at least one work in step 2.</div>}
+          {scope.types.flatMap(wt => includedByType(wt).map(k => {
+            const ls = scope.lines[k] || [];
+            const cell = { padding: "4px 8px 8px", verticalAlign: "top" };
+            const head = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTer, textAlign: "left", padding: "8px 8px 2px" };
+            return (
+              <div key={k} style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 14px", background: C.offWhite, borderBottom: `1px solid ${C.border}` }}>
+                  <span><span style={{ fontSize: 13, fontWeight: 650, color: C.textPri }}>{splitKey(k)[1]}</span> <span style={{ fontSize: 11, color: C.textTer }}>· {wt}</span></span>
+                  <button type="button" onClick={() => addLine(k)} style={{ background: "none", border: "none", color: C.coral, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>+ Add size/spec</button>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
+                    <thead><tr><th style={{ ...head, width: "42%" }}>Spec / size</th><th style={{ ...head, width: "13%" }}>Quantity</th><th style={{ ...head, width: "13%" }}>Unit</th><th style={head}>Location</th><th style={{ ...head, width: 30 }}></th></tr></thead>
+                    <tbody>
+                      {ls.map((l, i) => {
+                        const specBad = !String(l.spec).trim() || (l.unit === "lot" && String(l.spec).trim().length < 12);
+                        const qtyBad = !(parseFloat(String(l.qty).replace(/,/g, "")) > 0);
+                        return (
+                          <tr key={i}>
+                            <td style={cell}>
+                              <input value={l.spec} onChange={e => setLine(k, i, "spec", e.target.value)} placeholder="e.g. 600×600 porcelain, matte" style={{ ...styles.input, ...(specBad ? bad : {}) }} />
+                              {l.unit === "lot" && String(l.spec).trim().length < 12 && <div style={{ fontSize: 11, color: C.amberText, marginTop: 3 }}>For "lot", describe what the lot includes.</div>}
+                            </td>
+                            <td style={cell}><input value={l.qty} inputMode="decimal" onChange={e => setLine(k, i, "qty", e.target.value)} placeholder="0" style={{ ...styles.input, ...(qtyBad ? bad : {}) }} /></td>
+                            <td style={cell}>
+                              <select value={l.unit} onChange={e => setLine(k, i, "unit", e.target.value)} style={{ ...styles.input, ...(l.unit ? {} : bad) }}>
+                                <option value="">Unit…</option>
+                                {SCOPE_UNITS.map(u => <option key={u}>{u}</option>)}
+                              </select>
+                            </td>
+                            <td style={cell}><input value={l.location} onChange={e => setLine(k, i, "location", e.target.value)} placeholder="Optional" style={styles.input} /></td>
+                            <td style={{ ...cell, paddingTop: 10, textAlign: "center" }}>
+                              {ls.length > 1 && <button type="button" title="Remove this line" onClick={() => removeLine(k, i)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textTer, fontSize: 16 }}>×</button>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          }))}
+        </>
+      )}
+
+      {step === 4 && (
+        <>
+          <div style={{ fontSize: 12.5, color: C.textSec }}>Read it once, top to bottom. This is what the Manager and, later, the vendors will see.</div>
+          {scopeProblems({ ...scope, confirmed: true }).map(p => (
+            <div key={p} style={{ fontSize: 12.5, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px" }}>⚠ {p}</div>
+          ))}
+          <ScopeOfWorksView saved={scope} />
+          <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.coralMid}`, background: C.coralLight, fontSize: 13, color: C.textPri, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!scope.confirmed} disabled={scopeProblems({ ...scope, confirmed: true }).length > 0}
+              onChange={e => onChange({ ...scope, confirmed: e.target.checked })} style={{ accentColor: C.coral, width: 16, height: 16, marginTop: 2 }} />
+            <span>I confirm the scope above is complete. Everything not listed is excluded from this request.</span>
+          </label>
+        </>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: C.textSec }}>
+          <strong style={{ color: C.textPri }}>{st.types}</strong> work types · <strong style={{ color: C.textPri }}>{st.items}</strong> works · <strong style={{ color: C.textPri }}>{st.lines}</strong> lines
+          {st.lines > st.done && <span style={{ color: C.amberText, fontWeight: 600 }}> · {st.lines - st.done} incomplete</span>}
+        </span>
+        <span style={{ display: "flex", gap: 8 }}>
+          {step > 1 && <button type="button" style={styles.btnSecondary} onClick={() => setStep(step - 1)}>← Back</button>}
+          {step < 4 && <button type="button" style={styles.btnPrimary} onClick={() => setStep(step + 1)}>Next: {["", "Works", "Quantities", "Summary"][step]} →</button>}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ScopeOfWorksView({ saved }) {
+  if (!saved || (Array.isArray(saved) && saved.length === 0)) return <p style={{ fontSize: 13, color: C.textTer, margin: 0 }}>No scope of works recorded.</p>;
+
+  // Older PRs used a Required / Not Required checklist
+  if (Array.isArray(saved)) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {saved.map(wt => {
+          const req = wt.items.filter(i => i.status === "required");
+          const notReq = wt.items.filter(i => i.status === "not_required");
+          return (
+            <div key={wt.workType} style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "9px 16px", background: C.offWhite, borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri }}>{wt.workType}</span>
+                <span style={{ fontSize: 11, color: C.textTer }}>{req.length} required · {notReq.length} not required</span>
+              </div>
+              <div style={{ padding: "8px 16px" }}>
+                {req.map(item => <div key={item.id} style={{ fontSize: 12, color: C.textPri, padding: "5px 0", borderBottom: `1px solid ${C.border}` }}>✓ {item.label}</div>)}
+                {notReq.map(item => <div key={item.id} style={{ fontSize: 12, color: C.textTer, padding: "5px 0", borderBottom: `1px solid ${C.border}` }}>Not required: {item.label}{item.remarks ? ` (${item.remarks})` : ""}</div>)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const th = { background: C.brandDark, color: "#E5E7EB", fontWeight: 600, fontSize: 11, textAlign: "left", padding: "7px 10px" };
+  const td = { padding: "7px 10px", borderTop: `1px solid ${C.border}`, fontSize: 12.5, verticalAlign: "top" };
+  const missing = <span style={{ fontSize: 10.5, fontWeight: 700, color: C.amberText, background: C.amberBg, borderRadius: 99, padding: "1px 7px" }}>missing</span>;
+  const bo = Object.entries(saved.byOthers || {}).filter(([k]) => saved.types.includes(splitKey(k)[0]));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {saved.types.map(wt => {
+        const keys = saved.included.filter(k => splitKey(k)[0] === wt);
+        if (!keys.length) return null;
+        return (
+          <div key={wt}>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSec, marginBottom: 6 }}>{wt}</div>
+            <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
+                <thead><tr><th style={th}>Work</th><th style={th}>Spec / size</th><th style={{ ...th, textAlign: "right" }}>Quantity</th><th style={th}>Unit</th><th style={th}>Location</th></tr></thead>
+                <tbody>
+                  {keys.flatMap(k => (saved.lines[k] || []).map((l, i) => {
+                    const q = parseFloat(String(l.qty).replace(/,/g, ""));
+                    return (
+                      <tr key={`${k}-${i}`}>
+                        <td style={{ ...td, fontWeight: 600, color: i ? "transparent" : C.textPri }}>{splitKey(k)[1]}</td>
+                        <td style={td}>{String(l.spec || "").trim() || missing}</td>
+                        <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{q > 0 ? q.toLocaleString("en-PH", { maximumFractionDigits: 2 }) : missing}</td>
+                        <td style={td}>{l.unit || missing}</td>
+                        <td style={{ ...td, color: l.location ? C.textPri : C.textTer }}>{l.location || "—"}</td>
+                      </tr>
+                    );
+                  }))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+      {bo.length > 0 && (
+        <div style={{ border: "1px solid #FCD34D", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ background: C.amberBg, padding: "9px 14px", borderBottom: "1px solid #FCD34D" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.amberText }}>By others: the vendor must coordinate with these</div>
+            <div style={{ fontSize: 11.5, color: C.textSec, marginTop: 2 }}>Shown to vendors as exclusions and interfaces.</div>
+          </div>
+          {bo.map(([k, who]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 14px", borderTop: `1px solid ${C.border}`, fontSize: 12.5 }}>
+              <span><strong>{splitKey(k)[1]}</strong> <span style={{ color: C.textTer }}>· {splitKey(k)[0]}</span></span>
+              <span style={{ fontWeight: 600, color: C.textPri }}>{who || missing}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: C.textSec, border: `1px dashed ${C.borderMid}`, borderRadius: 10, padding: "9px 14px" }}>
+        Not included: any other work under {saved.types.join(", ")} that isn't listed above.
+      </div>
+    </div>
+  );
+}
+
 // Closes the latest open return round, if any, when a returned PR goes back to the manager
 async function stampPRResubmitted(prNumber, byName) {
   const { data: openRow } = await supabase
@@ -1412,8 +1745,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   const [selectedGMId, setSelectedGMId] = useState("");
   const isReviewerCreating = can(profile, "pr.review");
   const [isRush, setIsRush] = useState(false);
-  const [scopeWorkTypes, setScopeWorkTypes] = useState([]);
-  const [showWTDropdown, setShowWTDropdown] = useState(false);
+  const [scope, setScope] = useState(emptyScope);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [budgetPick, setBudgetPick] = useState(emptyBudgetPick);
@@ -1452,7 +1784,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
         rushJustification: p.rush_justification || "", startDate: p.start_date || "", endDate: p.end_date || "",
       });
       setRemarks(p.remarks || "");
-      setScopeWorkTypes(Array.isArray(p.scope_of_works) ? p.scope_of_works : []);
+      setScope(fromLegacyScope(p.scope_of_works));
       // A saved link stores the URL as its name; a saved file keeps its original filename
       const modes = {}, links = {}, existing = {};
       for (const k of ["plans", "tor", "specs"]) {
@@ -1500,21 +1832,6 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   minDateObj.setDate(minDateObj.getDate() + MIN_DAYS);
   const minDate = toDateStr(minDateObj);
 
-  const scopeGenId = () => Math.random().toString(36).slice(2, 9);
-  const addWorkType = (name) => {
-    const def = SCOPE_WORK_TYPES.find(wt => wt.name === name);
-    if (!def) return;
-    const items = def.groups.flatMap(g => g.items.map(label => ({ id: scopeGenId(), label, status: null, remarks: "", isCustom: false, group: g.group || null })));
-    setScopeWorkTypes(prev => [...prev, { workType: name, items }]);
-    setShowWTDropdown(false);
-  };
-  const removeWorkType = (name) => setScopeWorkTypes(prev => prev.filter(wt => wt.workType !== name));
-  const setScopeItemStatus = (wtName, itemId, status) => setScopeWorkTypes(prev => prev.map(wt => wt.workType !== wtName ? wt : { ...wt, items: wt.items.map(i => i.id !== itemId ? i : { ...i, status, remarks: status === "required" ? "" : i.remarks }) }));
-  const setScopeItemRemarks = (wtName, itemId, remarks) => setScopeWorkTypes(prev => prev.map(wt => wt.workType !== wtName ? wt : { ...wt, items: wt.items.map(i => i.id !== itemId ? i : { ...i, remarks }) }));
-  const addCustomScopeItem = (wtName) => setScopeWorkTypes(prev => prev.map(wt => wt.workType !== wtName ? wt : { ...wt, items: [...wt.items, { id: scopeGenId(), label: "", status: null, remarks: "", isCustom: true, group: null }] }));
-  const removeCustomScopeItem = (wtName, itemId) => setScopeWorkTypes(prev => prev.map(wt => wt.workType !== wtName ? wt : { ...wt, items: wt.items.filter(i => i.id !== itemId) }));
-  const updateCustomScopeLabel = (wtName, itemId, label) => setScopeWorkTypes(prev => prev.map(wt => wt.workType !== wtName ? wt : { ...wt, items: wt.items.map(i => i.id !== itemId ? i : { ...i, label }) }));
-
   const fetchPRNumber = async () => {
     const { data, error } = await supabase.rpc("next_pr_number");
     if (error || !data) throw new Error(error?.message || "No PR number returned");
@@ -1533,11 +1850,10 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       alert(`The start date must be on or after ${minDate} (${MIN_DAYS}-day lead time${isRush ? " for rush requests" : ""}). Please pick a later date.`);
       return;
     }
-    if (scopeWorkTypes.length === 0) { alert("Please add at least one work type in the Scope of Works."); return; }
-    const unansweredScope = scopeWorkTypes.flatMap(wt => wt.items.filter(i => i.isCustom ? (i.label.trim() && !i.status) : !i.status));
-    if (unansweredScope.length > 0) { alert(`Please mark all scope items as Required or Not Required.\n${unansweredScope.length} item(s) still unanswered.`); return; }
-    const missingRemarksScope = scopeWorkTypes.flatMap(wt => wt.items.filter(i => i.status === "not_required" && !i.remarks.trim()));
-    if (missingRemarksScope.length > 0) { alert(`Please provide remarks for all "Not Required" items.\n${missingRemarksScope.length} item(s) missing remarks.`); return; }
+    if (isSubmitting) {
+      const sp = scopeProblems(scope);
+      if (sp.length) { alert("The Scope of Works isn't ready yet:\n• " + sp.join("\n• ")); return; }
+    }
     if (!isReviewerCreating && sendToGM && !selectedGMId) { alert("Please select a Manager to send to."); return; }
     if (isReviewerCreating) {
       if (!budgetStatus) { alert('Please tick at least one budget line, or "No budget line covers this work".'); return; }
@@ -1610,7 +1926,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       current_step: autoStatus,
       pr_reviewer_id: isReviewerCreating ? profile.id : null,
       remarks: remarks.trim() || null,
-      scope_of_works: scopeWorkTypes.length > 0 ? scopeWorkTypes : null,
+      scope_of_works: scope.types.length > 0 ? scope : null,
       plans_file_url: plansRes.url,  plans_file_name: plansRes.name,
       tor_file_url:   torRes.url,    tor_file_name:   torRes.name,
       specs_file_url: specsRes.url,  specs_file_name: specsRes.name,
@@ -1625,11 +1941,9 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     if (editPR) await supabase.from("scope_items").delete().eq("pr_id", prNumber);
 
     // Derive scope_items from Required checklist items (for RFA proposal pre-population)
-    const requiredScopeItems = scopeWorkTypes.flatMap(wt => wt.items.filter(i => i.status === "required" && i.label.trim()));
-    if (requiredScopeItems.length > 0) {
-      await supabase.from("scope_items").insert(
-        requiredScopeItems.map((item, idx) => ({ pr_id: pr.pr_number, description: item.label, quantity: null, unit_of_measure: "lot", sort_order: idx }))
-      );
+    const scopeRows = toScopeItems(scope);
+    if (scopeRows.length > 0) {
+      await supabase.from("scope_items").insert(scopeRows.map(r => ({ ...r, pr_id: pr.pr_number })));
     }
 
     // Apply budget review + auto-approval fields for CO/CM/D&C Head creating their own PRs
@@ -1851,145 +2165,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
 
         {/* Section 4 — Scope of Works */}
         <div style={{ ...styles.card, marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, paddingBottom: 12, borderBottom: `1px solid ${C.border}` }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.textPri }}>Scope of Works <span style={styles.required}>*</span></h3>
-              <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>Select work types and mark each item as Required or Not Required.</div>
-            </div>
-            <div style={{ position: "relative" }}>
-              <button style={styles.btnSecondary} onClick={() => setShowWTDropdown(p => !p)}>+ Add Work Type</button>
-              {showWTDropdown && (
-                <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "#fff", border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 220, padding: "6px 0" }}>
-                  {SCOPE_WORK_TYPES.filter(wt => !scopeWorkTypes.find(s => s.workType === wt.name)).map(wt => (
-                    <button key={wt.name} onClick={() => addWorkType(wt.name)}
-                      style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 16px", border: "none", background: "none", cursor: "pointer", fontSize: 13, color: C.textPri }}
-                      onMouseOver={e => e.currentTarget.style.background = C.offWhite}
-                      onMouseOut={e => e.currentTarget.style.background = "none"}>
-                      {wt.name}
-                    </button>
-                  ))}
-                  {SCOPE_WORK_TYPES.every(wt => scopeWorkTypes.find(s => s.workType === wt.name)) && (
-                    <div style={{ padding: "8px 16px", fontSize: 12, color: C.textTer }}>All work types added</div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {scopeWorkTypes.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "32px 0", color: C.textTer }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
-              <div style={{ fontSize: 13 }}>No work types added yet. Click <strong>+ Add Work Type</strong> to begin.</div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {scopeWorkTypes.map(wt => {
-                const def = SCOPE_WORK_TYPES.find(d => d.name === wt.workType);
-                const totalItems = wt.items.filter(i => !i.isCustom || i.label.trim()).length;
-                const answeredItems = wt.items.filter(i => (!i.isCustom || i.label.trim()) && i.status).length;
-                const allAnswered = totalItems > 0 && answeredItems === totalItems;
-                return (
-                  <div key={wt.workType} style={{ border: `1px solid ${allAnswered ? C.greenText : C.border}`, borderRadius: 10, overflow: "hidden" }}>
-                    {/* Work type header */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", background: allAnswered ? C.greenBg : C.offWhite, borderBottom: `1px solid ${C.border}` }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: allAnswered ? C.greenText : C.textPri }}>{wt.workType}</span>
-                        <span style={{ fontSize: 11, color: C.textTer }}>{answeredItems}/{totalItems} answered</span>
-                      </div>
-                      <button onClick={() => removeWorkType(wt.workType)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: C.textTer, padding: "2px 6px" }}
-                        onMouseOver={e => e.currentTarget.style.color = C.redText} onMouseOut={e => e.currentTarget.style.color = C.textTer}>
-                        Remove
-                      </button>
-                    </div>
-
-                    {/* Items */}
-                    <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 0 }}>
-                      {(() => {
-                        const groups = def?.groups || [];
-                        const customItems = wt.items.filter(i => i.isCustom);
-                        return (
-                          <>
-                            {groups.map(g => (
-                              <div key={g.group || "default"}>
-                                {g.group && (
-                                  <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.05em", padding: "10px 0 6px", borderBottom: `1px solid ${C.border}`, marginBottom: 0 }}>{g.group}</div>
-                                )}
-                                {g.items.map(label => {
-                                  const item = wt.items.find(i => i.label === label && !i.isCustom);
-                                  if (!item) return null;
-                                  const isNotReq = item.status === "not_required";
-                                  const missingRemark = isNotReq && !item.remarks.trim();
-                                  return (
-                                    <div key={item.id} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        <span style={{ flex: 1, fontSize: 12, color: C.textPri }}>{label}</span>
-                                        <button onClick={() => setScopeItemStatus(wt.workType, item.id, "required")}
-                                          style={{ padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: `1px solid ${item.status === "required" ? C.greenText : C.border}`, background: item.status === "required" ? C.greenBg : "transparent", color: item.status === "required" ? C.greenText : C.textTer, cursor: "pointer" }}>
-                                          Required
-                                        </button>
-                                        <button onClick={() => setScopeItemStatus(wt.workType, item.id, "not_required")}
-                                          style={{ padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: `1px solid ${isNotReq ? C.redText : C.border}`, background: isNotReq ? C.redBg : "transparent", color: isNotReq ? C.redText : C.textTer, cursor: "pointer" }}>
-                                          Not Required
-                                        </button>
-                                      </div>
-                                      {isNotReq && (
-                                        <input value={item.remarks} onChange={e => setScopeItemRemarks(wt.workType, item.id, e.target.value)}
-                                          placeholder="Specify: who will provide, or why not applicable *"
-                                          style={{ ...styles.input, margin: 0, fontSize: 11, borderColor: missingRemark ? C.redText : C.border, marginLeft: 0 }} />
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ))}
-                            {/* Custom items */}
-                            {customItems.length > 0 && (
-                              <div>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.05em", padding: "10px 0 6px", borderBottom: `1px solid ${C.border}` }}>Custom Items</div>
-                                {customItems.map(item => {
-                                  const isNotReq = item.status === "not_required";
-                                  return (
-                                    <div key={item.id} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        <input value={item.label} onChange={e => updateCustomScopeLabel(wt.workType, item.id, e.target.value)}
-                                          placeholder="Describe the work item…"
-                                          style={{ ...styles.input, margin: 0, fontSize: 12, flex: 1 }} />
-                                        <button onClick={() => setScopeItemStatus(wt.workType, item.id, "required")}
-                                          style={{ padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: `1px solid ${item.status === "required" ? C.greenText : C.border}`, background: item.status === "required" ? C.greenBg : "transparent", color: item.status === "required" ? C.greenText : C.textTer, cursor: "pointer", flexShrink: 0 }}>
-                                          Required
-                                        </button>
-                                        <button onClick={() => setScopeItemStatus(wt.workType, item.id, "not_required")}
-                                          style={{ padding: "3px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, border: `1px solid ${isNotReq ? C.redText : C.border}`, background: isNotReq ? C.redBg : "transparent", color: isNotReq ? C.redText : C.textTer, cursor: "pointer", flexShrink: 0 }}>
-                                          Not Required
-                                        </button>
-                                        <button onClick={() => removeCustomScopeItem(wt.workType, item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textTer, padding: 4, flexShrink: 0 }}
-                                          onMouseOver={e => e.currentTarget.style.color = C.redText} onMouseOut={e => e.currentTarget.style.color = C.textTer}>
-                                          <Icon name="trash" size={13} />
-                                        </button>
-                                      </div>
-                                      {isNotReq && (
-                                        <input value={item.remarks} onChange={e => setScopeItemRemarks(wt.workType, item.id, e.target.value)}
-                                          placeholder="Specify: who will provide, or why not applicable *"
-                                          style={{ ...styles.input, margin: 0, fontSize: 11, borderColor: !item.remarks.trim() ? C.redText : C.border }} />
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            <button onClick={() => addCustomScopeItem(wt.workType)}
-                              style={{ ...styles.btnGhost, marginTop: 10, fontSize: 11, alignSelf: "flex-start" }}>
-                              + Add custom item
-                            </button>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <h3 style={styles.cardTitle}>Scope of Works <span style={styles.required}>*</span></h3>
+          <ScopeOfWorksEditor scope={scope} onChange={setScope} />
         </div>
 
         {/* Section 4b — Budget Review (CO/CM/D&C Head creating their own PR) */}
@@ -2111,7 +2288,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [pr, setPR] = useState(null);
   const [scopeItems, setScopeItems] = useState([]);
-  const [scopeOfWorks, setScopeOfWorks] = useState([]);
+  const [scopeOfWorks, setScopeOfWorks] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [showRejectBox, setShowRejectBox] = useState(false);
@@ -2616,41 +2793,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
         {/* Scope of Works */}
         <div style={{ ...styles.card, marginBottom: 16 }}>
           <h3 style={styles.cardTitle}>Scope of Works</h3>
-          {scopeOfWorks.length === 0 ? (
-            <p style={{ fontSize: 13, color: C.textTer, margin: 0 }}>No scope of works recorded.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {scopeOfWorks.map(wt => {
-                const reqItems = wt.items.filter(i => i.status === "required");
-                const notReqItems = wt.items.filter(i => i.status === "not_required");
-                return (
-                  <div key={wt.workType} style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-                    <div style={{ padding: "9px 16px", background: C.offWhite, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: C.textPri }}>{wt.workType}</span>
-                      <span style={{ fontSize: 11, color: C.textTer }}>{reqItems.length} required · {notReqItems.length} not required</span>
-                    </div>
-                    <div style={{ padding: "8px 16px" }}>
-                      {reqItems.map(item => (
-                        <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: C.greenText, background: C.greenBg, border: `1px solid ${C.greenText}`, borderRadius: 4, padding: "1px 7px", flexShrink: 0 }}>Required</span>
-                          <span style={{ fontSize: 12, color: C.textPri }}>{item.label}</span>
-                        </div>
-                      ))}
-                      {notReqItems.map(item => (
-                        <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: C.textTer, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4, padding: "1px 7px", flexShrink: 0, marginTop: 1 }}>Not Req.</span>
-                          <div>
-                            <div style={{ fontSize: 12, color: C.textSec }}>{item.label}</div>
-                            {item.remarks && <div style={{ fontSize: 11, color: C.textTer, fontStyle: "italic", marginTop: 2 }}>{item.remarks}</div>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <ScopeOfWorksView saved={scopeOfWorks} />
         </div>
 
         {/* Documents */}
@@ -9504,7 +9647,7 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
   const fetchRFQ = async () => {
     setLoading(true);
     const { data } = await supabase.from("rfqs")
-      .select("*, purchase_requests(pr_number, description, justification, start_date, end_date, plans_file_url, plans_file_name, tor_file_url, tor_file_name, specs_file_url, specs_file_name, projects(name, business_unit, project_code))")
+      .select("*, purchase_requests(pr_number, description, justification, start_date, end_date, plans_file_url, plans_file_name, tor_file_url, tor_file_name, specs_file_url, specs_file_name, scope_of_works, projects(name, business_unit, project_code))")
       .eq("id", rfqId).single();
     if (data) {
       setRfq(data);
@@ -9799,6 +9942,25 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
               </div>
             )}
           </div>
+
+          {/* Exclusions and interfaces ("By others" from the PR's Scope of Works) */}
+          {(() => {
+            const sw = pr?.scope_of_works;
+            if (!sw || Array.isArray(sw)) return null;
+            const bo = Object.entries(sw.byOthers || {}).filter(([k]) => (sw.types || []).includes(splitKey(k)[0]));
+            if (!bo.length) return null;
+            return (
+              <div style={{ ...styles.card, border: "1px solid #FCD34D" }}>
+                <h3 style={{ ...styles.cardTitle, color: C.amberText }}>Exclusions and interfaces <span style={{ fontSize: 12, fontWeight: 400, color: C.textSec }}>(by others; vendors must coordinate with these)</span></h3>
+                {bo.map(([k, who]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderTop: `1px solid ${C.border}`, fontSize: 13 }}>
+                    <span><strong>{splitKey(k)[1]}</strong> <span style={{ color: C.textTer }}>· {splitKey(k)[0]}</span></span>
+                    <span style={{ fontWeight: 600 }}>{who || "—"}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* 4. Supporting Documents */}
           <div style={styles.card}>
