@@ -9759,25 +9759,67 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
     await supabase.from("rfqs").update({ deadline: val || null, updated_at: new Date().toISOString() }).eq("id", rfqId);
   };
 
-  const rfqEmailHtml = (v, submitUrl, fmtDeadline) =>
-    `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-      <h2 style="color:#3F3F3F;">Request for Quotation</h2>
-      <p>Dear <strong>${v.vendor_name}</strong>,</p>
-      <p>You are invited to submit a quotation for the following:</p>
+  const escHtml = (t) => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  // Company (the project's business unit), the sender, and what the vendor will find behind the link
+  const rfqEmailContext = async () => {
+    const buName = pr?.projects?.business_unit || "";
+    const { data: bus } = await supabase.from("business_units").select("name, logo_url");
+    const bu = (bus || []).find(x => x.name === buName) || (bus || []).find(x => x.name === "PH1 World Developers Inc.");
+    const sw = pr?.scope_of_works;
+    const exclusions = sw && !Array.isArray(sw)
+      ? Object.keys(sw.byOthers || {}).filter(k => (sw.types || []).includes(splitKey(k)[0])).length : 0;
+    return {
+      company: buName || bu?.name || "PH1 World Developers Inc.",
+      logoUrl: bu?.logo_url || null,
+      sender: { name: profile?.full_name || "", position: profile?.position || "", email: profile?.email || "" },
+      lines: scopeItems.length,
+      exclusions,
+      docs: [pr?.plans_file_url, pr?.tor_file_url, pr?.specs_file_url].filter(Boolean).length,
+      deadline: deadline
+        ? `${new Date(deadline).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}, 11:59 PM (Philippine time)`
+        : "TBD",
+    };
+  };
+
+  const rfqEmailHtml = (v, submitUrl, ctx) => {
+    const n = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+    const inside = [
+      n(ctx.lines, "scope line"),
+      ctx.exclusions ? `${n(ctx.exclusions, "item")} by others (not in your scope)` : null,
+      ctx.docs ? n(ctx.docs, "document") : null,
+    ].filter(Boolean).join(" · ");
+    const row = (k, val, extra = "") => `<tr><td style="padding:6px 0;color:#888;width:140px;vertical-align:top;">${k}</td><td style="padding:6px 0;${extra}">${val}</td></tr>`;
+    const who = ctx.sender;
+    return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#222;">
+      <div style="border-bottom:3px solid #E5503A;padding-bottom:14px;margin-bottom:20px;">
+        ${ctx.logoUrl ? `<img src="${escHtml(ctx.logoUrl)}" alt="${escHtml(ctx.company)}" style="max-height:44px;max-width:200px;display:block;margin-bottom:8px;" />` : ""}
+        <div style="font-size:15px;font-weight:700;color:#1F2937;">${escHtml(ctx.company)}</div>
+      </div>
+      <h2 style="color:#1F2937;margin:0 0 14px;">Request for Quotation</h2>
+      <p>Dear <strong>${escHtml(v.vendor_name)}</strong>,</p>
+      <p><strong>${escHtml(ctx.company)}</strong> invites you to submit a quotation for the following:</p>
       <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
-        <tr><td style="padding:6px 0;color:#888;width:140px;">RFQ Number</td><td style="padding:6px 0;font-weight:600;">${rfq?.rfq_number}</td></tr>
-        <tr><td style="padding:6px 0;color:#888;">Project</td><td style="padding:6px 0;">${pr?.projects?.name || "—"}</td></tr>
-        <tr><td style="padding:6px 0;color:#888;">Description</td><td style="padding:6px 0;">${vendorDescription || pr?.description || "—"}</td></tr>
-        <tr><td style="padding:6px 0;color:#888;">Deadline</td><td style="padding:6px 0;font-weight:600;color:#3F3F3F;">${fmtDeadline}</td></tr>
+        ${row("RFQ Number", escHtml(rfq?.rfq_number), "font-weight:600;")}
+        ${row("Project", escHtml(pr?.projects?.name || "—"))}
+        ${row("Description", escHtml(vendorDescription || pr?.description || "—"))}
+        ${row("Deadline", escHtml(ctx.deadline), "font-weight:600;color:#B91C1C;")}
+        ${row("What's inside", escHtml(inside))}
       </table>
-      <p>Click the link below to view the full details and submit your quotation — no account needed:</p>
+      <p>Click the button below to see the full scope, quantities and documents, and to submit your quotation. No account is needed.</p>
       <p style="margin:24px 0;">
-        <a href="${submitUrl}" style="background:#3F3F3F;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Submit Quotation</a>
+        <a href="${submitUrl}" style="background:#E5503A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View RFQ and submit quotation</a>
       </p>
       <p style="font-size:12px;color:#888;">Or copy this link: ${submitUrl}</p>
+      ${who.name ? `<div style="margin-top:22px;padding:12px 14px;background:#F3F4F6;border-radius:8px;font-size:13px;">
+        <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Questions about this RFQ?</div>
+        <div><strong>${escHtml(who.name)}</strong>${who.position ? ` · ${escHtml(who.position)}` : ""}</div>
+        ${who.email ? `<div><a href="mailto:${escHtml(who.email)}" style="color:#E5503A;">${escHtml(who.email)}</a></div>` : ""}
+      </div>` : ""}
       <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
-      <p style="font-size:11px;color:#aaa;">Commercial &amp; Contract Management System</p>
+      <p style="font-size:11px;color:#999;">Sent by ${escHtml(ctx.company)} through Commercial 360.</p>
     </div>`;
+  };
 
   const sendRFQ = async () => {
     const activeVendors = rfqVendors.filter(v => v.is_active);
@@ -9786,11 +9828,11 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
     if (!window.confirm(`Send RFQ ${rfq?.rfq_number} to ${activeVendors.length} vendor(s)?`)) return;
     setSaving(true);
     await supabase.from("rfqs").update({ status: "Open", updated_at: new Date().toISOString() }).eq("id", rfqId);
-    const fmtDeadline = deadline ? new Date(deadline).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "TBD";
+    const ctx = await rfqEmailContext();
     for (const v of activeVendors) {
       if (!v.vendor_email) continue;
       const submitUrl = `${window.location.origin}/vendor/rfq/${v.token}`;
-      await sendEmail(v.vendor_email, `Request for Quotation – ${rfq?.rfq_number}`, rfqEmailHtml(v, submitUrl, fmtDeadline));
+      await sendEmail(v.vendor_email, `Request for Quotation – ${rfq?.rfq_number} · ${ctx.company}`, rfqEmailHtml(v, submitUrl, ctx));
     }
     setSentVendorIds(prev => { const next = new Set(prev); activeVendors.forEach(v => next.add(v.id)); return next; });
     setSaving(false);
@@ -9806,9 +9848,9 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
       await supabase.from("rfqs").update({ status: "Open", updated_at: new Date().toISOString() }).eq("id", rfqId);
     }
     if (v.vendor_email) {
-      const fmtDeadline = deadline ? new Date(deadline).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "TBD";
+      const ctx = await rfqEmailContext();
       const submitUrl = `${window.location.origin}/vendor/rfq/${v.token}`;
-      await sendEmail(v.vendor_email, `Request for Quotation – ${rfq?.rfq_number}`, rfqEmailHtml(v, submitUrl, fmtDeadline));
+      await sendEmail(v.vendor_email, `Request for Quotation – ${rfq?.rfq_number} · ${ctx.company}`, rfqEmailHtml(v, submitUrl, ctx));
     }
     setSentVendorIds(prev => new Set([...prev, v.id]));
     setSaving(false);

@@ -873,6 +873,72 @@ function VendorRFQPage({ token }) {
   const ewtAmt     = ewtBase * (ewtRatePct / 100);
   const netPayable = total - ewtAmt;
   const effPTType = acceptPT ? (rfq?.payment_term_type || "") : ptType;
+
+  // Everything a vendor must complete before Submit Quotation is enabled
+  const missingItems = (() => {
+    const m = [];
+    const num = (v) => parseFloat(String(v ?? "").replace(/,/g, ""));
+    const lines = (n, what) => `Cost Proposal: ${n} line${n > 1 ? "s have" : " has"} no ${what}.`;
+    if (lineItems.length === 0) m.push("Cost Proposal: add at least one item.");
+    const noDesc  = lineItems.filter(i => !String(i.description || "").trim()).length;
+    const noQty   = lineItems.filter(i => !(num(i.qty) > 0)).length;
+    const noUnit  = lineItems.filter(i => !String(i.unit || "").trim()).length;
+    const noPrice = lineItems.filter(i => !(num(i.unit_price) > 0)).length;
+    if (noDesc)  m.push(lines(noDesc, "description"));
+    if (noQty)   m.push(lines(noQty, "quantity"));
+    if (noUnit)  m.push(lines(noUnit, "unit"));
+    if (noPrice) m.push(lines(noPrice, "unit price"));
+    if (vatStatus === "non_vat" && !birDocUrl) m.push("Tax: upload your BIR Certificate of Registration (required for Non-VAT vendors).");
+    if (atcCode === "other") {
+      if (!customAtcCode.trim()) m.push("Tax: enter your ATC code.");
+      if (!(num(customEwtRate) >= 0) || String(customEwtRate).trim() === "") m.push("Tax: enter your EWT rate.");
+      if (!ewtProofUrl) m.push("Tax: upload the supporting document for your ATC code.");
+    }
+    if (!effPTType) m.push("Payment Terms: choose a payment type.");
+    if (!acceptPT && V_PT_HAS_DP.has(effPTType) && !(num(ptData.dp_percent) > 0)) m.push("Payment Terms: enter the downpayment %.");
+    if (!acceptPT && V_PT_HAS_RETENTION.has(effPTType) && !(num(ptData.retention_percent) >= 0 && String(ptData.retention_percent).trim() !== "")) m.push("Payment Terms: enter the retention %.");
+    // Right to Bill & Release: every shown stage needs a period; asking for less than PH1 requires needs a reason
+    const rfqPT = rfq?.payment_term_data || {};
+    const stages = [
+      V_PT_HAS_DP.has(effPTType)       && { name: "Downpayment release", val: ptData.dp_release_days, req: rfqPT.dp_release_days || 15, fixed: rfqPT.dp_release_fixed, why: ptData.dp_release_remarks },
+      V_PT_HAS_PROGRESS.has(effPTType) && { name: "Progress payment release", val: ptData.progress_release_days, req: rfqPT.progress_release_days || 30, fixed: rfqPT.progress_release_fixed, why: ptData.progress_release_remarks },
+      V_PT_HAS_RETENTION.has(effPTType) && rfqPT.retention_partial && { name: "Retention 1st release", val: ptData.retention_partial_release_days || "30", req: rfqPT.retention_partial_release_days || 30, fixed: rfqPT.retention_release_fixed, why: ptData.retention_billing_remarks },
+      V_PT_HAS_RETENTION.has(effPTType) && rfqPT.retention_partial && { name: "Retention final release", val: ptData.retention_billing_months, req: rfqPT.retention_billing_months || 12, fixed: rfqPT.retention_release_fixed, why: ptData.retention_final_release_remarks },
+      V_PT_HAS_RETENTION.has(effPTType) && !rfqPT.retention_partial && { name: "Retention release", val: ptData.retention_billing_months, req: rfqPT.retention_billing_months || 12, fixed: rfqPT.retention_release_fixed, why: ptData.retention_billing_remarks },
+      V_PT_HAS_COMPLETION.has(effPTType) && { name: "Completion payment release", val: ptData.completion_release_days, req: rfqPT.completion_release_days || 30, fixed: rfqPT.completion_release_fixed, why: ptData.completion_release_remarks },
+    ].filter(Boolean);
+    for (const st of stages) {
+      if (st.fixed) continue;
+      if (!(num(st.val) > 0)) m.push(`Right to Bill & Release: enter the ${st.name} period.`);
+      else if (num(st.val) < num(st.req) && !String(st.why || "").trim()) m.push(`Right to Bill & Release: give a reason for the shorter ${st.name} period.`);
+    }
+
+    // Bonds: every shown bond needs a release trigger; an override needs an amount and a justification
+    const bondsShown = [
+      V_PT_HAS_DP.has(effPTType)        && { name: "Surety / Advance Payment Bond", key: "surety_bond" },
+      V_PT_HAS_PROGRESS.has(effPTType)  && { name: "Performance Bond", key: "performance_bond", pct: true },
+      V_PT_HAS_RETENTION.has(effPTType) && { name: "Warranty / Guarantee Bond", key: "warranty_bond" },
+    ].filter(Boolean);
+    for (const b of bondsShown) {
+      if (!ptData[`${b.key}_release`]) m.push(`Bonds: choose the release trigger for the ${b.name}.`);
+      if (b.pct && !(num(ptData[`${b.key}_percent`]) > 0)) m.push(`Bonds: enter the ${b.name} %.`);
+      if (ptData[`${b.key}_override`]) {
+        if (!(num(ptData[`${b.key}_override_amount`]) > 0)) m.push(`Bonds: enter the override amount for the ${b.name}.`);
+        if (!String(ptData[`${b.key}_remarks`] || "").trim()) m.push(`Bonds: give a justification for overriding the ${b.name}.`);
+      }
+    }
+
+    if (String(ptData.commencement_days ?? "").trim() === "" || !(num(ptData.commencement_days) >= 0)) m.push("Timeline: enter the commencement days.");
+    if (!(num(ptData.work_duration) > 0)) m.push("Timeline: enter the work duration.");
+    if (String(ptData.warranty_period ?? "").trim() === "" || !(num(ptData.warranty_period) >= 0)) m.push("Timeline: enter the warranty period.");
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (!priceValidity) m.push("Timeline: enter the price validity date.");
+    else if (priceValidity < today) m.push("Timeline: the price validity date has already passed.");
+    if (!attachUrl) m.push("Attachment: upload your formal quotation document.");
+    return m;
+  })();
+
   const bonds    = autoBondAmtsV(effPTType, ptData, total);
   const hasDP    = V_PT_HAS_DP.has(effPTType);
   const hasProg  = V_PT_HAS_PROGRESS.has(effPTType);
@@ -971,8 +1037,9 @@ function VendorRFQPage({ token }) {
 
   const handleSubmit = async () => {
     if (submitting) return;
-    if (!lineItems.some(i => parseFloat(i.unit_price || 0) > 0)) {
-      alert("Please enter at least one unit price."); return;
+    if (missingItems.length) {
+      alert("Please complete the following before submitting:\n• " + missingItems.join("\n• "));
+      return;
     }
     setSubmitting(true);
 
@@ -1819,7 +1886,7 @@ function VendorRFQPage({ token }) {
               <VReleaseRow label={`Retention — Final Release (${finalPct}%)`}
                 sublabel="After DLP / warranty period"
                 std={12} unit="months" val={ptData.retention_billing_months} onChange={v => updPt("retention_billing_months", v)}
-                remarks="" onRemarks={() => {}}
+                remarks={ptData.retention_final_release_remarks} onRemarks={v => updPt("retention_final_release_remarks", v)}
                 color="#D97706" bg="#FFFBEB" border="#FDE68A"
                 fixed={!!rfqPTData.retention_release_fixed}
                 required={rfqPTData.retention_billing_months} />
@@ -1939,7 +2006,7 @@ function VendorRFQPage({ token }) {
             style={{ ...inp, resize: "vertical" }} />
         </div>
         <div>
-          <label style={lbl}>Formal Quotation Document (optional)</label>
+          <label style={lbl}>Formal Quotation Document <span style={{ color: "#B91C1C" }}>*</span></label>
           {attachUrl ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <a href={attachUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "#3F3F3F" }}>{attachName || "Uploaded file"}</a>
@@ -1956,13 +2023,25 @@ function VendorRFQPage({ token }) {
         </div>
       </div>
 
+      {missingItems.length > 0 && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 12, padding: "12px 16px", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C", marginBottom: 6 }}>
+            Complete {missingItems.length} item{missingItems.length > 1 ? "s" : ""} before you can submit
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "#7F1D1D", lineHeight: 1.6 }}>
+            {missingItems.map(t => <li key={t}>{t}</li>)}
+          </ul>
+          <div style={{ fontSize: 11.5, color: "#6B6B6B", marginTop: 6 }}>You can Save Draft at any time and finish later.</div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 10 }}>
         <button onClick={handleSaveDraft} disabled={savingDraft}
           style={{ flex: 1, padding: "13px 0", background: "#fff", color: "#3F3F3F", border: "1px solid #3F3F3F", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: savingDraft ? "not-allowed" : "pointer", opacity: savingDraft ? 0.6 : 1 }}>
           {savingDraft ? "Saving…" : "Save Draft"}
         </button>
-        <button onClick={handleSubmit} disabled={submitting}
-          style={{ flex: 2, padding: "13px 0", background: "#3F3F3F", color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}>
+        <button onClick={handleSubmit} disabled={submitting || missingItems.length > 0}
+          style={{ flex: 2, padding: "13px 0", background: "#3F3F3F", color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: submitting || missingItems.length ? "not-allowed" : "pointer", opacity: submitting || missingItems.length ? 0.45 : 1 }}>
           {submitting ? "Submitting…" : existingSubmission ? `Submit Revised Quotation (v${existingSubmission.version + 1})` : "Submit Quotation"}
         </button>
       </div>
