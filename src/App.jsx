@@ -6,6 +6,7 @@ import { parseCostReport, decideBudget, parseAwardItems, parseVOItems, reconcile
 import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import { matchProjects, projectLabel } from "./lib/projectSearch";
+import { PROJECT_TYPES, AREA_KIND_LABEL, defaultAreas, setTowerCount, towerCount, addArea, hasAreaName, activeAreas, totalUnits, areaSummary, areaNames, switchType } from "./lib/projectAreas";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import * as XLSX from "xlsx";
@@ -965,6 +966,7 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
   const [search, setSearch] = useState("");
   const [buFilter, setBuFilter] = useState([]);
   const [projectFilter, setProjectFilter] = useState([]);
+  const [areaFilter, setAreaFilter] = useState([]);
   const [activeCard, setActiveCard] = useState(null);
 
   const pos         = profile?.position;
@@ -990,7 +992,7 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
     setLoading(true);
     let query = supabase
       .from("purchase_requests")
-      .select(`id, pr_number, description, status, is_rush, created_at, start_date, end_date, budget_status, group_manager_id, projects (name, business_unit), reviewer:profiles!purchase_requests_pr_reviewer_id_fkey (full_name)`)
+      .select(`id, pr_number, description, status, is_rush, created_at, start_date, end_date, budget_status, group_manager_id, areas, projects (name, business_unit, areas), reviewer:profiles!purchase_requests_pr_reviewer_id_fkey (full_name)`)
       .order("created_at", { ascending: false });
 
     // Filter by position
@@ -1025,10 +1027,21 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
     prList.filter(p => buFilter.length === 0 || buFilter.includes(p.projects?.business_unit)).map(p => p.projects?.name).filter(Boolean)
   )].sort();
 
-  const prBase = prList.filter(pr =>
+  const AREA_NOT_SET = "Area not set";
+  const prAreaNames = (pr) => areaNames(pr.projects?.areas, pr.areas);
+  const prInProjects = prList.filter(pr =>
     (buFilter.length === 0 || buFilter.includes(pr.projects?.business_unit)) &&
     (projectFilter.length === 0 || projectFilter.includes(pr.projects?.name))
   );
+  const areaOptions = [
+    ...(prInProjects.some(pr => prAreaNames(pr).length === 0) ? [AREA_NOT_SET] : []),
+    ...[...new Set(prInProjects.flatMap(prAreaNames))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+  ];
+  const prBase = prInProjects.filter(pr => {
+    if (areaFilter.length === 0) return true;
+    const names = prAreaNames(pr);
+    return names.length === 0 ? areaFilter.includes(AREA_NOT_SET) : names.some(n => areaFilter.includes(n));
+  });
 
   const filtered = prBase.map(pr => ({ ...pr, reviewer_name: pr.reviewer?.full_name || "Unassigned" })).filter(pr => {
     const s = search.toLowerCase();
@@ -1092,6 +1105,7 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
           </div>
           <MultiSelect options={buOptions} value={buFilter} onChange={setBuFilter} placeholder="All Business Units" />
           <MultiSelect options={projectOptions} value={projectFilter} onChange={setProjectFilter} placeholder="All Projects" />
+          <MultiSelect options={areaOptions} value={areaFilter.filter(a => areaOptions.includes(a))} onChange={setAreaFilter} placeholder="All Buildings / Areas" />
         </div>
 
         {can(profile, "pr.review") && !isAdmin && (
@@ -1146,7 +1160,12 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
                       {pr.is_rush && <span style={{ ...styles.badge("Rush"), fontSize: 10, marginTop: 2 }}>Rush</span>}
                     </td>
                     {/* Project */}
-                    <td style={{ padding: "11px 16px", fontSize: 12, color: C.textSec, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pr.projects?.name || "—"}</td>
+                    <td style={{ padding: "11px 16px", fontSize: 12, color: C.textSec, maxWidth: 200 }}>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pr.projects?.name || "—"}</div>
+                      {pr.projects && (prAreaNames(pr).length
+                        ? <div style={{ fontSize: 11, color: C.textTer, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={prAreaNames(pr).join(", ")}>{prAreaNames(pr).join(" · ")}</div>
+                        : <div style={{ fontSize: 10.5, color: C.amberText, marginTop: 2 }}>{AREA_NOT_SET}</div>)}
+                    </td>
                     {/* Reviewer */}
                     <td style={{ padding: "11px 16px", fontSize: 12, color: pr.reviewer_name && pr.reviewer_name !== "Unassigned" ? C.textSec : C.textTer, fontStyle: pr.reviewer_name && pr.reviewer_name !== "Unassigned" ? "normal" : "italic", whiteSpace: "nowrap" }}>{pr.reviewer_name || "Unassigned"}</td>
                     {/* Start Date */}
@@ -1610,6 +1629,51 @@ const budgetPickFields = (pick) => ({
 
 const emptyBudgetPick = { noLine: false, picked: [], report: null };
 
+// Tick the buildings / areas a PR covers. Shows the project's ticked areas; an unticked one
+// only appears if this PR already has it.
+function AreaPicker({ areas, value, onChange }) {
+  const shown = (areas || []).filter(a => a.active || value.includes(a.id));
+  if (!shown.length) return null;
+  const toggle = (id) => onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
+  const groups = [
+    { label: "Towers", items: shown.filter(a => a.kind === "tower") },
+    { label: "Residential units", items: shown.filter(a => a.kind === "unit_type") },
+    { label: "Other areas", items: shown.filter(a => a.kind === "area") },
+  ].filter(g => g.items.length);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {groups.map(g => (
+        <div key={g.label}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>{g.label}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {g.items.map(a => {
+              const on = value.includes(a.id);
+              return (
+                <button key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={on}
+                  style={{ fontSize: 12.5, padding: "6px 12px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+                    border: `1px solid ${on ? C.coral : C.borderMid}`, background: on ? C.coralLight : C.white,
+                    color: on ? C.coralDark : C.textSec, fontWeight: on ? 600 : 400 }}>
+                  {on ? "✓ " : ""}{a.name}{!a.active ? " (no longer used)" : ""}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Read-only chips for the areas a PR covers
+function AreaTags({ names, empty = "Area not set" }) {
+  if (!names?.length) return <span style={{ fontSize: 12, color: C.amberText, background: C.amberBg, padding: "2px 8px", borderRadius: 999 }}>{empty}</span>;
+  return (
+    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 4 }}>
+      {names.map(n => <span key={n} style={{ fontSize: 11.5, color: C.textSec, background: C.surface, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 999 }}>{n}</span>)}
+    </span>
+  );
+}
+
 // Project box you can type into; matches show underneath. Only a project from the list can be chosen.
 function ProjectPicker({ projects, value, onChange, placeholder = "Type to search projects…", allowClear = true, style }) {
   const [open, setOpen] = useState(false);
@@ -1808,6 +1872,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   const [projects, setProjects] = useState([]);
   const [groupManagers, setGroupManagers] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [prAreas, setPrAreas] = useState([]);
   const [selectedGMId, setSelectedGMId] = useState("");
   const isReviewerCreating = can(profile, "pr.review");
   const [isRush, setIsRush] = useState(false);
@@ -1840,6 +1905,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       if (!p) { setEditLoading(false); return; }
       setEditPR(p);
       setSelectedProjectId(p.project_id ? String(p.project_id) : "");
+      setPrAreas(Array.isArray(p.areas) ? p.areas : []);
       if (p.group_manager_id) {
         const { data: gm } = await supabase.from("group_managers").select("id").eq("profile_id", p.group_manager_id).maybeSingle();
         if (gm) setSelectedGMId(String(gm.id));
@@ -1870,7 +1936,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   useEffect(() => { setBudgetPick(emptyBudgetPick); }, [selectedProjectId]);
 
   const fetchProjects = async () => {
-    const { data } = await supabase.from("projects").select("id, name, business_unit, project_code, short_name").eq("status", "active").order("name");
+    const { data } = await supabase.from("projects").select("id, name, business_unit, project_code, short_name, project_type, areas").eq("status", "active").order("name");
     if (data) setProjects(data);
   };
 
@@ -1893,6 +1959,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   };
 
   const selectedProject = projects.find(p => p.id === parseInt(selectedProjectId));
+  const projectHasAreas = activeAreas(selectedProject?.areas).length > 0;
   const MIN_DAYS = isRush ? minDaysRush : minDaysStandard;
   const minDateObj = new Date();
   minDateObj.setDate(minDateObj.getDate() + MIN_DAYS);
@@ -1906,6 +1973,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
 
   const savePR = async (sendToGM = false) => {
     if (!selectedProjectId) { alert("Please select a project."); return; }
+    if (projectHasAreas && prAreas.length === 0) { alert("Please pick the building(s) / area(s) this work is for."); return; }
     if (!formData.description.trim()) { alert("Please enter a description."); return; }
     if (!formData.justification.trim()) { alert("Please enter a justification."); return; }
     if (isRush && !formData.rushJustification.trim()) { alert("Please explain the reason for the late (rush) request."); return; }
@@ -1981,6 +2049,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       : "Under Review";
     const prFields = {
       project_id: parseInt(selectedProjectId),
+      areas: prAreas,
       group_manager_id: gmProfile?.profiles?.id || null,
       description: formData.description,
       justification: formData.justification,
@@ -2128,7 +2197,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
               <label style={styles.label}>Project <span style={styles.required}>*</span></label>
-              <ProjectPicker projects={projects} value={selectedProjectId} onChange={setSelectedProjectId} />
+              <ProjectPicker projects={projects} value={selectedProjectId} onChange={v => { setSelectedProjectId(v); setPrAreas([]); }} />
               <p style={styles.hint}>Only active projects are shown</p>
             </div>
             <div>
@@ -2137,6 +2206,19 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
               <p style={styles.hint}>Automatically populated from selected project</p>
             </div>
           </div>
+          {selectedProject && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={styles.label}>Buildings / areas {projectHasAreas && <span style={styles.required}>*</span>}</label>
+              {projectHasAreas ? (
+                <>
+                  <AreaPicker areas={selectedProject.areas} value={prAreas} onChange={setPrAreas} />
+                  <p style={styles.hint}>Where is this work for? Pick all that apply.</p>
+                </>
+              ) : (
+                <p style={{ ...styles.hint, color: C.amberText }}>This project has no buildings / areas set up yet. You can still save; ask for them to be added under Projects → Edit, then tag this PR.</p>
+              )}
+            </div>
+          )}
           {!isReviewerCreating && (
             <div>
               <label style={styles.label}>Manager <span style={styles.required}>*</span></label>
@@ -2374,6 +2456,8 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
 
   const [linkedRFQ, setLinkedRFQ] = useState(null);
   const [returnHistory, setReturnHistory] = useState([]);
+  const [tagAreas, setTagAreas] = useState(null); // ids being edited in the Tag areas window
+  const [tagSaving, setTagSaving] = useState(false);
 
   useEffect(() => { fetchPR(); }, [prId]);
 
@@ -2390,7 +2474,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
         tor_file_url, tor_file_name,
         specs_file_url, specs_file_name,
         remarks, scope_of_works,
-        projects (name, business_unit, project_code, short_name),
+        projects (name, business_unit, project_code, short_name, project_type, areas),
         profiles!purchase_requests_prepared_by_fkey (full_name, position)
       `)
       .eq("pr_number", prId)
@@ -2822,6 +2906,19 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
             <h3 style={styles.cardTitle}>Project details</h3>
             <InfoRow label="Project">{pr.projects?.name || "—"}</InfoRow>
             <InfoRow label="Business unit">{pr.projects?.business_unit || "—"}</InfoRow>
+            <InfoRow label="Buildings / areas">
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <AreaTags names={areaNames(pr.projects?.areas, pr.areas)} />
+                {activeAreas(pr.projects?.areas).length > 0 && (can(profile, "pr.prepare") || can(profile, "pr.review") || pr.prepared_by === profile?.id) && (
+                  <button style={{ ...styles.btnGhost, fontSize: 11, padding: "3px 10px" }} onClick={() => setTagAreas(Array.isArray(pr.areas) ? pr.areas : [])}>
+                    {pr.areas?.length ? "Change" : "Tag areas"}
+                  </button>
+                )}
+              </span>
+              {pr.areas_tagged_at && (
+                <div style={{ fontSize: 11, color: C.textTer, marginTop: 3 }}>Tagged by {pr.areas_tagged_by_name || "staff"} on {fmtShort(pr.areas_tagged_at)}</div>
+              )}
+            </InfoRow>
             <InfoRow label="PR Number">{pr.pr_number}</InfoRow>
             <InfoRow label="Prepared by">{pr.profiles?.full_name || "—"}</InfoRow>
             <InfoRow label="Manager">—</InfoRow>
@@ -2895,11 +2992,124 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
         </div>
 
       </div>
+
+      {tagAreas && (
+        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget && !tagSaving) setTagAreas(null); }}>
+          <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 520, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}>
+            <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri }}>Buildings / areas for {pr.pr_number}</div>
+              <div style={{ fontSize: 12, color: C.textTer, marginTop: 2 }}>{pr.projects?.name}. Only the areas change; the PR stays at its current status.</div>
+            </div>
+            <div style={{ padding: "18px 24px", maxHeight: "60vh", overflowY: "auto" }}>
+              <AreaPicker areas={pr.projects?.areas} value={tagAreas} onChange={setTagAreas} />
+            </div>
+            <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 8, background: C.offWhite, borderRadius: "0 0 16px 16px" }}>
+              <button style={styles.btnSecondary} onClick={() => setTagAreas(null)} disabled={tagSaving}>Cancel</button>
+              <button style={{ ...styles.btnPrimary, opacity: tagSaving || !tagAreas.length ? 0.6 : 1 }} disabled={tagSaving || !tagAreas.length}
+                onClick={async () => {
+                  setTagSaving(true);
+                  const { data: saved, error } = await supabase.from("purchase_requests").update({
+                    areas: tagAreas, areas_tagged_by_name: profile?.full_name || null, areas_tagged_at: new Date().toISOString(),
+                  }).eq("pr_number", pr.pr_number).select("pr_number");
+                  setTagSaving(false);
+                  if (error || !saved?.length) { alert("Could not save the areas:\n\n" + (error?.message || "You may not have permission to change this PR.")); return; }
+                  setTagAreas(null);
+                  fetchPR();
+                }}>
+                {tagSaving ? "Saving…" : "Save areas"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
 // ─── PROJECTS PAGE ────────────────────────────────────────────────────────────
+// Project type + tick list of buildings / areas (with units for towers and housing unit types)
+function ProjectAreasEditor({ type, areas, onChange }) {
+  const [newName, setNewName] = useState("");
+  const [newKind, setNewKind] = useState("area");
+  const setArea = (id, fields) => onChange({ type, areas: areas.map(a => a.id === id ? { ...a, ...fields } : a) });
+  const pickType = (t) => {
+    if (t === type) return;
+    onChange({ type: t, areas: areas.length ? switchType(areas, t) : defaultAreas(t) });
+    setNewKind(t === "Housing" ? "unit_type" : "area");
+  };
+  const add = () => {
+    const name = newName.trim();
+    if (!name) return;
+    if (hasAreaName(areas, name)) { alert(`"${name}" is already in the list. Tick it instead.`); return; }
+    onChange({ type, areas: addArea(areas, name, newKind) });
+    setNewName("");
+  };
+  const units = totalUnits(areas);
+  const row = (a) => (
+    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, cursor: "pointer", fontSize: 13, color: a.active ? C.textPri : C.textTer }}>
+        <input type="checkbox" checked={a.active} onChange={e => setArea(a.id, { active: e.target.checked })} disabled={a.kind === "tower"} />
+        {a.name}
+      </label>
+      {a.kind !== "area" && a.active && (
+        <input type="number" min="0" value={a.units ?? ""} placeholder="Units" aria-label={`Units in ${a.name}`}
+          onChange={e => setArea(a.id, { units: e.target.value === "" ? null : Math.max(0, parseInt(e.target.value) || 0) })}
+          style={{ ...styles.input, width: 90, padding: "5px 8px", fontSize: 12.5 }} />
+      )}
+    </div>
+  );
+  const section = (label, items) => items.length > 0 && (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.05em", margin: "8px 0 2px" }}>{label}</div>
+      {items.map(row)}
+    </div>
+  );
+  return (
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        {PROJECT_TYPES.map(t => (
+          <button key={t} type="button" onClick={() => pickType(t)} aria-pressed={type === t}
+            style={{ flex: 1, padding: "8px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 13,
+              border: `1px solid ${type === t ? C.coral : C.borderMid}`, background: type === t ? C.coralLight : C.white,
+              color: type === t ? C.coralDark : C.textSec, fontWeight: type === t ? 600 : 400 }}>{t}</button>
+        ))}
+      </div>
+      {!type ? (
+        <p style={{ ...styles.hint, margin: 0 }}>Pick the project type to set up its buildings / areas.</p>
+      ) : (
+        <>
+          {type === "Condominium" && (
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: C.textSec }}>
+              How many towers?
+              <input type="number" min="1" max="30" value={towerCount(areas)}
+                onChange={e => onChange({ type, areas: setTowerCount(areas, Math.min(30, Math.max(1, parseInt(e.target.value) || 1))) })}
+                style={{ ...styles.input, width: 70, padding: "5px 8px" }} />
+            </label>
+          )}
+          {section("Towers", areas.filter(a => a.kind === "tower" && a.active))}
+          {section("Residential units", areas.filter(a => a.kind === "unit_type"))}
+          {section(type === "Housing" ? "Other areas" : "Buildings / areas", areas.filter(a => a.kind === "area"))}
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+              placeholder={newKind === "unit_type" ? "Add unit type, e.g. Duplex" : "Add other area, e.g. Clubhouse"} style={{ ...styles.input, flex: 1, fontSize: 12.5 }} />
+            {type === "Housing" && (
+              <select value={newKind} onChange={e => setNewKind(e.target.value)} style={{ ...styles.input, width: "auto", fontSize: 12.5 }}>
+                <option value="unit_type">{AREA_KIND_LABEL.unit_type}</option>
+                <option value="area">{AREA_KIND_LABEL.area}</option>
+              </select>
+            )}
+            <button type="button" style={{ ...styles.btnSecondary, fontSize: 12.5 }} onClick={add}>+ Add</button>
+          </div>
+          <div style={{ fontSize: 12, color: C.textTer }}>
+            {areaSummary(type, areas) || "Nothing ticked"}{units > 0 ? "" : " · units are optional, for the record"}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ProjectsPage({ profile }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2911,7 +3121,7 @@ function ProjectsPage({ profile }) {
   const [editingProject, setEditingProject] = useState(null);
   const [saving, setSaving] = useState(false);
   const [businessUnits, setBusinessUnits] = useState([]);
-  const [form, setForm] = useState({ name: "", short_name: "", business_unit: "", description: "", address: "", start_date: "", end_date: "", status: "active", pr_reviewer_id: "" });
+  const [form, setForm] = useState({ name: "", short_name: "", business_unit: "", description: "", address: "", start_date: "", end_date: "", status: "active", pr_reviewer_id: "", project_type: "", areas: [] });
   const [allReviewers, setAllReviewers] = useState([]);
   const [importPreview, setImportPreview] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -2964,15 +3174,17 @@ function ProjectsPage({ profile }) {
     if (data) setBusinessUnits(data);
   };
 
-  const openCreate = () => { setEditingProject(null); setForm({ name: "", short_name: "", business_unit: "", description: "", address: "", start_date: "", end_date: "", status: "active", pr_reviewer_id: "" }); setShowModal(true); };
-  const openEdit = (p) => { setEditingProject(p); setForm({ name: p.name || "", short_name: p.short_name || p.project_code || "", business_unit: p.business_unit || "", description: p.description || "", address: p.address || "", start_date: p.start_date || "", end_date: p.end_date || "", status: p.status || "active", pr_reviewer_id: p.pr_reviewer_id || "" }); setShowModal(true); };
+  const openCreate = () => { setEditingProject(null); setForm({ name: "", short_name: "", business_unit: "", description: "", address: "", start_date: "", end_date: "", status: "active", pr_reviewer_id: "", project_type: "", areas: [] }); setShowModal(true); };
+  const openEdit = (p) => { setEditingProject(p); setForm({ name: p.name || "", short_name: p.short_name || p.project_code || "", business_unit: p.business_unit || "", description: p.description || "", address: p.address || "", start_date: p.start_date || "", end_date: p.end_date || "", status: p.status || "active", pr_reviewer_id: p.pr_reviewer_id || "", project_type: p.project_type || "", areas: Array.isArray(p.areas) && p.areas.length ? p.areas : (p.project_type ? defaultAreas(p.project_type) : []) }); setShowModal(true); };
   const closeModal = () => { setShowModal(false); setEditingProject(null); };
 
   const handleSave = async () => {
     if (!form.name) { alert("Project name is required."); return; }
     if (!form.business_unit) { alert("Business unit is required."); return; }
+    if (!editingProject && !form.project_type) { alert("Please pick the project type (Condominium or Housing)."); return; }
+    if (form.project_type && activeAreas(form.areas).length === 0) { alert("Tick at least one building / area."); return; }
     setSaving(true);
-    const payload = { ...form, start_date: form.start_date || null, end_date: form.end_date || null, pr_reviewer_id: form.pr_reviewer_id || null, address: form.address || null };
+    const payload = { ...form, project_type: form.project_type || null, start_date: form.start_date || null, end_date: form.end_date || null, pr_reviewer_id: form.pr_reviewer_id || null, address: form.address || null };
     let error;
     if (editingProject) {
       ({ error } = await supabase.from("projects").update(payload).eq("id", editingProject.id));
@@ -3161,6 +3373,16 @@ function ProjectsPage({ profile }) {
                           {[p.short_name, p.business_unit].filter(Boolean).join(" · ")}
                         </div>
                       )}
+                      <div style={{ fontSize: 11, marginTop: 3, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        {p.project_type ? (
+                          <>
+                            <span style={{ fontWeight: 600, color: C.tealText, background: C.tealBg, padding: "1px 7px", borderRadius: 999 }}>{p.project_type}</span>
+                            <span style={{ color: C.textSec }}>{areaSummary(p.project_type, p.areas)}</span>
+                          </>
+                        ) : (
+                          <span style={{ color: C.amberText, background: C.amberBg, padding: "1px 7px", borderRadius: 999 }}>Buildings / areas not set up</span>
+                        )}
+                      </div>
                     </td>
                     {/* Commercial Officer inline dropdown */}
                     <td style={{ padding: "6px 14px" }}>
@@ -3275,6 +3497,12 @@ function ProjectsPage({ profile }) {
                     <option value="">— Unassigned —</option>
                     {allReviewers.map(r => <option key={r.id} value={r.id}>{r.full_name}</option>)}
                   </select>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={styles.label}>Type and buildings / areas {!editingProject && <span style={styles.required}>*</span>}</label>
+                  <ProjectAreasEditor type={form.project_type} areas={form.areas}
+                    onChange={({ type, areas }) => setForm(p => ({ ...p, project_type: type, areas }))} />
+                  <p style={styles.hint}>Purchase requests pick from the ticked items. Unticking hides an item from new PRs; older PRs keep it.</p>
                 </div>
                 {editingProject && (
                   <div style={{ gridColumn: "1 / -1" }}>
@@ -9853,7 +10081,7 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
   const fetchRFQ = async () => {
     setLoading(true);
     const { data } = await supabase.from("rfqs")
-      .select("*, purchase_requests(pr_number, description, justification, start_date, end_date, plans_file_url, plans_file_name, tor_file_url, tor_file_name, specs_file_url, specs_file_name, scope_of_works, projects(name, business_unit, project_code))")
+      .select("*, purchase_requests(pr_number, description, justification, start_date, end_date, plans_file_url, plans_file_name, tor_file_url, tor_file_name, specs_file_url, specs_file_name, scope_of_works, areas, projects(name, business_unit, project_code, areas))")
       .eq("id", rfqId).single();
     if (data) {
       setRfq(data);
@@ -10008,6 +10236,7 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
       <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
         ${row("RFQ Number", escHtml(rfq?.rfq_number), "font-weight:600;")}
         ${row("Project", escHtml(pr?.projects?.name || "—"))}
+        ${areaNames(pr?.projects?.areas, pr?.areas).length ? row("Building / Area", escHtml(areaNames(pr?.projects?.areas, pr?.areas).join(", "))) : ""}
         ${row("Description", escHtml(vendorDescription || pr?.description || "—"))}
         ${row("Deadline", escHtml(ctx.deadline), "font-weight:600;color:#B91C1C;")}
         ${row("What's inside", escHtml(inside))}
@@ -10093,6 +10322,7 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
           <div><div style={{ fontSize: 11, color: C.textSec }}>PR Number</div><div style={{ fontSize: 13, fontWeight: 600, fontFamily: "monospace", color: C.coral }}>{pr?.pr_number}</div></div>
           <div><div style={{ fontSize: 11, color: C.textSec }}>Project</div><div style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>{pr?.projects?.name}</div></div>
           <div><div style={{ fontSize: 11, color: C.textSec }}>Business Unit</div><div style={{ fontSize: 13, color: C.textPri }}>{pr?.projects?.business_unit || "—"}</div></div>
+          <div><div style={{ fontSize: 11, color: C.textSec, marginBottom: 2 }}>Buildings / Areas</div><AreaTags names={areaNames(pr?.projects?.areas, pr?.areas)} /></div>
           <div><div style={{ fontSize: 11, color: C.textSec }}>Description</div><div style={{ fontSize: 13, color: C.textPri }}>{pr?.description}</div></div>
           <div><div style={{ fontSize: 11, color: C.textSec }}>PR Start → End</div><div style={{ fontSize: 12, color: C.textPri }}>{pr?.start_date ? new Date(pr.start_date).toLocaleDateString() : "—"} → {pr?.end_date ? new Date(pr.end_date).toLocaleDateString() : "—"}</div></div>
         </div>
@@ -11137,7 +11367,7 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
       budget_status, budget_code,
       reviewer_budget_status, reviewer_budget_code,
       plans_file_url, plans_file_name, tor_file_url, tor_file_name, specs_file_url, specs_file_name,
-      projects (name, business_unit, project_code, address),
+      areas, projects (name, business_unit, project_code, address, areas),
       prepared:profiles!purchase_requests_prepared_by_fkey (full_name)`;
 
     const { data: projList } = await supabase.from("projects").select("id, name, project_code").order("name");
@@ -13040,6 +13270,7 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
                     <F label="Project"       value={pr?.projects?.name} />
                     <F label="Business Unit" value={pr?.projects?.business_unit} />
                     {pr?.projects?.project_code && <F label="Project Code" value={pr.projects.project_code} mono />}
+                    <F label="Buildings / Areas" value={areaNames(pr?.projects?.areas, pr?.areas).join(", ") || "Not set"} />
                     <F label="Status" value={pr?.status} color={pr?.status === "Approved" ? C.greenText : pr?.status?.includes("Reject") ? C.redText : C.textPri} />
                   </div>
                 </div>
@@ -13127,6 +13358,7 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
                         <MF label="Project"      value={pr?.projects?.name} />
                         <MF label="Business Unit" value={pr?.projects?.business_unit} />
                         {pr?.projects?.project_code && <MF label="Project Code" value={pr.projects.project_code} mono />}
+                        <MF label="Buildings / Areas" value={areaNames(pr?.projects?.areas, pr?.areas).join(", ") || "Not set"} />
                         <MF label="Prepared By"  value={pr?.prepared?.full_name} />
                         <MF label="Manager" value={null} />
                         <MF label="Created"      value={fmt(pr?.created_at)} />
