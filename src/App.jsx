@@ -5,6 +5,7 @@ import { toDateStr, fromDateStr } from "./lib/dates";
 import { parseCostReport, decideBudget, parseAwardItems, parseVOItems, reconcileItems } from "./lib/costReport";
 import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
+import { matchProjects, projectLabel } from "./lib/projectSearch";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import * as XLSX from "xlsx";
@@ -1609,6 +1610,68 @@ const budgetPickFields = (pick) => ({
 
 const emptyBudgetPick = { noLine: false, picked: [], report: null };
 
+// Project box you can type into; matches show underneath. Only a project from the list can be chosen.
+function ProjectPicker({ projects, value, onChange, placeholder = "Type to search projects…", allowClear = true, style }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const listRef = useRef(null);
+  const selected = projects.find(p => String(p.id) === String(value)) || null;
+  const matches = matchProjects(projects, query);
+
+  useEffect(() => {
+    listRef.current?.children[active]?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
+  const choose = (p) => { onChange(String(p.id)); setOpen(false); setQuery(""); };
+  const onKeyDown = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive(a => Math.min(a + 1, matches.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => Math.max(a - 1, 0)); }
+    else if (e.key === "Enter" && open && matches[active]) { e.preventDefault(); choose(matches[active]); }
+    else if (e.key === "Escape") { setOpen(false); setQuery(""); }
+  };
+
+  return (
+    <div style={{ position: "relative", ...style }}>
+      <input
+        value={open ? query : projectLabel(selected)}
+        onChange={e => { setQuery(e.target.value); setActive(0); setOpen(true); }}
+        onFocus={() => { setQuery(""); setActive(0); setOpen(true); }}
+        onBlur={() => { setOpen(false); setQuery(""); }}
+        onKeyDown={onKeyDown}
+        placeholder={open && selected ? projectLabel(selected) : placeholder}
+        role="combobox" aria-expanded={open} aria-autocomplete="list"
+        style={{ ...styles.input, paddingRight: selected && allowClear ? 32 : undefined }}
+      />
+      {selected && allowClear && !open && (
+        <button type="button" aria-label="Clear project" onClick={() => onChange("")}
+          style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: C.textTer, fontSize: 14, padding: 4 }}>✕</button>
+      )}
+      {open && (
+        <div ref={listRef} role="listbox" style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50, background: "#fff", border: `1px solid ${C.borderMid}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 280, overflowY: "auto" }}>
+          {matches.length === 0 ? (
+            <div style={{ padding: "10px 12px", fontSize: 13, color: C.textTer }}>
+              {projects.length === 0 ? "No active projects" : `No active project matches "${query.trim()}"`}
+            </div>
+          ) : matches.map((p, i) => (
+            <div key={p.id} role="option" aria-selected={String(p.id) === String(value)}
+              onMouseDown={e => { e.preventDefault(); choose(p); }}
+              onMouseEnter={() => setActive(i)}
+              style={{ padding: "8px 12px", cursor: "pointer", background: i === active ? C.surface : "#fff", borderBottom: i < matches.length - 1 ? `1px solid ${C.border}` : "none" }}>
+              <div style={{ fontSize: 13, color: C.textPri, fontWeight: String(p.id) === String(value) ? 600 : 400 }}>{p.name}</div>
+              {(p.short_name || p.project_code || p.business_unit) && (
+                <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>
+                  {[p.short_name, p.project_code, p.business_unit].filter(Boolean).join(" · ")}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BudgetLinePicker({ projectId, pick, onChange }) {
   const [state, setState] = useState({ loading: true, report: null, lines: [] });
   const [filter, setFilter] = useState("");
@@ -2065,10 +2128,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
               <label style={styles.label}>Project <span style={styles.required}>*</span></label>
-              <select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} style={styles.input}>
-                <option value="">Select a project…</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <ProjectPicker projects={projects} value={selectedProjectId} onChange={setSelectedProjectId} />
               <p style={styles.hint}>Only active projects are shown</p>
             </div>
             <div>
@@ -3487,10 +3547,7 @@ function CostReportsPage({ profile }) {
   return (
     <div style={{ ...styles.pageBody, maxWidth: 1200 }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
-        <select value={projectId} onChange={e => setProjectId(e.target.value)} style={{ ...styles.input, width: 300 }}>
-          {projects.length === 0 && <option value="">No active projects</option>}
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} allowClear={false} style={{ width: 300 }} />
         {versions.length > 0 && (
           <select value={reportId} onChange={e => setReportId(e.target.value)} style={{ ...styles.input, width: 320 }}>
             {versions.map((v, i) => (
@@ -3636,7 +3693,7 @@ function CostReportsPage({ profile }) {
 
       {upload && (
         <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 560, boxShadow: "0 8px 40px rgba(0,0,0,0.18)", overflow: "hidden" }}>
+          <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 560, boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
             <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri }}>Upload cost report</div>
               <div style={{ fontSize: 12, color: C.textTer, marginTop: 2 }}>{upload.fileName}{upload.sheetName ? ` · sheet "${upload.sheetName}"` : ""}</div>
@@ -3648,9 +3705,7 @@ function CostReportsPage({ profile }) {
                 <>
                   <div>
                     <label style={styles.label}>Project</label>
-                    <select value={upload.projectId} onChange={e => setUpload(u => ({ ...u, projectId: e.target.value }))} style={styles.input}>
-                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <ProjectPicker projects={projects} value={upload.projectId} onChange={v => setUpload(u => ({ ...u, projectId: v }))} allowClear={false} />
                     {upload.parsed.projectText && (
                       <p style={styles.hint}>The file says: "{upload.parsed.projectText}". Make sure the project above is right.</p>
                     )}
@@ -3684,7 +3739,7 @@ function CostReportsPage({ profile }) {
                 </>
               )}
             </div>
-            <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 8, background: C.offWhite }}>
+            <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end", gap: 8, background: C.offWhite, borderRadius: "0 0 16px 16px" }}>
               <button style={styles.btnSecondary} onClick={() => setUpload(null)} disabled={saving}>Cancel</button>
               {!upload.error && (
                 <button style={styles.btnPrimary} onClick={saveUpload} disabled={saving || !upload.projectId || !upload.reportDate}>
