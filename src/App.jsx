@@ -6303,7 +6303,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const openDetail = async (v) => {
   const vid = v.id;
   const vcode = vendorRef(v);
-  const [base, ci, ow, pj, cl, co, af, hq, rg, docs, prof, expRows, retHist, upFails] = await Promise.all([
+  const [base, ci, ow, pj, cl, co, af, hq, rg, docs, prof, expRows, retHist, upFails, subs] = await Promise.all([
     supabase.from("vendors").select("*").eq("id", vid).single(),
     supabase.from("vendor_company_info").select("*").eq("vendor_id", vcode).maybeSingle(),
     supabase.from("vendor_owners").select("*").eq("vendor_id", vcode).order("id"),
@@ -6318,6 +6318,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
     supabase.from("vendor_doc_expiry").select("*").eq("vendor_id", vcode),
     supabase.from("vendor_return_history").select("*").eq("vendor_id", vid).order("returned_at", { ascending: true }),
     supabase.from("vendor_upload_failures").select("*").eq("vendor_id", vcode).order("created_at", { ascending: false }).limit(20),
+    supabase.from("vendor_submissions").select("id, kind, submitted_at, pdf_path, emailed_to, email_error").eq("vendor_id", vcode).order("submitted_at", { ascending: true }),
   ]);
   const enriched = {
     ...base.data,
@@ -6334,11 +6335,19 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
     vendor_doc_expiry:    expRows.data || [],
     vendor_return_history: retHist.data || [],
     vendor_upload_failures: upFails.data || [],
+    vendor_submissions: subs.data || [],
   };
   setSelectedVendor(enriched);
   setVendorFormPage(true);
   setFormActiveTab("hub");
 };
+
+  const openSubmissionPdf = async (path) => {
+    const tab = window.open("", "_blank");
+    const { data, error } = await supabase.storage.from("vendor-submissions").createSignedUrl(path, 300);
+    if (error || !data?.signedUrl) { tab?.close(); alert("Could not open the PDF:\n\n" + (error?.message || "no link returned")); return; }
+    if (tab) tab.location.href = data.signedUrl; else window.location.href = data.signedUrl;
+  };
 
   const recordDocCheck = async (docType, kind, on) => {
     const fields = kind === "pcab"
@@ -7282,6 +7291,29 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               );
             })()}
 
+
+            {(selectedVendor.vendor_submissions || []).length > 0 && (
+              <div style={{ marginBottom: 16, padding: "12px 16px", background: C.white, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.textPri, marginBottom: 6 }}>Submitted applications (signed PDF copies)</div>
+                {selectedVendor.vendor_submissions.map((sub, i) => (
+                  <div key={sub.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 0", borderTop: `1px solid ${C.border}`, fontSize: 12.5, flexWrap: "wrap" }}>
+                    <span>
+                      <strong>Version {i + 1}</strong>{sub.kind === "profile_update" ? " · profile update" : ""}
+                      <span style={{ color: C.textSec }}> · {fmtShort(sub.submitted_at)} {new Date(sub.submitted_at).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</span>
+                      {sub.email_error
+                        ? <span style={{ color: C.redText }}> · email to vendor failed</span>
+                        : sub.emailed_to ? <span style={{ color: C.textTer }}> · emailed to {sub.emailed_to}</span> : null}
+                    </span>
+                    {sub.pdf_path && (
+                      <button onClick={() => openSubmissionPdf(sub.pdf_path)}
+                        style={{ fontSize: 12, fontWeight: 600, color: C.coral, background: "none", border: `1px solid ${C.coral}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit" }}>
+                        Open PDF
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {(selectedVendor.vendor_upload_failures || []).length > 0 && (
               <div style={{ marginBottom: 16, padding: "12px 16px", background: C.redBg, border: "1px solid #FCA5A5", borderRadius: 10 }}>

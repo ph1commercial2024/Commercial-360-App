@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabase";
 import { resolveVendorFromTokens } from "./lib/vendorDeduplication";
 import { venCode } from "./lib/vendorCode";
 import { splitKey } from "./lib/scopeOfWorks";
+import { buildApplicationPdf, pdfFileName } from "./lib/applicationPdf";
 
 const C = {
   coral:      "#3F3F3F",
@@ -343,110 +344,6 @@ function DocUploadRow({ docType, label, note, docFiles, fileErrors, uploadedDocs
 }
 
 // ─── SIGNATURE PAD ────────────────────────────────────────────────────────────
-function SignaturePad({ value, onChange }) {
-  const canvasRef  = useRef(null);
-  const drawing    = useRef(false);
-  const lastPos    = useRef(null);
-  const hasStrokes = useRef(!!value);
-
-  // On mount: if a saved data-URL exists, paint it
-  useEffect(() => {
-    if (value && canvasRef.current) {
-      const img = new Image();
-      img.onload = () => {
-        const c = canvasRef.current;
-        if (!c) return;
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      };
-      img.src = value;
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const getXY = (e, canvas) => {
-    const r = canvas.getBoundingClientRect();
-    const sx = canvas.width  / r.width;
-    const sy = canvas.height / r.height;
-    const src = e.touches ? e.touches[0] : e;
-    return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
-  };
-
-  const onStart = useCallback((e) => {
-    e.preventDefault();
-    drawing.current = true;
-    lastPos.current = getXY(e, canvasRef.current);
-  }, []);
-
-  const onMove = useCallback((e) => {
-    e.preventDefault();
-    if (!drawing.current) return;
-    const c   = canvasRef.current;
-    const ctx = c.getContext("2d");
-    const pos = getXY(e, c);
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = "#1C1C1E";
-    ctx.lineWidth   = 2.2;
-    ctx.lineCap     = "round";
-    ctx.lineJoin    = "round";
-    ctx.stroke();
-    lastPos.current  = pos;
-    hasStrokes.current = true;
-  }, []);
-
-  const onEnd = useCallback(() => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    if (hasStrokes.current) onChange(canvasRef.current.toDataURL());
-  }, [onChange]);
-
-  const clear = () => {
-    const c = canvasRef.current;
-    c.getContext("2d").clearRect(0, 0, c.width, c.height);
-    hasStrokes.current = false;
-    onChange(null);
-  };
-
-  return (
-    <div style={{ position: "relative", userSelect: "none" }}>
-      <canvas
-        ref={canvasRef}
-        width={700} height={130}
-        onMouseDown={onStart} onMouseMove={onMove} onMouseUp={onEnd} onMouseLeave={onEnd}
-        onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}
-        style={{
-          display: "block", width: "100%", height: 110,
-          border: `1.5px solid ${value ? C.border : C.border}`,
-          borderRadius: 8, background: "#FAFAFA",
-          cursor: "crosshair", touchAction: "none",
-          boxSizing: "border-box",
-        }}
-      />
-      {!value && (
-        <div style={{
-          position: "absolute", inset: 0, display: "flex",
-          alignItems: "center", justifyContent: "center",
-          fontSize: 12, color: "#C0C0C0", pointerEvents: "none",
-        }}>
-          Draw signature here
-        </div>
-      )}
-      {value && (
-        <button
-          type="button" onClick={clear}
-          style={{
-            position: "absolute", top: 6, right: 6,
-            fontSize: 10, fontWeight: 600, padding: "2px 9px",
-            borderRadius: 5, border: `1px solid ${C.border}`,
-            background: "#fff", color: C.textTer,
-            cursor: "pointer", fontFamily: "inherit",
-          }}
-        >Clear</button>
-      )}
-    </div>
-  );
-}
-
 // ─── SHARED VENDOR PAGE HEADER ───────────────────────────────────────────────
 // singleBuName: when provided, fetches only that one BU (RFQ page).
 // When omitted, fetches all BUs (accreditation page).
@@ -2142,8 +2039,6 @@ function VendorAccreditationPage({ token }) {
   const [submitted, setSubmitted]         = useState(false);
   const [isReturned, setIsReturned]       = useState(false);
   const [returnNotes, setReturnNotes]     = useState("");
-  const [sigSalesManager, setSigSalesManager] = useState(null); // drawn signature data-URL
-  const [sigPresident, setSigPresident]       = useState(null);
   const [draftSavedAt, setDraftSavedAt]       = useState(null);
   const [draftSaving, setDraftSaving]         = useState(false);
   const [draftSaveError, setDraftSaveError]   = useState(false);
@@ -2195,6 +2090,10 @@ function VendorAccreditationPage({ token }) {
 
   const [docFiles, setDocFiles]       = useState({});
   const [docFileErrors, setDocFileErrors] = useState({});
+  // Set once every file is saved and verified: { vendorId, vendorRowId, saved: { [docType]: fileName } }
+  const [review, setReview] = useState(null);
+  const [reviewChecked, setReviewChecked] = useState(false);
+  const [emailNote, setEmailNote] = useState("");
   const [uploadedDocs, setUploadedDocs] = useState({});
   const [docExpiry, setDocExpiry]     = useState({});  // { [docType]: { loading, expiry_date, source, ai_read_date, correction_date, correction_status } }
   const [docRegInfo, setDocRegInfo]   = useState({});  // { [docType]: { reg_number, reg_date } }
@@ -2589,6 +2488,154 @@ function VendorAccreditationPage({ token }) {
       error: String(message || "unknown error").slice(0, 500),
     }).then(() => {}, () => {});
 
+  // The frozen record of what the vendor declared; the same data builds the PDF
+  const buildSnapshot = (rv, submittedAt) => {
+    const kc = form.key_contacts || {};
+    const yn = (v) => (v === "yes" ? "Yes" : v === "no" ? "No" : "—");
+    const people = [["President", kc.president], ["Accounting Manager", kc.accounting_manager], ["Sales Manager", kc.sales_manager], ["Delivery In-charge", kc.delivery_incharge], ["Technical In-charge", kc.technical_incharge]]
+      .filter(([, p]) => p?.name?.trim()).map(([r, p]) => `${r}: ${p.name.trim()}`).join(" · ");
+    const docTypes = [...new Set([...requiredDocTypes(), ...Object.keys(rv.saved)])];
+    const requiredSet = new Set(requiredDocTypes());
+    return {
+      submitted_at: submittedAt,
+      company_name: form.company_name.trim(),
+      vendor_code: rv.vendorId,
+      sections: [
+        { title: "Company information", rows: [
+          ["Company name", form.company_name.trim()],
+          ["Registered address", form.registered_address.trim()],
+          ["Email for RFQs", form.rfq_emails.filter(e => e.trim()).join(", ")],
+          ["Mobile", form.cell_number.trim()],
+          ...(form.telephone.trim() ? [["Telephone", form.telephone.trim()]] : []),
+          ["Contact person", `${form.contact_person.trim()}, ${form.contact_position.trim()}`],
+          ["Authorized representative", `${form.authorized_representative.trim()}, ${form.representative_title.trim()}`],
+          ["Vendor type", form.vendor_type || "—"],
+          ["Trades", form.trade_categories.join(", ")],
+          ["Key personnel", people || "—"],
+          ["Major clients", form.client_list.filter(r => r.name.trim()).map(r => r.name.trim()).join(" · ") || "—"],
+          ["Equipment", form.equipment_list.filter(r => r.item.trim()).map(r => r.item.trim()).join(" · ") || "—"],
+          ["Owners / stockholders", form.stockholder_list.filter(r => r.name.trim()).map(r => r.name.trim()).join(" · ") || "—"],
+        ] },
+        { title: "Tax & government", rows: [
+          ["TIN", form.tin.trim()],
+          ["Tax classification", form.tax_classification || "—"],
+          ["Registration type", form.registration_type === "SEC" ? "SEC — Corporation / Partnership" : form.registration_type === "DTI" ? "DTI — Sole Proprietorship" : "—"],
+          ["Expanded withholding tax", form.ewt_entries.filter(e => e.rate || e.description.trim()).map(e => [e.rate && `${e.rate}%`, e.description.trim()].filter(Boolean).join(" — ")).join(" · ") || "—"],
+        ] },
+        { title: "Financials & compliance", rows: [
+          ["Bank", [form.bank_name.trim(), form.bank_branch.trim()].filter(Boolean).join(" — ")],
+          ["Account name", form.bank_account_name.trim()],
+          ["Account number", form.bank_account_number.trim()],
+          ["Employees", form.num_employees || "—"],
+          ["Subsidiary of another company", form.is_subsidiary === "yes" ? `Yes — ${form.parent_company_name.trim()}` : yn(form.is_subsidiary)],
+          ["Health & Safety adviser", yn(form.has_hs_adviser)],
+          ["Health & Safety policy", yn(form.has_hs_policy)],
+          ["Quality management system", yn(form.has_qms)],
+          ...(form.has_qms === "yes" ? [["Internal QMS procedures", yn(form.has_internal_qms)]] : []),
+          ["Environmental management", yn(form.has_env_management)],
+        ] },
+      ],
+      documents: docTypes.map(d => ({
+        name: d,
+        file: rv.saved[d] || null,
+        number: docRegInfo[d]?.reg_number?.trim() || null,
+        expiry: docExpiry[d]?.expiry_date || null,
+        status: rv.saved[d] ? "Saved" : requiredSet.has(d) ? "Missing" : "Not provided",
+      })),
+      declaration: "I confirm that the above information is true and correct, and that all licenses, permits and supporting documents submitted are genuine, authentic and currently valid. I understand that a false declaration is grounds for disqualification and blacklisting. I authorize PH1 World Developers to obtain pertinent information from clients, banks, and any other source necessary for evaluation.",
+      signatures: [
+        { role: "Sales Manager", name: form.signatory_sales_manager.trim() },
+        { role: "President", name: form.signatory_president.trim() },
+      ],
+    };
+  };
+
+  const arrayBufferToBase64 = (buf) => {
+    const bytes = new Uint8Array(buf);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  };
+
+  // Final step: freeze the record, store the PDF privately, mark Submitted, email the vendor their copy
+  const confirmSubmission = async () => {
+    if (!review || submitting || !reviewChecked) return;
+    setSubmitting(true);
+    try {
+      const { vendorId, vendorRowId } = review;
+      const now = new Date().toISOString();
+      const snapshot = buildSnapshot(review, now);
+      const pdf = buildApplicationPdf(snapshot);
+      const pdfPath = `${vendorId}/${now.replace(/[:.]/g, "-")}.pdf`;
+      const { error: pdfErr } = await supabase.storage.from("vendor-submissions")
+        .upload(pdfPath, new Blob([pdf], { type: "application/pdf" }), { contentType: "application/pdf" });
+      if (pdfErr) {
+        recordUploadFailure(vendorId, "(application PDF)", null, pdfErr.message);
+        alert("We couldn't save your application copy, so it was NOT submitted. Please try again.\n\n" + pdfErr.message);
+        return;
+      }
+      const emailedTo = form.rfq_emails.filter(e => e.trim()).join(",");
+      const { data: subRow, error: subErr } = await supabase.from("vendor_submissions").insert({
+        vendor_id: vendorId, kind: isAccredited ? "profile_update" : "submission",
+        submitted_at: now, snapshot, pdf_path: pdfPath, emailed_to: emailedTo,
+      }).select("id").single();
+      if (subErr) {
+        alert("We couldn't record your submission, so it was NOT submitted. Please try again.\n\n" + subErr.message);
+        return;
+      }
+
+      // The application now counts as submitted
+      if (isAccredited) {
+        // Accredited vendor updating their profile — keep status, flag as pending update
+        await supabase.from("vendors").update({ has_pending_update: true, update_submitted_at: now }).eq("id", vendorRowId);
+      } else {
+        await supabase.from("vendors").update({ accreditation_status: "Submitted", return_notes: null }).eq("id", vendorRowId);
+        // Stamp resubmitted_at on the latest open return-history row, if this was a resubmission
+        const { data: openRow } = await supabase
+          .from("vendor_return_history").select("id")
+          .eq("vendor_id", vendorRowId).is("resubmitted_at", null)
+          .order("returned_at", { ascending: false }).limit(1).maybeSingle();
+        if (openRow) await supabase.from("vendor_return_history").update({ resubmitted_at: now }).eq("id", openRow.id);
+      }
+      await supabase.from("vendor_company_info").update({ declaration_confirmed_at: now }).eq("vendor_id", vendorId);
+
+      if (token && tokenRow && !tokenRow.vendor_id) {
+        await supabase.from("vendor_accreditation_tokens").update({
+          vendor_id: vendorId,
+          used_at: new Date().toISOString(),
+        }).eq("id", tokenRow.id);
+      }
+
+      // Email the vendor their copy; a failed email doesn't undo the submission
+      const fileName = pdfFileName(snapshot);
+      const { data: mailRes, error: mailErr } = await supabase.functions.invoke("send-email", { body: {
+        to: emailedTo,
+        subject: `Your accreditation application — ${snapshot.company_name}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#222;">
+          <h2 style="margin:0 0 12px;">Thank you for your application</h2>
+          <p>Dear <strong>${snapshot.company_name.replace(/[&<>"]/g, "")}</strong>,</p>
+          <p>We received your supplier accreditation application on <strong>${new Date(now).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "long", timeStyle: "short" })}</strong>.</p>
+          <p>Attached is a PDF copy of exactly what you submitted, including your signed declaration. Please keep it for your records.</p>
+          <p>PH1 World Developers will review your application and contact you at this email address.</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+          <p style="font-size:11px;color:#999;">PH1 World Developers · Supplier accreditation</p>
+        </div>`,
+        attachments: [{ filename: fileName, content: arrayBufferToBase64(pdf), contentType: "application/pdf" }],
+      } });
+      const mailFailed = mailErr || mailRes?.error;
+      if (mailFailed) {
+        await supabase.from("vendor_submissions").update({ email_error: String(mailErr?.message || mailRes?.error).slice(0, 500) }).eq("id", subRow.id).then(() => {}, () => {});
+      }
+      setEmailNote(mailFailed ? "" : emailedTo);
+      setReview(null);
+      setSubmitted(true);
+    } catch (err) {
+      alert("An unexpected error occurred, and your application was NOT submitted: " + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (submitting) return;
     const required = [
@@ -2839,7 +2886,7 @@ function VendorAccreditationPage({ token }) {
 
       // Every required document must actually be on the server before the application counts as submitted
       const { data: onServer, error: checkErr } = await supabase
-        .from("vendor_documents").select("document_type").eq("vendor_id", vendorId);
+        .from("vendor_documents").select("document_type, file_name").eq("vendor_id", vendorId);
       if (checkErr) { alert("We couldn't confirm your documents were saved. Please try submitting again.\n\n" + checkErr.message); return; }
       const have = new Set((onServer || []).map(d => d.document_type));
       const notOnServer = requiredDocTypes().filter(d => !have.has(d));
@@ -2852,30 +2899,10 @@ function VendorAccreditationPage({ token }) {
         return;
       }
 
-      // Everything is saved: now the application counts as submitted
-      const now = new Date().toISOString();
-      if (isAccredited) {
-        // Accredited vendor updating their profile — keep status, flag as pending update
-        await supabase.from("vendors").update({ has_pending_update: true, update_submitted_at: now }).eq("id", vendorRowId);
-      } else {
-        await supabase.from("vendors").update({ accreditation_status: "Submitted", return_notes: null }).eq("id", vendorRowId);
-        // Stamp resubmitted_at on the latest open return-history row, if this was a resubmission
-        const { data: openRow } = await supabase
-          .from("vendor_return_history").select("id")
-          .eq("vendor_id", vendorRowId).is("resubmitted_at", null)
-          .order("returned_at", { ascending: false }).limit(1).maybeSingle();
-        if (openRow) await supabase.from("vendor_return_history").update({ resubmitted_at: now }).eq("id", openRow.id);
-      }
-      await supabase.from("vendor_company_info").update({ declaration_confirmed_at: now }).eq("vendor_id", vendorId);
-
-      if (token && tokenRow && !tokenRow.vendor_id) {
-        await supabase.from("vendor_accreditation_tokens").update({
-          vendor_id: vendorId,
-          used_at: new Date().toISOString(),
-        }).eq("id", tokenRow.id);
-      }
-
-      setSubmitted(true);
+      // Everything is saved and verified: show the vendor the summary to confirm
+      setReviewChecked(false);
+      setReview({ vendorId, vendorRowId, saved: Object.fromEntries((onServer || []).map(d => [d.document_type, d.file_name])) });
+      window.scrollTo({ top: 0 });
     } catch (err) {
       alert("An unexpected error occurred: " + err.message);
     } finally {
@@ -3223,6 +3250,99 @@ function VendorAccreditationPage({ token }) {
   // Returns true when the given field key is required for the vendor's selected type
   const isFieldReq = key => !!(fieldReqs[form.vendor_type]?.[key]);
 
+  if (review && !submitted) {
+    const snap = buildSnapshot(review, new Date().toISOString());
+    const missingDocs = snap.documents.filter(d => d.status === "Missing");
+    const cardHead = (title) => (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: C.textPri }}>{title}</span>
+        <button onClick={() => setReview(null)} style={{ fontSize: 12, fontWeight: 700, color: C.coral, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontFamily: FONT }}>Edit</button>
+      </div>
+    );
+    const box = { background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" };
+    return (
+      <div style={{ minHeight: "100vh", background: C.offWhite, fontFamily: FONT, padding: "24px 16px 64px" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.textTer }}>Supplier accreditation · final step</div>
+            <h1 style={{ fontSize: 24, margin: "4px 0", color: C.textPri }}>Review your application</h1>
+            <p style={{ margin: 0, color: C.textSec, fontSize: 14 }}>Read it once, top to bottom. This is exactly what PH1 World Developers will receive, and a PDF copy will be emailed to you. Use Edit to change anything before you submit.</p>
+          </div>
+
+          {missingDocs.length
+            ? <div style={{ background: C.redBg, color: C.redText, border: `1px solid ${C.redText}`, borderRadius: 10, padding: "11px 14px", fontSize: 13 }}><strong>You can't submit yet.</strong> Missing: {missingDocs.map(d => d.name).join(", ")}.</div>
+            : <div style={{ background: C.greenBg, color: C.greenText, border: `1px solid ${C.greenText}`, borderRadius: 10, padding: "11px 14px", fontSize: 13 }}><strong>✓ All required documents are saved on our server.</strong> <span style={{ color: C.textPri }}>{snap.documents.filter(d => d.file).length} documents · registration type {form.registration_type || "—"}</span></div>}
+
+          {snap.sections.map(sec => (
+            <section key={sec.title} style={box}>
+              {cardHead(sec.title)}
+              <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "minmax(140px, 32%) 1fr", gap: "6px 16px", fontSize: 13 }}>
+                {sec.rows.map(([k, v]) => (
+                  <React.Fragment key={k}>
+                    <span style={{ color: C.textSec }}>{k}</span>
+                    <span style={{ color: C.textPri, fontWeight: k === "Registration type" ? 700 : 400, overflowWrap: "anywhere" }}>{v || "—"}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </section>
+          ))}
+
+          <section style={box}>
+            {cardHead("Documents")}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 560 }}>
+                <thead><tr>{["Document", "File", "Number", "Expires", "Status"].map(h => <th key={h} style={{ textAlign: "left", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTer, padding: "7px 12px", background: C.surface }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {snap.documents.map(d => (
+                    <tr key={d.name}>
+                      <td style={{ padding: "7px 12px", borderTop: `1px solid ${C.border}` }}>{d.name}</td>
+                      <td style={{ padding: "7px 12px", borderTop: `1px solid ${C.border}`, color: d.file ? C.textPri : C.textTer, overflowWrap: "anywhere" }}>{d.file || "—"}</td>
+                      <td style={{ padding: "7px 12px", borderTop: `1px solid ${C.border}` }}>{d.number || ""}</td>
+                      <td style={{ padding: "7px 12px", borderTop: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{d.expiry ? new Date(d.expiry + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}</td>
+                      <td style={{ padding: "7px 12px", borderTop: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 999, padding: "1px 8px",
+                          background: d.status === "Saved" ? C.greenBg : d.status === "Missing" ? C.redBg : C.surface,
+                          color: d.status === "Saved" ? C.greenText : d.status === "Missing" ? C.redText : C.textSec }}>{d.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: "8px 16px 12px", fontSize: 12, color: C.textSec }}>Check that every expiry date matches the document itself. PH1 checks each one before accrediting.</div>
+          </section>
+
+          <section style={box}>
+            {cardHead("Declaration")}
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 13, background: C.surface, borderRadius: 8, padding: "10px 12px", color: C.textPri }}>{snap.declaration}</div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTer, marginBottom: 4 }}>Confirmed by</div>
+                {snap.signatures.map(sg => (
+                  <div key={sg.role} style={{ fontSize: 13.5, color: C.textPri }}><strong>{sg.name}</strong> <span style={{ color: C.textSec }}>— {sg.role}</span></div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", border: `1px solid ${C.borderMid}`, borderRadius: 10, background: C.white, fontSize: 14, cursor: missingDocs.length ? "not-allowed" : "pointer", opacity: missingDocs.length ? 0.5 : 1 }}>
+            <input type="checkbox" checked={reviewChecked} disabled={!!missingDocs.length} onChange={e => setReviewChecked(e.target.checked)} style={{ width: 17, height: 17, marginTop: 2, accentColor: C.coral, flexShrink: 0 }} />
+            <span>I have reviewed this summary. The information and documents are true, complete and currently valid.</span>
+          </label>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setReview(null)} disabled={submitting} style={{ flex: 1, padding: "13px 0", background: C.white, color: C.coral, border: `1px solid ${C.coral}`, borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Edit something</button>
+            <button onClick={confirmSubmission} disabled={submitting || !reviewChecked || !!missingDocs.length}
+              style={{ flex: 2, padding: "13px 0", background: C.coral, color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, fontFamily: FONT,
+                cursor: submitting || !reviewChecked || missingDocs.length ? "not-allowed" : "pointer", opacity: submitting || !reviewChecked || missingDocs.length ? 0.45 : 1 }}>
+              {submitting ? "Submitting…" : isAccredited ? "Confirm and submit update" : "Confirm and submit"}
+            </button>
+          </div>
+          <p style={{ textAlign: "center", fontSize: 12, color: C.textSec, margin: 0 }}>After you submit, this summary is saved with your names and the date and time, and a PDF copy is emailed to {form.rfq_emails.filter(e => e.trim()).join(", ")}.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.offWhite, fontFamily: FONT }}>
       <div style={{ ...S.card, maxWidth: 480, textAlign: "center" }}>
@@ -3235,6 +3355,9 @@ function VendorAccreditationPage({ token }) {
             ? <>Thank you, <strong>{form.company_name}</strong>. Your profile update has been sent to our team for review. We will notify you once it has been acknowledged.</>
             : <>Thank you, <strong>{form.company_name}</strong>. Your accreditation application has been received and is under review. We will get in touch with you at <strong>{form.rfq_emails.filter(e => e.trim()).join(", ")}</strong>.</>
           }
+          {emailNote
+            ? <><br /><br />A PDF copy of your application was emailed to <strong>{emailNote}</strong>.</>
+            : <><br /><br />We couldn't email your PDF copy, but your application was received and saved.</>}
           {token && <><br /><br />You may revisit this link at any time to check your status or make further updates.</>}
         </div>
       </div>
@@ -3369,7 +3492,6 @@ function VendorAccreditationPage({ token }) {
             tax_gov:        ((taxInfoFilled / taxInfoTotal) + (govTotal > 0 ? govFilled / govTotal : 0)) / 2 * 100,
             fin_compliance: finReqDocs.length > 0 ? finReqUploaded / finReqDocs.length * 100 : 100,
             declaration:    (form.declaration_confirmed && form.authorization_confirmed &&
-                             !!sigSalesManager && !!sigPresident &&
                              !!form.signatory_sales_manager.trim() && !!form.signatory_president.trim()) ? 100 : 0,
           };
 
@@ -4869,7 +4991,6 @@ function VendorAccreditationPage({ token }) {
           const complianceYesNoOk = !!form.has_hs_adviser && !!form.has_hs_policy && !!form.has_qms &&
             (form.has_qms !== "yes" || !!form.has_internal_qms) && !!form.has_env_management;
           const declarationOk  = form.declaration_confirmed && form.authorization_confirmed &&
-            !!sigSalesManager && !!sigPresident &&
             !!form.signatory_sales_manager.trim() && !!form.signatory_president.trim();
           // All fields marked * in the UI must be satisfied here so the Submit button
           // stays disabled until the form is genuinely complete.
@@ -4906,28 +5027,24 @@ function VendorAccreditationPage({ token }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
                 {/* Sales Manager */}
                 <div>
-                  <SignaturePad value={sigSalesManager} onChange={setSigSalesManager} />
-                  <div style={{ borderTop: `1.5px solid ${C.textPri}`, marginTop: 8 }} />
                   <input
                     value={form.signatory_sales_manager}
                     onChange={e => setField("signatory_sales_manager", e.target.value)}
-                    style={{ ...S.input, margin: "4px 0 0", textAlign: "center", border: "none", borderRadius: 0, background: "transparent", padding: "0 0 2px" }}
-                    placeholder="Printed name"
+                    style={{ ...S.input, margin: "4px 0 0", textAlign: "center" }}
+                    placeholder="Full name"
                   />
-                  <div style={{ fontSize: 11, color: C.textSec, marginTop: 3, fontWeight: 600, textAlign: "center" }}>Signature over Printed Name</div>
+                  <div style={{ fontSize: 11, color: C.textSec, marginTop: 3, fontWeight: 600, textAlign: "center" }}>Full name</div>
                   <div style={{ fontSize: 11, color: C.textTer, textAlign: "center" }}>Sales Manager</div>
                 </div>
                 {/* President / CEO */}
                 <div>
-                  <SignaturePad value={sigPresident} onChange={setSigPresident} />
-                  <div style={{ borderTop: `1.5px solid ${C.textPri}`, marginTop: 8 }} />
                   <input
                     value={form.signatory_president}
                     onChange={e => setField("signatory_president", e.target.value)}
-                    style={{ ...S.input, margin: "4px 0 0", textAlign: "center", border: "none", borderRadius: 0, background: "transparent", padding: "0 0 2px" }}
-                    placeholder="Printed name"
+                    style={{ ...S.input, margin: "4px 0 0", textAlign: "center" }}
+                    placeholder="Full name"
                   />
-                  <div style={{ fontSize: 11, color: C.textSec, marginTop: 3, fontWeight: 600, textAlign: "center" }}>Signature over Printed Name</div>
+                  <div style={{ fontSize: 11, color: C.textSec, marginTop: 3, fontWeight: 600, textAlign: "center" }}>Full name</div>
                   <div style={{ fontSize: 11, color: C.textTer, textAlign: "center" }}>President / Chief Executive Officer</div>
                 </div>
               </div>
@@ -4978,7 +5095,7 @@ function VendorAccreditationPage({ token }) {
               boxShadow: disabled ? "none" : "0 4px 16px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1)",
               transition: "background 0.2s, color 0.2s, box-shadow 0.2s",
             }}>
-              {submitting ? "Submitting…" : isAccredited ? "Submit Update" : isReturned ? "Resubmit Application" : "Submit Application"}
+              {submitting ? "Saving your documents…" : "Review my application →"}
             </button>
             {!requiredOk && !submitting && (
               <p style={{ fontSize: 11, color: C.amberText, textAlign: "center", marginTop: 10 }}>

@@ -11,7 +11,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { to, subject, html } = await req.json();
+    const { to, subject, html, attachments } = await req.json();
+    // Optional attachments: [{ filename, content (base64), contentType }], at most 3 files of 8 MB each
+    const files = Array.isArray(attachments) ? attachments.slice(0, 3)
+      .filter((a) => a?.filename && typeof a.content === "string" && a.content.length <= 8 * 1024 * 1024 * 1.4)
+      .map((a) => ({ filename: String(a.filename).slice(0, 120), content: a.content, encoding: "base64", contentType: a.contentType || "application/octet-stream" }))
+      : [];
     const user = Deno.env.get("GMAIL_USER")!;
     const pass = Deno.env.get("GMAIL_APP_PASSWORD")!;
 
@@ -25,7 +30,7 @@ Deno.serve(async (req) => {
       auth: { user, pass },
     });
 
-    const info = await transporter.sendMail({ from: user, to, subject, html });
+    const info = await transporter.sendMail({ from: user, to, subject, html, ...(files.length ? { attachments: files } : {}) });
     console.log("send-email: sent OK", info.messageId);
 
     return new Response(JSON.stringify({ success: true, messageId: info.messageId }), {
