@@ -207,7 +207,22 @@ function govDocsForType(vendorType) {
   });
 }
 
-function DocUploadRow({ docType, label, note, docFiles, uploadedDocs, handleDocFile, onDelete, expiryInfo, onExpiryChange, required, showRegInfo, regInfo, onRegInfoChange, minDaysValid, accept = ".pdf" }) {
+const MAX_UPLOAD_MB = 30;
+
+/** Returns a message if a file can't be accepted, or null if it's fine. */
+async function checkUploadFile(file) {
+  const name = file?.name || "This file";
+  const ext = name.includes(".") ? name.split(".").pop().toLowerCase() : "";
+  if (!["pdf", "jpg", "jpeg", "png"].includes(ext)) return `"${name}" isn't a PDF, JPG or PNG file. Save it as a PDF on your computer and attach it again.`;
+  if (!file.size) return `"${name}" is empty. Please attach the complete file.`;
+  if (file.size > MAX_UPLOAD_MB * 1048576) return `"${name}" is ${(file.size / 1048576).toFixed(1)} MB. The limit is ${MAX_UPLOAD_MB} MB. Please attach a smaller or compressed copy.`;
+  try { await file.slice(0, 1024).arrayBuffer(); } catch {
+    return `We couldn't read "${name}". If it's in OneDrive or Google Drive, download it to your computer first, then attach it again.`;
+  }
+  return null;
+}
+
+function DocUploadRow({ docType, label, note, docFiles, fileErrors, uploadedDocs, handleDocFile, onDelete, expiryInfo, onExpiryChange, required, showRegInfo, regInfo, onRegInfoChange, minDaysValid, accept = ".pdf" }) {
   const file      = docFiles[docType];
   const existing  = uploadedDocs[docType];
   const hasFile   = !!file || !!existing;
@@ -241,7 +256,8 @@ function DocUploadRow({ docType, label, note, docFiles, uploadedDocs, handleDocF
               <a href={existing.url} target="_blank" rel="noreferrer" style={{ color: C.coral, textDecoration: "none", fontWeight: 600 }}>View</a>
             </div>
           )}
-          {!file && !existing && <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>Not yet uploaded</div>}
+          {!file && !existing && !fileErrors?.[docType] && <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>Not yet uploaded</div>}
+          {fileErrors?.[docType] && <div style={{ fontSize: 11.5, color: C.redText, marginTop: 3, lineHeight: 1.45, fontWeight: 600 }}>✕ {fileErrors[docType]}</div>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
           {hasFile && onDelete && (
@@ -2178,6 +2194,7 @@ function VendorAccreditationPage({ token }) {
   });
 
   const [docFiles, setDocFiles]       = useState({});
+  const [docFileErrors, setDocFileErrors] = useState({});
   const [uploadedDocs, setUploadedDocs] = useState({});
   const [docExpiry, setDocExpiry]     = useState({});  // { [docType]: { loading, expiry_date, source, ai_read_date, correction_date, correction_status } }
   const [docRegInfo, setDocRegInfo]   = useState({});  // { [docType]: { reg_number, reg_date } }
@@ -2354,7 +2371,12 @@ function VendorAccreditationPage({ token }) {
 
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  const handleDocFile = (docType, file) => setDocFiles(p => ({ ...p, [docType]: file }));
+  const handleDocFile = async (docType, file) => {
+    if (!file) return;
+    const problem = await checkUploadFile(file);
+    setDocFileErrors(p => { const n = { ...p }; if (problem) n[docType] = problem; else delete n[docType]; return n; });
+    if (!problem) setDocFiles(p => ({ ...p, [docType]: file }));
+  };
 
   const handleDeleteDoc = (docType) => {
     const gone = docType === "PCAB License" ? [docType, PCAB_PROOF_DOC] : [docType];
@@ -2547,6 +2569,26 @@ function VendorAccreditationPage({ token }) {
     }
   };
 
+  const requiredDocTypes = () => {
+    const regType = form.registration_type;
+    const gov = !regType ? [] : govDocsForType(form.vendor_type).filter(d => {
+      if (GOV_DOCS_OPTIONAL.has(d)) return false;
+      if (GOV_DOCS_SEC_ONLY.has(d)) return regType === "SEC";
+      return true;
+    });
+    const fin = FIN_DOCS.filter(d => FIN_DOCS_ALWAYS_REQUIRED.has(d) || (regType === "SEC" && FIN_DOCS_SEC_REQUIRED.has(d)));
+    const list = [...COMPANY_ID_DOCS, ...COMPANY_PROFILE_DOCS, ...gov, ...fin];
+    if (docFiles["PCAB License"] || uploadedDocs["PCAB License"]) list.push(PCAB_PROOF_DOC);
+    return list;
+  };
+
+  // Failed uploads are recorded so the team can see them; a failure to record must not block the vendor
+  const recordUploadFailure = (vendorId, docType, file, message) =>
+    supabase.from("vendor_upload_failures").insert({
+      vendor_id: vendorId, doc_type: docType, file_name: file?.name || null, file_size: file?.size ?? null,
+      error: String(message || "unknown error").slice(0, 500),
+    }).then(() => {}, () => {});
+
   const handleSubmit = async () => {
     if (submitting) return;
     const required = [
@@ -2596,6 +2638,13 @@ function VendorAccreditationPage({ token }) {
     if (!(docFiles["Organizational Chart"] || uploadedDocs["Organizational Chart"]))
       missing.push("Organizational Chart document");
 
+    // Government and financial documents required for this registration type
+    requiredDocTypes()
+      .filter(d => !COMPANY_ID_DOCS.includes(d) && !COMPANY_PROFILE_DOCS.includes(d) && d !== PCAB_PROOF_DOC)
+      .filter(d => !(docFiles[d] || uploadedDocs[d]))
+      .forEach(d => missing.push(`${d} (upload required)`));
+    if (!form.registration_type) missing.push("Registration type (DTI / SEC)");
+
     // The PCAB online proof is required whenever a PCAB License is uploaded
     if ((docFiles["PCAB License"] || uploadedDocs["PCAB License"]) && !(docFiles[PCAB_PROOF_DOC] || uploadedDocs[PCAB_PROOF_DOC]))
       missing.push("PCAB online verification result (upload a screenshot or PDF from the PCAB website)");
@@ -2640,11 +2689,12 @@ function VendorAccreditationPage({ token }) {
     try {
       let vendorId = existingVendor?.vendor_code || null;
 
+      let vendorRowId = existingVendor?.id ?? null;
       if (!vendorId) {
-        // Brand-new vendor — first submission
+        // Brand-new vendor: create the record as a Draft; it becomes Submitted only once everything is saved
         const { data: vRow, error: vErr } = await supabase
           .from("vendors")
-          .insert({ accreditation_status: "Submitted", profile_id: null })
+          .insert({ accreditation_status: "Draft", profile_id: null })
           .select("id, vendor_code")
           .single();
         if (vErr || !vRow) {
@@ -2652,32 +2702,8 @@ function VendorAccreditationPage({ token }) {
           return;
         }
         vendorId = vRow.vendor_code || venCode(vRow.id);
-      } else if (isAccredited) {
-        // Accredited vendor updating their profile — keep status, flag as pending update
-        await supabase.from("vendors").update({
-          has_pending_update: true,
-          update_submitted_at: new Date().toISOString(),
-        }).eq("id", existingVendor.id);          // integer PK, not vendor_code
-      } else {
-        // Resubmission after return
-        await supabase.from("vendors").update({
-          accreditation_status: "Submitted",
-          return_notes: null,
-        }).eq("id", existingVendor.id);           // integer PK, not vendor_code
-        // Stamp resubmitted_at on the latest open history row
-        const { data: openRow } = await supabase
-          .from("vendor_return_history")
-          .select("id")
-          .eq("vendor_id", existingVendor.id)
-          .is("resubmitted_at", null)
-          .order("returned_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (openRow) {
-          await supabase.from("vendor_return_history")
-            .update({ resubmitted_at: new Date().toISOString() })
-            .eq("id", openRow.id);
-        }
+        vendorRowId = vRow.id;
+        setExistingVendor({ id: vRow.id, vendor_code: vendorId, accreditation_status: "Draft" });
       }
 
       const ciPayload = {
@@ -2722,7 +2748,6 @@ function VendorAccreditationPage({ token }) {
         has_env_management: form.has_env_management === "yes" ? true : form.has_env_management === "no" ? false : null,
         signatory_sales_manager: form.signatory_sales_manager.trim() || null,
         signatory_president: form.signatory_president.trim() || null,
-        declaration_confirmed_at: new Date().toISOString(),
       };
       const { data: existingCI } = await supabase
         .from("vendor_company_info")
@@ -2735,59 +2760,54 @@ function VendorAccreditationPage({ token }) {
         await supabase.from("vendor_company_info").insert(ciPayload);
       }
 
+      // Upload every attached file. A failure stops the submission; files that did upload are kept.
+      const failures = [];
+      const uploadOne = async (docType, file, path) => {
+        try {
+          const { error: upErr } = await supabase.storage.from("vendor-documents").upload(path, file, { upsert: true });
+          if (upErr) throw upErr;
+          const { data: urlData } = supabase.storage.from("vendor-documents").getPublicUrl(path);
+          const { data: existingDoc } = await supabase
+            .from("vendor_documents").select("id")
+            .eq("vendor_id", vendorId).eq("document_type", docType).maybeSingle();
+          const row = { file_url: urlData.publicUrl, file_name: file.name, uploaded_at: new Date().toISOString() };
+          const { error: dbErr } = existingDoc
+            ? await supabase.from("vendor_documents").update(row).eq("id", existingDoc.id)
+            : await supabase.from("vendor_documents").insert({ vendor_id: vendorId, document_type: docType, ...row });
+          if (dbErr) throw dbErr;
+          return { url: urlData.publicUrl, name: file.name };
+        } catch (e) {
+          const message = e?.message || String(e);
+          console.error("Upload failed for", docType, message);
+          failures.push({ docType, fileName: file.name, message });
+          recordUploadFailure(vendorId, docType, file, message);
+          return null;
+        }
+      };
+      // The storage path takes only a clean extension; a file name without ".pdf" used to make an invalid path
+      const cleanExt = (name, fallback) => {
+        const ext = name.includes(".") ? name.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+        return ext || fallback;
+      };
+
       for (const docType of ACCREDITATION_DOCS) {
         const file = docFiles[docType];
         if (!file) continue;
-        const ext = file.name.split(".").pop();
         const safeName = docType.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-        const path = `vendor-docs/${vendorId}/${safeName}-${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("vendor-documents").upload(path, file, { upsert: true });
-        if (upErr) { console.error("Upload failed for", docType, upErr.message); continue; }
-        const { data: urlData } = supabase.storage.from("vendor-documents").getPublicUrl(path);
-        const { data: existingDoc } = await supabase
-          .from("vendor_documents")
-          .select("id")
-          .eq("vendor_id", vendorId)
-          .eq("document_type", docType)
-          .maybeSingle();
-        if (existingDoc) {
-          await supabase.from("vendor_documents").update({
-            file_url: urlData.publicUrl,
-            file_name: file.name,
-            uploaded_at: new Date().toISOString(),
-          }).eq("id", existingDoc.id);
-        } else {
-          await supabase.from("vendor_documents").insert({
-            vendor_id: vendorId,
-            document_type: docType,
-            file_url: urlData.publicUrl,
-            file_name: file.name,
-            uploaded_at: new Date().toISOString(),
-          });
+        const saved = await uploadOne(docType, file, `vendor-docs/${vendorId}/${safeName}-${Date.now()}.${cleanExt(file.name, "pdf")}`);
+        if (saved) {
+          setUploadedDocs(p => ({ ...p, [docType]: saved }));
+          setDocFiles(p => { const n = { ...p }; delete n[docType]; return n; });
         }
       }
 
-      // Upload EWT proof documents
       for (let i = 0; i < form.ewt_entries.length; i++) {
         const file = ewtFiles[i];
         if (!file) continue;
-        const docType = `EWT Proof ${i + 1}`;
-        const path = `vendor-docs/${vendorId}/ewt_proof_${i + 1}-${Date.now()}.pdf`;
-        const { error: upErr } = await supabase.storage.from("vendor-documents").upload(path, file, { upsert: true });
-        if (upErr) { console.error("EWT upload failed for", docType, upErr.message); continue; }
-        const { data: urlData } = supabase.storage.from("vendor-documents").getPublicUrl(path);
-        const { data: existingDoc } = await supabase
-          .from("vendor_documents").select("id")
-          .eq("vendor_id", vendorId).eq("document_type", docType).maybeSingle();
-        if (existingDoc) {
-          await supabase.from("vendor_documents").update({
-            file_url: urlData.publicUrl, file_name: file.name, uploaded_at: new Date().toISOString(),
-          }).eq("id", existingDoc.id);
-        } else {
-          await supabase.from("vendor_documents").insert({
-            vendor_id: vendorId, document_type: docType,
-            file_url: urlData.publicUrl, file_name: file.name, uploaded_at: new Date().toISOString(),
-          });
+        const saved = await uploadOne(`EWT Proof ${i + 1}`, file, `vendor-docs/${vendorId}/ewt_proof_${i + 1}-${Date.now()}.${cleanExt(file.name, "pdf")}`);
+        if (saved) {
+          setUploadedEwtDocs(prev => { const arr = [...prev]; arr[i] = saved; return arr; });
+          setEwtFiles(prev => { const arr = [...prev]; arr[i] = null; return arr; });
         }
       }
 
@@ -2807,6 +2827,46 @@ function VendorAccreditationPage({ token }) {
         }, { onConflict: "vendor_id,doc_type" });
         if (expiryErr) console.error("vendor_doc_expiry upsert failed for", docType, expiryErr.message);
       }
+
+      if (failures.length) {
+        alert(
+          "Your application was NOT submitted because these files could not be uploaded:\n\n" +
+          failures.map(f => `• ${f.docType} ("${f.fileName}"): ${f.message}`).join("\n") +
+          "\n\nYour other files were saved. Please save the files above as PDF on your computer, attach them again, and submit again."
+        );
+        return;
+      }
+
+      // Every required document must actually be on the server before the application counts as submitted
+      const { data: onServer, error: checkErr } = await supabase
+        .from("vendor_documents").select("document_type").eq("vendor_id", vendorId);
+      if (checkErr) { alert("We couldn't confirm your documents were saved. Please try submitting again.\n\n" + checkErr.message); return; }
+      const have = new Set((onServer || []).map(d => d.document_type));
+      const notOnServer = requiredDocTypes().filter(d => !have.has(d));
+      if (notOnServer.length) {
+        recordUploadFailure(vendorId, "(final check)", null, "Required documents missing after upload: " + notOnServer.join(", "));
+        alert(
+          "Your application was NOT submitted. These required documents are not saved yet:\n\n• " + notOnServer.join("\n• ") +
+          "\n\nPlease attach them again and submit again."
+        );
+        return;
+      }
+
+      // Everything is saved: now the application counts as submitted
+      const now = new Date().toISOString();
+      if (isAccredited) {
+        // Accredited vendor updating their profile — keep status, flag as pending update
+        await supabase.from("vendors").update({ has_pending_update: true, update_submitted_at: now }).eq("id", vendorRowId);
+      } else {
+        await supabase.from("vendors").update({ accreditation_status: "Submitted", return_notes: null }).eq("id", vendorRowId);
+        // Stamp resubmitted_at on the latest open return-history row, if this was a resubmission
+        const { data: openRow } = await supabase
+          .from("vendor_return_history").select("id")
+          .eq("vendor_id", vendorRowId).is("resubmitted_at", null)
+          .order("returned_at", { ascending: false }).limit(1).maybeSingle();
+        if (openRow) await supabase.from("vendor_return_history").update({ resubmitted_at: now }).eq("id", openRow.id);
+      }
+      await supabase.from("vendor_company_info").update({ declaration_confirmed_at: now }).eq("vendor_id", vendorId);
 
       if (token && tokenRow && !tokenRow.vendor_id) {
         await supabase.from("vendor_accreditation_tokens").update({
@@ -3911,7 +3971,7 @@ function VendorAccreditationPage({ token }) {
               <p style={{ ...S.hint, marginBottom: 8 }}>Upload two valid government IDs (e.g. passport, driver's license, SSS, PhilHealth, Pag-IBIG, PRC, voter's ID). Each must include the expiry date.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {COMPANY_ID_DOCS.map(docType => (
-                  <DocUploadRow key={docType} docType={docType} docFiles={docFiles} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} expiryInfo={docExpiry[docType]} onExpiryChange={handleExpiryChange} required minDaysValid={60} />
+                  <DocUploadRow key={docType} docType={docType} docFiles={docFiles} fileErrors={docFileErrors} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} expiryInfo={docExpiry[docType]} onExpiryChange={handleExpiryChange} required minDaysValid={60} />
                 ))}
               </div>
             </div>
@@ -4092,7 +4152,7 @@ function VendorAccreditationPage({ token }) {
               <label style={S.label}>Company Profile & Organizational Chart <span style={S.required}>*</span></label>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
                 {["Company Profile", "Organizational Chart"].map(docType => (
-                  <DocUploadRow key={docType} docType={docType} docFiles={docFiles} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
+                  <DocUploadRow key={docType} docType={docType} docFiles={docFiles} fileErrors={docFileErrors} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
                 ))}
               </div>
             </div>
@@ -4319,8 +4379,12 @@ function VendorAccreditationPage({ token }) {
                           <span style={{ fontSize: 12, fontWeight: 600, color: hasFile ? C.greenText : C.coral, border: `1px solid ${hasFile ? "#86EFAC" : C.coral}40`, borderRadius: 6, padding: "4px 10px", background: hasFile ? C.greenBg : C.coralLight }}>
                             {hasFile ? "Replace" : "Upload"}
                           </span>
-                          <input type="file" accept=".pdf" style={{ display: "none" }} onChange={e => {
+                          <input type="file" accept=".pdf" style={{ display: "none" }} onChange={async e => {
                             const f = e.target.files[0] || null;
+                            e.target.value = "";
+                            if (!f) return;
+                            const problem = await checkUploadFile(f);
+                            if (problem) { alert(problem); return; }
                             setEwtFiles(prev => { const a = [...prev]; a[i] = f; return a; });
                           }} />
                         </label>
@@ -4410,7 +4474,7 @@ function VendorAccreditationPage({ token }) {
                         docType={docType}
                         label={displayLabel}
                         note={classBNote ?? (GOV_DOCS_OPTIONAL.has(docType) ? "Optional — submit if available." : undefined)}
-                        docFiles={docFiles}
+                        docFiles={docFiles} fileErrors={docFileErrors}
                         uploadedDocs={uploadedDocs}
                         handleDocFile={handleDocFile}
                         expiryInfo={docExpiry[docType]}
@@ -4427,7 +4491,7 @@ function VendorAccreditationPage({ token }) {
                           label="PCAB online verification result"
                           note="Search your license number at pcab.construction.gov.ph/verify, then upload a screenshot or PDF of the result (taken within the last 30 days). Enter the Valid To date shown there as the expiry date."
                           accept=".pdf,.png,.jpg,.jpeg"
-                          docFiles={docFiles}
+                          docFiles={docFiles} fileErrors={docFileErrors}
                           uploadedDocs={uploadedDocs}
                           handleDocFile={handleDocFile}
                           expiryInfo={docExpiry[PCAB_PROOF_DOC]}
@@ -4500,7 +4564,7 @@ function VendorAccreditationPage({ token }) {
                 <DocUploadRow
                   key={docType}
                   docType={docType}
-                  docFiles={docFiles}
+                  docFiles={docFiles} fileErrors={docFileErrors}
                   uploadedDocs={uploadedDocs}
                   handleDocFile={handleDocFile}
                   onDelete={handleDeleteDoc}
@@ -4657,7 +4721,7 @@ function VendorAccreditationPage({ token }) {
                 ))}
               </div>
               {form.has_hs_policy === "yes" && (
-                <DocUploadRow docType="H&S Policy Statement" docFiles={docFiles} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
+                <DocUploadRow docType="H&S Policy Statement" docFiles={docFiles} fileErrors={docFileErrors} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
               )}
             </div>
           </div>
@@ -4684,7 +4748,7 @@ function VendorAccreditationPage({ token }) {
                 ))}
               </div>
               {form.has_qms === "yes" && (
-                <DocUploadRow docType="QMS Certificate" docFiles={docFiles} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
+                <DocUploadRow docType="QMS Certificate" docFiles={docFiles} fileErrors={docFileErrors} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
               )}
             </div>
             {/* Internal QMS — only shown if no formal QMS */}
@@ -4705,7 +4769,7 @@ function VendorAccreditationPage({ token }) {
                   ))}
                 </div>
                 {form.has_internal_qms === "yes" && (
-                  <DocUploadRow docType="Internal QMS Procedures" docFiles={docFiles} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
+                  <DocUploadRow docType="Internal QMS Procedures" docFiles={docFiles} fileErrors={docFileErrors} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
                 )}
               </div>
             )}
@@ -4726,7 +4790,7 @@ function VendorAccreditationPage({ token }) {
                 ))}
               </div>
               {form.has_env_management === "yes" && (
-                <DocUploadRow docType="Environmental Management Policy" docFiles={docFiles} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
+                <DocUploadRow docType="Environmental Management Policy" docFiles={docFiles} fileErrors={docFileErrors} uploadedDocs={uploadedDocs} handleDocFile={handleDocFile} onDelete={handleDeleteDoc} />
               )}
             </div>
           </div>

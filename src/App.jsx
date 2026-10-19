@@ -6303,7 +6303,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const openDetail = async (v) => {
   const vid = v.id;
   const vcode = vendorRef(v);
-  const [base, ci, ow, pj, cl, co, af, hq, rg, docs, prof, expRows, retHist] = await Promise.all([
+  const [base, ci, ow, pj, cl, co, af, hq, rg, docs, prof, expRows, retHist, upFails] = await Promise.all([
     supabase.from("vendors").select("*").eq("id", vid).single(),
     supabase.from("vendor_company_info").select("*").eq("vendor_id", vcode).maybeSingle(),
     supabase.from("vendor_owners").select("*").eq("vendor_id", vcode).order("id"),
@@ -6317,6 +6317,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
     v.profile_id ? supabase.from("profiles").select("id, full_name, position").eq("id", v.profile_id).single() : Promise.resolve({ data: null }),
     supabase.from("vendor_doc_expiry").select("*").eq("vendor_id", vcode),
     supabase.from("vendor_return_history").select("*").eq("vendor_id", vid).order("returned_at", { ascending: true }),
+    supabase.from("vendor_upload_failures").select("*").eq("vendor_id", vcode).order("created_at", { ascending: false }).limit(20),
   ]);
   const enriched = {
     ...base.data,
@@ -6332,6 +6333,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
     profiles:             prof.data || null,
     vendor_doc_expiry:    expRows.data || [],
     vendor_return_history: retHist.data || [],
+    vendor_upload_failures: upFails.data || [],
   };
   setSelectedVendor(enriched);
   setVendorFormPage(true);
@@ -7280,6 +7282,23 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               );
             })()}
 
+
+            {(selectedVendor.vendor_upload_failures || []).length > 0 && (
+              <div style={{ marginBottom: 16, padding: "12px 16px", background: C.redBg, border: "1px solid #FCA5A5", borderRadius: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.redText, marginBottom: 6 }}>
+                  Upload problems the vendor ran into ({selectedVendor.vendor_upload_failures.length}{selectedVendor.vendor_upload_failures.length === 20 ? "+" : ""})
+                </div>
+                {selectedVendor.vendor_upload_failures.map(f => (
+                  <div key={f.id} style={{ fontSize: 12, color: C.textPri, padding: "4px 0", borderTop: `1px solid #FCA5A5` }}>
+                    <span style={{ color: C.textTer }}>{fmtShort(f.created_at)} {new Date(f.created_at).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</span>
+                    {" · "}<strong>{f.doc_type || "—"}</strong>
+                    {f.file_name && <> · "{f.file_name}"{f.file_size ? ` (${(f.file_size / 1048576).toFixed(1)} MB)` : ""}</>}
+                    <div style={{ fontSize: 11.5, color: C.redText }}>{f.error}</div>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: C.textSec, marginTop: 6 }}>The vendor was told about each of these and their application was not submitted until they were fixed.</div>
+              </div>
+            )}
 
             {["Submitted", "Under Review"].includes(selectedVendor.accreditation_status) && (() => {
               const pending = pendingDocChecks(selectedVendor);
