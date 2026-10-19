@@ -17,6 +17,25 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     )
 
+    // Only a logged-in administrator may create accounts
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "")
+    const { data: callerData } = await supabaseAdmin.auth.getUser(token)
+    const caller = callerData?.user
+    if (!caller) {
+      return new Response(
+        JSON.stringify({ error: "Please log in again." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles").select("is_admin, is_active").eq("id", caller.id).maybeSingle()
+    if (!callerProfile?.is_admin || callerProfile.is_active === false) {
+      return new Response(
+        JSON.stringify({ error: "Only administrators can create users." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     const { email, password, full_name, position, is_admin } = await req.json()
 
     if (!email || !password || !full_name) {

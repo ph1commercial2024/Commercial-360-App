@@ -3,7 +3,7 @@ import { supabase } from "./lib/supabase";
 import { resolveVendorFromTokens } from "./lib/vendorDeduplication";
 import { venCode } from "./lib/vendorCode";
 import { splitKey } from "./lib/scopeOfWorks";
-import { buildApplicationPdf, pdfFileName } from "./lib/applicationPdf";
+import { buildApplicationPdf } from "./lib/applicationPdf";
 
 const C = {
   coral:      "#3F3F3F",
@@ -2550,12 +2550,6 @@ function VendorAccreditationPage({ token }) {
     };
   };
 
-  const arrayBufferToBase64 = (buf) => {
-    const bytes = new Uint8Array(buf);
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    return btoa(bin);
-  };
 
   // Final step: freeze the record, store the PDF privately, mark Submitted, email the vendor their copy
   const confirmSubmission = async () => {
@@ -2574,10 +2568,9 @@ function VendorAccreditationPage({ token }) {
         alert("We couldn't save your application copy, so it was NOT submitted. Please try again.\n\n" + pdfErr.message);
         return;
       }
-      const emailedTo = form.rfq_emails.filter(e => e.trim()).join(",");
       const { data: subRow, error: subErr } = await supabase.from("vendor_submissions").insert({
         vendor_id: vendorId, kind: isAccredited ? "profile_update" : "submission",
-        submitted_at: now, snapshot, pdf_path: pdfPath, emailed_to: emailedTo,
+        submitted_at: now, snapshot, pdf_path: pdfPath,
       }).select("id").single();
       if (subErr) {
         alert("We couldn't record your submission, so it was NOT submitted. Please try again.\n\n" + subErr.message);
@@ -2606,27 +2599,11 @@ function VendorAccreditationPage({ token }) {
         }).eq("id", tokenRow.id);
       }
 
-      // Email the vendor their copy; a failed email doesn't undo the submission
-      const fileName = pdfFileName(snapshot);
-      const { data: mailRes, error: mailErr } = await supabase.functions.invoke("send-email", { body: {
-        to: emailedTo,
-        subject: `Your accreditation application — ${snapshot.company_name}`,
-        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#222;">
-          <h2 style="margin:0 0 12px;">Thank you for your application</h2>
-          <p>Dear <strong>${snapshot.company_name.replace(/[&<>"]/g, "")}</strong>,</p>
-          <p>We received your supplier accreditation application on <strong>${new Date(now).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "long", timeStyle: "short" })}</strong>.</p>
-          <p>Attached is a PDF copy of exactly what you submitted, including your signed declaration. Please keep it for your records.</p>
-          <p>PH1 World Developers will review your application and contact you at this email address.</p>
-          <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
-          <p style="font-size:11px;color:#999;">PH1 World Developers · Supplier accreditation</p>
-        </div>`,
-        attachments: [{ filename: fileName, content: arrayBufferToBase64(pdf), contentType: "application/pdf" }],
-      } });
+      // Email the vendor their copy (sent by the server to their registered address); a failure doesn't undo the submission
+      const { data: mailRes, error: mailErr } = await supabase.functions.invoke("send-vendor-copy", { body: { submission_id: subRow.id } });
       const mailFailed = mailErr || mailRes?.error;
-      if (mailFailed) {
-        await supabase.from("vendor_submissions").update({ email_error: String(mailErr?.message || mailRes?.error).slice(0, 500) }).eq("id", subRow.id).then(() => {}, () => {});
-      }
-      setEmailNote(mailFailed ? "" : emailedTo);
+      const emailedTo = mailRes?.emailed_to || "";
+      setEmailNote(mailFailed ? "" : emailedTo.split(",").join(", "));
       setReview(null);
       setSubmitted(true);
     } catch (err) {

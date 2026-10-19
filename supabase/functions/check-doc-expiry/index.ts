@@ -212,7 +212,8 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${anonKey}`,
+          "Authorization": `Bearer ${serviceKey}`,
+          "apikey": anonKey,
         },
         body: JSON.stringify({ to: email, subject, html }),
       });
