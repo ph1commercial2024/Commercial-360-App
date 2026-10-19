@@ -142,7 +142,9 @@ const COMPLIANCE_DOCS = [
 ];
 // Company-level docs uploaded in the Company Information tab
 const COMPANY_PROFILE_DOCS = ["Company Profile", "Organizational Chart"];
-const ACCREDITATION_DOCS = [...GOV_DOCS, ...COMPANY_ID_DOCS, ...COMPANY_PROFILE_DOCS, ...FIN_DOCS, ...COMPLIANCE_DOCS];
+// Screenshot/PDF of the vendor's own PCAB online verification result, required when a PCAB License is uploaded
+const PCAB_PROOF_DOC = "PCAB Online Verification";
+const ACCREDITATION_DOCS = [...GOV_DOCS, ...COMPANY_ID_DOCS, ...COMPANY_PROFILE_DOCS, ...FIN_DOCS, ...COMPLIANCE_DOCS, PCAB_PROOF_DOC];
 
 // Phone number helpers
 const cleanPhone      = v => v.replace(/[^\d+\-() ]/g, "");
@@ -169,6 +171,7 @@ const DOCS_WITH_EXPIRY = new Set([
   "License (PTR / PRC ID)",
   "LTO Registration of Equipment",
   "ISO Compliance Certificate (if available)",
+  "PCAB Online Verification",
 ]);
 
 // Docs that are only required for SEC-registered companies; not needed for DTI
@@ -204,7 +207,7 @@ function govDocsForType(vendorType) {
   });
 }
 
-function DocUploadRow({ docType, label, note, docFiles, uploadedDocs, handleDocFile, onDelete, expiryInfo, onExpiryChange, required, showRegInfo, regInfo, onRegInfoChange, minDaysValid }) {
+function DocUploadRow({ docType, label, note, docFiles, uploadedDocs, handleDocFile, onDelete, expiryInfo, onExpiryChange, required, showRegInfo, regInfo, onRegInfoChange, minDaysValid, accept = ".pdf" }) {
   const file      = docFiles[docType];
   const existing  = uploadedDocs[docType];
   const hasFile   = !!file || !!existing;
@@ -258,9 +261,9 @@ function DocUploadRow({ docType, label, note, docFiles, uploadedDocs, handleDocF
             }}>
               {hasFile ? "Replace" : "Upload"}
             </span>
-            <input type="file" accept=".pdf"
+            <input type="file" accept={accept}
               style={{ display: "none" }}
-              onChange={e => handleDocFile(docType, e.target.files[0] || null)} />
+              onChange={e => { handleDocFile(docType, e.target.files[0] || null); e.target.value = ""; }} />
           </label>
         </div>
       </div>
@@ -2354,8 +2357,10 @@ function VendorAccreditationPage({ token }) {
   const handleDocFile = (docType, file) => setDocFiles(p => ({ ...p, [docType]: file }));
 
   const handleDeleteDoc = (docType) => {
-    setDocFiles(p => { const n = { ...p }; delete n[docType]; return n; });
-    setUploadedDocs(p => { const n = { ...p }; delete n[docType]; return n; });
+    const gone = docType === "PCAB License" ? [docType, PCAB_PROOF_DOC] : [docType];
+    setDocFiles(p => { const n = { ...p }; gone.forEach(d => delete n[d]); return n; });
+    setUploadedDocs(p => { const n = { ...p }; gone.forEach(d => delete n[d]); return n; });
+    if (DOCS_WITH_EXPIRY.has(docType)) setDocExpiry(p => { const n = { ...p }; gone.forEach(d => delete n[d]); return n; });
   };
   const handleRegInfoChange = (docType, field, value) => {
     setDocRegInfo(p => ({ ...p, [docType]: { ...p[docType], [field]: value } }));
@@ -2429,7 +2434,7 @@ function VendorAccreditationPage({ token }) {
         return;
       }
       // Also persist expiry dates and registration info so they survive between sessions
-      const allTrackedDocs = [...new Set([...GOV_DOCS, ...COMPANY_ID_DOCS])];
+      const allTrackedDocs = [...new Set([...GOV_DOCS, ...COMPANY_ID_DOCS, PCAB_PROOF_DOC])];
       for (const docType of allTrackedDocs) {
         const expiry  = currentDocExpiry[docType];
         const regInfo = currentDocRegInfo[docType];
@@ -2590,6 +2595,10 @@ function VendorAccreditationPage({ token }) {
       missing.push("Company Profile document");
     if (!(docFiles["Organizational Chart"] || uploadedDocs["Organizational Chart"]))
       missing.push("Organizational Chart document");
+
+    // The PCAB online proof is required whenever a PCAB License is uploaded
+    if ((docFiles["PCAB License"] || uploadedDocs["PCAB License"]) && !(docFiles[PCAB_PROOF_DOC] || uploadedDocs[PCAB_PROOF_DOC]))
+      missing.push("PCAB online verification result (upload a screenshot or PDF from the PCAB website)");
 
     // Valid Government IDs — both must be uploaded with a non-expired date (60+ days)
     const idMin60 = new Date(Date.now() + 60 * 86400e3).toISOString().slice(0, 10);
@@ -2783,7 +2792,7 @@ function VendorAccreditationPage({ token }) {
       }
 
       // Save expiry dates and registration info for gov docs
-      const allTrackedDocs = [...new Set([...GOV_DOCS, ...COMPANY_ID_DOCS])];
+      const allTrackedDocs = [...new Set([...GOV_DOCS, ...COMPANY_ID_DOCS, PCAB_PROOF_DOC])];
       for (const docType of allTrackedDocs) {
         const expiry  = docExpiry[docType];
         const regInfo = docRegInfo[docType];
@@ -3327,6 +3336,7 @@ function VendorAccreditationPage({ token }) {
               docExpiry[d]?.expiry_date && docExpiry[d].expiry_date > idMinDate) &&
             govRequired.length > 0 &&
             govRequired.every(d => docFiles[d] || uploadedDocs[d]) &&
+            (!(docFiles["PCAB License"] || uploadedDocs["PCAB License"]) || !!(docFiles[PCAB_PROOF_DOC] || uploadedDocs[PCAB_PROOF_DOC])) &&
             govRequiredWithExpiry.every(d => docExpiry[d]?.expiry_date && docExpiry[d].expiry_date >= todayDate) &&
             // ── Section 3: Financials & Compliance ──────────────────────────
             ["bank_name","bank_account_name","bank_account_number","bank_branch"].every(k => !!form[k]?.trim()) &&
@@ -3403,6 +3413,8 @@ function VendorAccreditationPage({ token }) {
               else if ((docFiles[d] || uploadedDocs[d]) && docExpiry[d]?.expiry_date && docExpiry[d].expiry_date < todayDate)
                 addMi("Tax & Government Docs", `${d} — document expired`, "This document has already expired. Please upload a renewed copy.", "tax_gov");
             });
+            if ((docFiles["PCAB License"] || uploadedDocs["PCAB License"]) && !(docFiles[PCAB_PROOF_DOC] || uploadedDocs[PCAB_PROOF_DOC]))
+              addMi("Tax & Government Docs", "PCAB online verification result — not uploaded", "Search your license number on the PCAB website and upload a screenshot or PDF of the result.", "tax_gov");
           }
           // Section 3 — Financials & Compliance
           const _bankFields = { bank_name: "Bank name", bank_account_name: "Account name", bank_account_number: "Account number", bank_branch: "Bank branch" };
@@ -4391,9 +4403,10 @@ function VendorAccreditationPage({ token }) {
                     const classBNote = isClassBDoc
                       ? "Required for Class B accreditation (PO amount up to ₱1M)."
                       : undefined;
+                    const pcabPresent = docType === "PCAB License" && !!(docFiles["PCAB License"] || uploadedDocs["PCAB License"]);
                     return (
+                      <React.Fragment key={docType}>
                       <DocUploadRow
-                        key={docType}
                         docType={docType}
                         label={displayLabel}
                         note={classBNote ?? (GOV_DOCS_OPTIONAL.has(docType) ? "Optional — submit if available." : undefined)}
@@ -4408,6 +4421,22 @@ function VendorAccreditationPage({ token }) {
                         regInfo={docRegInfo[docType]}
                         onRegInfoChange={handleRegInfoChange}
                       />
+                      {pcabPresent && (
+                        <DocUploadRow
+                          docType={PCAB_PROOF_DOC}
+                          label="PCAB online verification result"
+                          note="Search your license number at pcab.construction.gov.ph/verify, then upload a screenshot or PDF of the result (taken within the last 30 days). Enter the Valid To date shown there as the expiry date."
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          docFiles={docFiles}
+                          uploadedDocs={uploadedDocs}
+                          handleDocFile={handleDocFile}
+                          expiryInfo={docExpiry[PCAB_PROOF_DOC]}
+                          onExpiryChange={handleExpiryChange}
+                          required
+                          onDelete={handleDeleteDoc}
+                        />
+                      )}
+                      </React.Fragment>
                     );
                   })
                 }
@@ -4842,7 +4871,7 @@ function VendorAccreditationPage({ token }) {
               {/* Agreement checkboxes */}
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
                 {[
-                  { key: "declaration_confirmed", label: "I confirm that the above information is true and correct, and the supporting documents are genuine and authentic." },
+                  { key: "declaration_confirmed", label: "I confirm that the above information is true and correct, and that all licenses, permits and supporting documents submitted are genuine, authentic and currently valid. I understand that a false declaration is grounds for disqualification and blacklisting." },
                   { key: "authorization_confirmed", label: "I authorize PH1 World Developers to obtain pertinent information from clients, banks, and any other source necessary for evaluation." },
                 ].map(({ key, label }) => (
                   <label key={key} style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>

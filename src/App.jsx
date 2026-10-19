@@ -6165,6 +6165,24 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
   );
 }
 
+// Documents with an expiry date; each must be checked against its file before accreditation
+const EXPIRY_DOC_TYPES = [
+  "Valid Government ID 1", "Valid Government ID 2",
+  "DTI / SEC Certificate", "Municipality / Mayor's Permit", "BIR/VAT Registration",
+  "PCAB License", "PCAB Online Verification",
+  "License (PTR / PRC ID)", "LTO Registration of Equipment", "ISO Compliance Certificate (if available)",
+];
+const PCAB_VERIFY_URL = "https://pcab.construction.gov.ph/verify/index.php";
+
+// What still has to be checked before a vendor can be accredited
+const pendingDocChecks = (vendor) => {
+  const uploaded = new Set((vendor?.vendor_documents || []).map(d => d.document_type));
+  const exp = Object.fromEntries((vendor?.vendor_doc_expiry || []).map(r => [r.doc_type, r]));
+  const out = EXPIRY_DOC_TYPES.filter(d => uploaded.has(d) && !exp[d]?.checked_at).map(d => `Check ${d}`);
+  if (uploaded.has("PCAB License") && !exp["PCAB License"]?.pcab_verified_at) out.push("Verify PCAB License on the PCAB website");
+  return out;
+};
+
 // ─── VENDORS PAGE ─────────────────────────────────────────────────────────────
 function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
@@ -6319,6 +6337,25 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   setVendorFormPage(true);
   setFormActiveTab("hub");
 };
+
+  const recordDocCheck = async (docType, kind, on) => {
+    const fields = kind === "pcab"
+      ? { pcab_verified_by: on ? profile.id : null, pcab_verified_by_name: on ? profile.full_name : null, pcab_verified_at: on ? new Date().toISOString() : null }
+      : { checked_by: on ? profile.id : null, checked_by_name: on ? profile.full_name : null, checked_at: on ? new Date().toISOString() : null };
+    const vcode = vendorRef(selectedVendor);
+    const { data, error } = await supabase.from("vendor_doc_expiry").update(fields)
+      .eq("vendor_id", vcode).eq("doc_type", docType).select();
+    if (error) { alert("Could not save the check:\n\n" + error.message); return; }
+    if (!data?.length) {
+      const { error: insErr } = await supabase.from("vendor_doc_expiry").insert({ vendor_id: vcode, doc_type: docType, source: "manual", ...fields });
+      if (insErr) { alert("Could not save the check:\n\n" + insErr.message); return; }
+    }
+    setSelectedVendor(prev => {
+      const rows = prev.vendor_doc_expiry || [];
+      const has = rows.some(r => r.doc_type === docType);
+      return { ...prev, vendor_doc_expiry: has ? rows.map(r => r.doc_type === docType ? { ...r, ...fields } : r) : [...rows, { vendor_id: vcode, doc_type: docType, ...fields }] };
+    });
+  };
 
   const updateStatus = async (vendorId, status, extra = {}) => {
     setUpdating(true);
@@ -7049,6 +7086,39 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                   {!doc && <div style={{ fontSize: 11, color: C.textTer,  marginTop: 1 }}>Not uploaded</div>}
                   {exp?.reg_number && <div style={{ fontSize: 11, color: C.textSec, marginTop: 2 }}>Cert. No. {exp.reg_number}{exp.reg_date ? ` · Reg. ${exp.reg_date}` : ""}</div>}
                   {exp?.expiry_date && <div style={{ fontSize: 11, color: C.textSec, marginTop: 1 }}>Expires {exp.expiry_date}</div>}
+                  {doc && EXPIRY_DOC_TYPES.includes(docType) && (
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 6 }}>
+                      {exp?.checked_at ? (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: C.greenText }}>
+                          ✓ Checked by {exp.checked_by_name || "—"} · {fmtShort(exp.checked_at)}
+                          {canManage && <button onClick={() => recordDocCheck(docType, "check", false)} style={{ marginLeft: 6, background: "none", border: "none", color: C.textTer, fontSize: 11, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}>Undo</button>}
+                        </span>
+                      ) : canManage ? (
+                        <button onClick={() => recordDocCheck(docType, "check", true)}
+                          title="Open the document, confirm the expiry date and number above match it, then click"
+                          style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, border: "1px solid #FCD34D", background: C.amberBg, color: C.amberText, cursor: "pointer", fontFamily: "inherit" }}>
+                          Mark as checked
+                        </button>
+                      ) : <span style={{ fontSize: 11, color: C.amberText, fontWeight: 600 }}>Not checked yet</span>}
+                      {docType === "PCAB License" && (exp?.pcab_verified_at ? (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: C.greenText }}>
+                          ✓ Verified on PCAB by {exp.pcab_verified_by_name || "—"} · {fmtShort(exp.pcab_verified_at)}
+                          {canManage && <button onClick={() => recordDocCheck(docType, "pcab", false)} style={{ marginLeft: 6, background: "none", border: "none", color: C.textTer, fontSize: 11, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}>Undo</button>}
+                        </span>
+                      ) : (
+                        <>
+                          <a href={PCAB_VERIFY_URL} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 600, color: C.coral, textDecoration: "none" }}>Open PCAB verification ↗</a>
+                          {canManage && (
+                            <button onClick={() => recordDocCheck(docType, "pcab", true)}
+                              title={`Search license ${exp?.reg_number || ""} on the PCAB site; confirm the firm name and Valid To date match, then click`}
+                              style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, border: "1px solid #FCD34D", background: C.amberBg, color: C.amberText, cursor: "pointer", fontFamily: "inherit" }}>
+                              Verified on PCAB
+                            </button>
+                          )}
+                        </>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               {doc && <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: C.coral, textDecoration: "none", fontWeight: 500 }}>View ↗</a>}
@@ -7132,7 +7202,12 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                 if (["Submitted", "Under Review"].includes(selectedVendor.accreditation_status)) return (<>
                   {iconBtn("decline",  "✕", C.redBg,   C.redText,   "#FCA5A5", () => { if (confirm("Decline this vendor's accreditation?")) updateStatus(selectedVendor.id, "Declined"); }, "Decline")}
                   {iconBtn("return",   "↩", C.amberBg, C.amberText, "#FCD34D", () => { setReturnNotes(""); setShowReturnModal(true); }, "Return to vendor")}
-                  {iconBtn("accredit", "✓", C.greenBg, C.greenText, "#86EFAC", () => updateStatus(selectedVendor.id, "Accredited"), "Accredit vendor")}
+                  {(() => {
+                    const pending = pendingDocChecks(selectedVendor);
+                    return pending.length
+                      ? iconBtn("accredit", "✓", C.surface, C.textTer, C.border, () => alert("Before accrediting, finish these checks (Government Documents and IDs):\n• " + pending.join("\n• ")), `Accredit · ${pending.length} check${pending.length > 1 ? "s" : ""} left`)
+                      : iconBtn("accredit", "✓", C.greenBg, C.greenText, "#86EFAC", () => updateStatus(selectedVendor.id, "Accredited"), "Accredit vendor");
+                  })()}
                 </>);
                 if (selectedVendor.accreditation_status === "Returned") return (
                   iconBtn("resend", "✉", C.redBg, C.redText, "#FCA5A5", () => { setReturnNotes(selectedVendor.return_notes || ""); setShowReturnModal(true); }, "Resend return email")
@@ -7205,6 +7280,22 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               );
             })()}
 
+
+            {["Submitted", "Under Review"].includes(selectedVendor.accreditation_status) && (() => {
+              const pending = pendingDocChecks(selectedVendor);
+              if (!pending.length) return null;
+              return (
+                <div style={{ marginBottom: 16, padding: "12px 16px", background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.amberText, marginBottom: 4 }}>
+                    {pending.length} document check{pending.length > 1 ? "s" : ""} before this vendor can be accredited
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textPri, lineHeight: 1.6 }}>{pending.join(" · ")}</div>
+                  <div style={{ fontSize: 11, color: C.textSec, marginTop: 4 }}>
+                    Open each document, confirm the expiry date and number match what the vendor entered, then click <strong>Mark as checked</strong>. For PCAB, also search the license on the PCAB website.
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Doc expiry notification banner */}
             {(() => {
@@ -7768,7 +7859,13 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                   <div>
                     <label style={roLbl}>Government Documents</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {["DTI / SEC Certificate", "General Information Sheet", "Articles of Incorporation", "Secretary Certificate", "By-laws (SEC-registered companies only)", "Municipality / Mayor's Permit", "BIR/VAT Registration", "PCAB License", "ISO Compliance Certificate (if available)"].map(d => <DocRowV key={d} docType={d} />)}
+                      {["DTI / SEC Certificate", "General Information Sheet", "Articles of Incorporation", "Secretary Certificate", "By-laws (SEC-registered companies only)", "Municipality / Mayor's Permit", "BIR/VAT Registration", "PCAB License", "ISO Compliance Certificate (if available)"].map(d => (
+                        <React.Fragment key={d}>
+                          <DocRowV docType={d} />
+                          {d === "PCAB License" && selectedVendorDocs.has("PCAB Online Verification") && <DocRowV docType="PCAB Online Verification" label="PCAB online verification result (vendor's screenshot)" />}
+                        </React.Fragment>
+                      ))}
+                      {["License (PTR / PRC ID)", "LTO Registration of Equipment"].filter(d => selectedVendorDocs.has(d)).map(d => <DocRowV key={d} docType={d} />)}
                     </div>
                   </div>
                 </div>
@@ -12106,6 +12203,24 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPreviewModal, previewBodies]);
 
+  const awardedVendorId = vendors.find(v => v.slot === awardedSlot)?.vendor_id || "";
+  const [awardPcab, setAwardPcab] = useState(null); // { hasLicense, verified, expiry }
+  useEffect(() => {
+    if (!awardedVendorId || !/^\d+$/.test(String(awardedVendorId))) { setAwardPcab(null); return; }
+    let alive = true;
+    (async () => {
+      const { data: v } = await supabase.from("vendors").select("id, vendor_code").eq("id", parseInt(awardedVendorId)).maybeSingle();
+      if (!v) { if (alive) setAwardPcab(null); return; }
+      const code = vendorRef(v);
+      const [{ data: docRows }, { data: exp }] = await Promise.all([
+        supabase.from("vendor_documents").select("id").eq("vendor_id", code).eq("document_type", "PCAB License").limit(1),
+        supabase.from("vendor_doc_expiry").select("expiry_date, pcab_verified_at").eq("vendor_id", code).eq("doc_type", "PCAB License").maybeSingle(),
+      ]);
+      if (alive) setAwardPcab({ hasLicense: !!docRows?.length, verified: !!exp?.pcab_verified_at, expiry: exp?.expiry_date || null });
+    })();
+    return () => { alive = false; };
+  }, [awardedVendorId]);
+
   const checklist = computeChecklist(vendors, vendorList, awardedSlot, awardReason);
   const colGrid = `repeat(${vendors.length}, 1fr)`;
   const lbl = { fontSize: 10, fontWeight: 600, color: C.textTer, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 };
@@ -12162,6 +12277,24 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
               </div>
             );
           })()}
+          {(() => {
+            if (!awardedSlot || !awardPcab) return null;
+            const awarVI = vendors.findIndex(v => v.slot === awardedSlot);
+            const tot = awarVI >= 0 ? (vComputed[awarVI]?.tot || 0) : 0;
+            if (tot <= 500000) return null;
+            const today = toDateStr(new Date());
+            const issue = !awardPcab.hasLicense ? "no PCAB License on file"
+              : awardPcab.expiry && awardPcab.expiry < today ? `PCAB License expired ${fmtShort(awardPcab.expiry)}`
+              : !awardPcab.verified ? "PCAB License not verified on the PCAB website"
+              : null;
+            if (!issue) return null;
+            return (
+              <div title="Awards above ₱500,000 need a PCAB-licensed contractor. Check the vendor's page before approving."
+                style={{ fontSize: 11, color: C.amberText, background: C.amberBg, border: `1px solid #FCD34D`, borderRadius: 6, padding: "5px 10px" }}>
+                ⚠ Awardee: {issue}
+              </div>
+            );
+          })()}
           <button onClick={() => setShowChecklist(p => !p)}
             style={{ ...styles.btnSecondary, padding: "6px 14px", fontSize: 12, display: "flex", alignItems: "center", gap: 6,
               borderColor: checklist.length > 0 ? "#FCD34D" : C.greenText,
@@ -12204,7 +12337,7 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
       ),
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [status, rfaNumber, linkedContract, awardedSlot, checklist.length, saving, actionSaving, rfaId]);
+  }, [status, rfaNumber, linkedContract, awardedSlot, awardPcab, checklist.length, saving, actionSaving, rfaId]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading…</div></div>;
 
