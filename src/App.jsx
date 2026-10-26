@@ -645,12 +645,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
     ...(showProjects ? [{ key: "projects",  label: "Projects",          icon: "projects", section: showPR ? null : "Main" }] : []),
     ...(showProjects ? [{ key: "cost_reports", label: "Cost Reports",   icon: "reports",  section: null }] : []),
     ...(showRFPs     ? [{ key: "rfps",      label: "RFPs",              icon: "rfp",      section: "Sourcing" }] : []),
-    ...(showVendors  ? [{ key: "vendors", label: "Vendors", icon: "users", section: showRFPs ? null : "Sourcing",
-      children: [
-        { key: "vendors_dir", label: "Directory",     icon: "award"    },
-        { key: "vendors_acc", label: "Accreditation", icon: "bookOpen" },
-      ]
-    }] : []),
+    ...(showVendors  ? [{ key: "vendors_dir", label: "Vendors", icon: "users", section: showRFPs ? null : "Sourcing" }] : []),
     ...(showRFA      ? [
       { key: "rfq_list",  label: "RFQ",            icon: "rfp",      section: "Award & Contracts" },
       { key: "rfa_list",  label: "Rec. for Award", icon: "rfp",      section: null },
@@ -850,6 +845,9 @@ const SUMMARY_TONE_BY_LABEL = {
   Closed: "steel",
   // Accreditation tab (invited vendors still waiting)
   "In Progress": "amber", "Not Started": "slate", Deactivated: "steel",
+  Invited: "slate", Declined: "steel",
+  // Vendors list (accredited vendors' documents)
+  "Docs expiring": "amber", "Expired docs": "red", "Checks pending": "slate",
 };
 const SUMMARY_ICONS = {
   layers: <><path d="M12 3 3 8l9 5 9-5z"/><path d="m3 13 9 5 9-5"/></>,
@@ -6499,7 +6497,7 @@ const pendingDocChecks = (vendor) => {
 };
 
 // ─── VENDORS PAGE ─────────────────────────────────────────────────────────────
-function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
+function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false, setPage }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -6509,7 +6507,6 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnNotes, setReturnNotes] = useState("");
   const [actionHover, setActionHover] = useState(null);
-  const [statusFilter, setStatusFilter] = useState("All");
   const [tradeFilter, setTradeFilter] = useState("All");
   const [tradeCatOptions, setTradeCatOptions] = useState([]);
   const [search, setSearch] = useState("");
@@ -6518,11 +6515,24 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const [updating, setUpdating] = useState(false);
   const [activeCard, setActiveCard] = useState(null);
 
-  const vendorCardStatusMap = {
-    "Submitted":    ["Submitted"],
-    "Under Review": ["Under Review"],
-    "Returned":     ["Returned"],
-    "Accredited":   ["Accredited"],
+  const [showDeclined, setShowDeclined] = useState(false);
+
+  // Document state of a vendor: expired / expiring (within 40 days) dates, and checks still to do
+  const docFlags = (v) => {
+    const todayMs = new Date().setHours(0, 0, 0, 0);
+    let expired = 0, expiring = 0;
+    for (const r of v.vendor_doc_expiry || []) {
+      if (!r.expiry_date) continue;
+      const days = Math.round((new Date(r.expiry_date).setHours(0, 0, 0, 0) - todayMs) / 86400000);
+      if (days < 0) expired++; else if (days <= 40) expiring++;
+    }
+    return { expired, expiring, checks: pendingDocChecks(v).length };
+  };
+  // Vendors list cards (accredited vendors only)
+  const DIR_CARD_TEST = {
+    "Docs expiring":  f => f.expiring > 0,
+    "Expired docs":   f => f.expired > 0,
+    "Checks pending": f => f.checks > 0,
   };
 
   const canManage = can(profile, "vendor.add");
@@ -6593,11 +6603,14 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   if (data && data.length > 0) {
     const vendorCodes = data.map(v => vendorRef(v));
     const profileIds = data.map(v => v.profile_id).filter(Boolean);
-    const [ciRes, profRes, expRes] = await Promise.all([
-      supabase.from("vendor_company_info").select("vendor_id, company_name, rfq_email, cell_number, primary_activity, trade_categories, registered_address, telephone, contact_person, contact_position, authorized_representative, representative_title").in("vendor_id", vendorCodes),
+    const [ciRes, profRes, expRes, docRes] = await Promise.all([
+      supabase.from("vendor_company_info").select("vendor_id, company_name, rfq_email, cell_number, primary_activity, trade_categories, registered_address, telephone, contact_person, contact_position, authorized_representative, representative_title, declaration_confirmed_at").in("vendor_id", vendorCodes),
       profileIds.length > 0 ? supabase.from("profiles").select("id, full_name, position").in("id", profileIds) : Promise.resolve({ data: [] }),
-      supabase.from("vendor_doc_expiry").select("vendor_id, doc_type, expiry_date").in("vendor_id", vendorCodes).not("expiry_date", "is", null),
+      supabase.from("vendor_doc_expiry").select("vendor_id, doc_type, expiry_date, checked_at, pcab_verified_at").in("vendor_id", vendorCodes),
+      supabase.from("vendor_documents").select("vendor_id, document_type").in("vendor_id", vendorCodes),
     ]);
+    const docMap = {};
+    (docRes.data || []).forEach(d => { (docMap[d.vendor_id] ||= []).push(d); });
     const ciMap = {};
     (ciRes.data || []).forEach(ci => { ciMap[ci.vendor_id] = ci; });
     const profMap = {};
@@ -6609,6 +6622,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
       vendor_company_info: ciMap[vendorRef(v)] || null,
       profiles: profMap[v.profile_id] || null,
       vendor_doc_expiry: expMap[vendorRef(v)] || [],
+      vendor_documents: docMap[vendorRef(v)] || [],
     }));
     setVendors(enriched);
   } else {
@@ -6932,7 +6946,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   };
 
   const filtered = vendors.filter(v => {
-    if (v.accreditation_status === "Draft") return false; // Draft vendors live in the Invited section
+    if (v.accreditation_status !== "Accredited") return false; // everyone else is on the Accreditation Status page
     const name = v.vendor_company_info?.company_name || v.profiles?.full_name || "";
     const trades = [
       ...(v.vendor_company_info?.trade_categories || []),
@@ -6940,14 +6954,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
     ].join(" ");
     const matchSearch = name.toLowerCase().includes(search.toLowerCase()) ||
       trades.toLowerCase().includes(search.toLowerCase());
-    let matchStatus;
-    if (activeCard && activeCard !== "Total") {
-      matchStatus = (vendorCardStatusMap[activeCard] || []).includes(v.accreditation_status);
-    } else if (activeCard === "Total") {
-      matchStatus = true;
-    } else {
-      matchStatus = statusFilter === "All" || v.accreditation_status === statusFilter;
-    }
+    const matchStatus = !activeCard || activeCard === "Total" || (DIR_CARD_TEST[activeCard]?.(docFlags(v)) ?? true);
     let matchTrade = true;
     if (tradeFilter !== "All") {
       const cats = v.vendor_company_info?.trade_categories || [];
@@ -6984,7 +6991,6 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
 
   const fmtCurrency = (n) => n ? `₱${Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : "—";
   const fmt = (d) => d ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—";
-  const STATUSES = ["All", "Submitted", "Under Review", "Returned", "Accredited", "Declined"];
   const STATUS_COLORS = {
     "Draft":        { bg: "#F1F0EE", color: "#5F5E5A" },
     "Submitted":    { bg: "#E6F4EF", color: "#0F6E56" },
@@ -7002,17 +7008,21 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   useEffect(() => {
     if (tab === "directory") {
       setHeaderContent({
-        subtitle: "Browse and manage the vendor directory",
-        actions: null,
+        subtitle: "Accredited vendors",
+        actions: canManage ? (
+          <button style={styles.btnSecondary} onClick={() => { setShowInviteModal(true); setInviteEmail(""); setInviteLink(""); }}>
+            + Invite vendor
+          </button>
+        ) : null,
         searchValue: search,
         onSearchChange: (v) => setSearch(v),
       });
     } else {
       setHeaderContent({
-        subtitle: "Track vendor accreditation applications and pipeline",
+        subtitle: "Invited, submitted, returned and declined applications",
         actions: canManage ? (
           <button style={styles.btnSecondary} onClick={() => { setShowInviteModal(true); setInviteEmail(""); setInviteLink(""); }}>
-            Invite Vendor for Accreditation
+            + Invite vendor
           </button>
         ) : null,
         searchValue: null,
@@ -7022,8 +7032,9 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
     return () => setHeaderContent({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
   }, [canManage, tab, search]);
 
-  // Lock body scroll on both vendor tabs so only the table scrolls
+  // The vendors list scrolls inside its table; the Accreditation Status page scrolls normally
   useEffect(() => {
+    if (tab !== "directory") return;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, [tab]);
@@ -7067,35 +7078,89 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
       <div style={styles.pageBody}>
   <div style={{ maxWidth: "80%", margin: "0 auto" }}>
         {tab === "accreditation" && (<>
-        {/* Summary cards — link status + progress monitors */}
+        <button onClick={() => setPage?.("vendors_dir")} style={{ ...styles.btnGhost, marginBottom: 14 }}>← Back to vendors</button>
         {(() => {
           const pendingTokens = inviteTokens.filter(t => {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
             return !linked || linked.accreditation_status === "Draft";
           });
-          const liveTokens = pendingTokens.filter(t => !t.deactivated_at);
-          const deactivatedCount = pendingTokens.length - liveTokens.length;
-          const inProgressCount  = liveTokens.filter(t => {
-            const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
-            return linked?.accreditation_status === "Draft";
-          }).length;
-          const notStartedCount = liveTokens.length - inProgressCount;
-          const total = pendingTokens.length;
-          const toggle = (key) => setAccFilter(prev => prev === key ? null : key);
+          const counts = {
+            invited:   pendingTokens.length,
+            submitted: vendors.filter(v => ["Submitted", "Under Review"].includes(v.accreditation_status)).length,
+            returned:  vendors.filter(v => v.accreditation_status === "Returned").length,
+            declined:  vendors.filter(v => v.accreditation_status === "Declined").length,
+          };
+          const total = counts.invited + counts.submitted + counts.returned + counts.declined;
           const cards = [
-            { key: "total",       label: "Total",       value: total, desc: "All invited" },
-            { key: "not_started", label: "Not Started", value: notStartedCount  },
-            { key: "in_progress", label: "In Progress", value: inProgressCount  },
-            { key: "deactivated", label: "Deactivated", value: deactivatedCount },
+            { key: "total",     label: "Total",     value: total, desc: "All applications" },
+            { key: "invited",   label: "Invited",   value: counts.invited   },
+            { key: "submitted", label: "Submitted", value: counts.submitted },
+            { key: "returned",  label: "Returned",  value: counts.returned  },
+            { key: "declined",  label: "Declined",  value: counts.declined  },
           ];
           return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
               {cards.map(c => (
                 <SummaryCard key={c.key} label={c.label} value={c.value} desc={c.desc} total={total}
-                  active={accFilter === c.key} dimmed={!!accFilter && accFilter !== c.key} onClick={() => toggle(c.key)} />
+                  active={accFilter === c.key} dimmed={!!accFilter && accFilter !== c.key} onClick={() => setAccFilter(prev => prev === c.key ? null : c.key)} />
               ))}
             </div>
           );
+        })()}
+
+        {/* Submitted / Returned / Declined applications (Invited is its own section below) */}
+        {(() => {
+          const showSection = (key) => !accFilter || accFilter === "total" || accFilter === key;
+          const section = (key, title, note, rows, detail, dateOf, collapsible = false) => {
+            if (!showSection(key) || rows.length === 0) return null;
+            const open = !collapsible || showDeclined || accFilter === key;
+            return (
+              <div key={key} style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>{title} · {rows.length}</span>
+                    {collapsible && accFilter !== key && (
+                      <button onClick={() => setShowDeclined(o => !o)} style={{ ...styles.btnGhost, fontSize: 11, padding: "2px 10px" }}>{open ? "Hide" : "Show"}</button>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 11, color: C.textTer }}>{note}</span>
+                </div>
+                {open && (
+                  <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                    {rows.map((v, i) => (
+                      <div key={v.id} onClick={() => openDetail(v)}
+                        style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 16px", borderBottom: i < rows.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer" }}
+                        onMouseOver={e => e.currentTarget.style.background = C.offWhite}
+                        onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                        <div style={{ flex: "0 0 260px", minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.textPri, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.vendor_company_info?.company_name || v.profiles?.full_name || "—"}</div>
+                          <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>{v.vendor_company_info?.rfq_email || "—"}</div>
+                        </div>
+                        <div style={{ flex: "0 0 120px", fontSize: 12, color: C.textSec, whiteSpace: "nowrap" }}>{fmt(dateOf(v))}</div>
+                        <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: C.textSec }}>{detail(v)}</div>
+                        <Icon name="chevronRight" size={14} color={C.textTer} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          };
+          const byDate = (fn) => (a, b) => new Date(fn(b) || 0) - new Date(fn(a) || 0);
+          const submittedAt = v => v.vendor_company_info?.declaration_confirmed_at || v.created_at;
+          const submitted = vendors.filter(v => ["Submitted", "Under Review"].includes(v.accreditation_status)).sort(byDate(submittedAt));
+          const returned  = vendors.filter(v => v.accreditation_status === "Returned").sort(byDate(v => v.reviewed_at));
+          return (<>
+            {section("submitted", "Submitted", "Waiting for your decision", submitted, v => {
+              const n = pendingDocChecks(v).length;
+              return n > 0
+                ? <span style={{ fontSize: 11, fontWeight: 600, background: C.amberBg, color: C.amberText, padding: "2px 8px", borderRadius: 99 }}>{n} check{n > 1 ? "s" : ""} pending</span>
+                : <span style={{ fontSize: 11, fontWeight: 600, background: C.greenBg, color: C.greenText, padding: "2px 8px", borderRadius: 99 }}>Checks done</span>;
+            }, submittedAt)}
+            {section("returned", "Returned", "Waiting for the vendor to fix and resubmit", returned,
+              v => <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={v.return_notes || ""}>{v.return_notes || "—"}</span>,
+              v => v.reviewed_at)}
+          </>);
         })()}
 
         {/* ── SECTION 1: Invited — Awaiting Response ── */}
@@ -7105,15 +7170,8 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
             return !linked || linked.accreditation_status === "Draft";
           });
-          const invitedRows = accFilter ? allInvitedRows.filter(t => {
-            const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
-            if (accFilter === "total")       return true;
-            if (accFilter === "deactivated") return !!t.deactivated_at;
-            if (t.deactivated_at) return false;
-            if (accFilter === "in_progress") return linked?.accreditation_status === "Draft";
-            if (accFilter === "not_started") return !linked || linked.accreditation_status !== "Draft";
-            return true;
-          }) : allInvitedRows;
+          if (accFilter && !["total", "invited"].includes(accFilter)) return null;
+          const invitedRows = allInvitedRows;
           if (invitedRows.length === 0) return null;
           const visibleRows = invitedRows;
           const linkStatusBadge = (t) => t.deactivated_at
@@ -7128,15 +7186,14 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
               {/* Section header */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>📩 Invited — Awaiting Response</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, background: "#EEF2FF", color: "#4338CA", border: "1px solid #C7D2FE", padding: "2px 9px", borderRadius: 99 }}>{invitedRows.length} pending</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>Invited · {invitedRows.length}</span>
                 </div>
-                <span style={{ fontSize: 11, color: C.textTer }}>Vendors who received an invite link but haven't submitted yet</span>
+                <span style={{ fontSize: 11, color: C.textTer }}>Has the link, hasn't submitted</span>
               </div>
 
               {/* Invited table */}
               <div style={{ background: C.white, border: "1px solid #C7D2FE", borderRadius: 12, overflow: "hidden", boxShadow: "0 0 0 3px rgba(79,70,229,0.04), 0 1px 3px rgba(79,70,229,0.08)" }}>
-                <div style={{ overflowY: "auto", height: "calc(100vh - 294px)", height: "calc(100dvh - 294px)" }}>
+                <div style={{ overflowY: "auto", maxHeight: 460 }}>
                 <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: "#374151" }}>
@@ -7183,29 +7240,69 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
           );
         })()}
 
+        {(() => {
+          const declined = vendors.filter(v => v.accreditation_status === "Declined").sort((a, b) => new Date(b.reviewed_at || 0) - new Date(a.reviewed_at || 0));
+          if (!declined.length || (accFilter && !["total", "declined"].includes(accFilter))) return null;
+          const open = showDeclined || accFilter === "declined";
+          return (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.06em" }}>Declined · {declined.length}</span>
+                {accFilter !== "declined" && <button onClick={() => setShowDeclined(o => !o)} style={{ ...styles.btnGhost, fontSize: 11, padding: "2px 10px" }}>{open ? "Hide" : "Show"}</button>}
+              </div>
+              {open && (
+                <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+                  {declined.map((v, i) => (
+                    <div key={v.id} onClick={() => openDetail(v)}
+                      style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 16px", borderBottom: i < declined.length - 1 ? "1px dashed #E5E7EB" : "none", cursor: "pointer" }}
+                      onMouseOver={e => e.currentTarget.style.background = C.offWhite}
+                      onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+                      <div style={{ flex: "0 0 260px", minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPri }}>{v.vendor_company_info?.company_name || "—"}</div>
+                        <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>{v.vendor_company_info?.rfq_email || "—"}</div>
+                      </div>
+                      <div style={{ flex: 1, fontSize: 12, color: C.textSec }}>Declined {fmt(v.reviewed_at)}</div>
+                      <Icon name="chevronRight" size={14} color={C.textTer} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
         </>)}
         {tab === "directory" && (<>
         {/* Summary cards — directory stats (click to filter) */}
         {(() => {
+          const accredited = vendors.filter(v => v.accreditation_status === "Accredited");
+          const flags = accredited.map(docFlags);
           const dirCards = [
-            { label: "Total",        value: vendors.filter(v => v.accreditation_status !== "Draft").length, color: C.textPri,   desc: "Vendors on file"           },
-            { label: "Submitted",    value: vendors.filter(v => v.accreditation_status === "Submitted").length,    color: "#0F6E56", desc: "Applications received"      },
-            { label: "Returned",     value: vendors.filter(v => v.accreditation_status === "Returned").length,     color: C.amberText, desc: "Returned for corrections" },
-            { label: "Accredited",   value: vendors.filter(v => v.accreditation_status === "Accredited").length,   color: C.greenText, desc: "Fully approved vendors"   },
+            { label: "Total",          value: accredited.length, desc: "All accredited" },
+            { label: "Docs expiring",  value: flags.filter(DIR_CARD_TEST["Docs expiring"]).length  },
+            { label: "Expired docs",   value: flags.filter(DIR_CARD_TEST["Expired docs"]).length   },
+            { label: "Checks pending", value: flags.filter(DIR_CARD_TEST["Checks pending"]).length },
           ];
-          return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+          const submittedCount = vendors.filter(v => ["Submitted", "Under Review"].includes(v.accreditation_status)).length;
+          return (<>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
               {dirCards.map((s, _i, all) => (
                 <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
                   onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
               ))}
             </div>
-          );
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+              <button onClick={() => setPage?.("vendors_acc")} style={{ ...styles.btnSecondary, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                See Accreditation Status
+                {submittedCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: C.coral, color: "#fff", padding: "2px 8px", borderRadius: 99 }}>{submittedCount} submitted</span>}
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </>);
         })()}
 
         {/* Table */}
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)", overflow: "hidden" }}>
-          <div style={{ overflowY: "auto", height: "calc(100vh - 370px)" }}>
+          <div style={{ overflowY: "auto", height: "calc(100vh - 420px)" }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#374151" }}>
@@ -7322,7 +7419,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
             <span style={{ fontSize: 12, color: C.textTer }}>
               {sortedVendors.length === filtered.length
                 ? `${filtered.length} vendor${filtered.length !== 1 ? "s" : ""}`
-                : `Showing ${sortedVendors.length} of ${vendors.filter(v => v.accreditation_status !== "Draft").length} vendors`}
+                : `Showing ${sortedVendors.length} of ${vendors.filter(v => v.accreditation_status === "Accredited").length} vendors`}
             </span>
             <button onClick={fetchVendors} style={{ ...styles.btnGhost, fontSize: 11, padding: "4px 10px" }}>Refresh</button>
           </div>
@@ -16153,6 +16250,7 @@ export default function App() {
   const activeSidebarPage = ["create", "detail", "edit_pr"].includes(page) ? "dashboard"
     : ["rfp_create", "rfp_detail"].includes(page) ? "rfps"
     : ["rfa_form"].includes(page) ? "rfa_list"
+    : ["vendors", "vendors_acc"].includes(page) ? "vendors_dir"
     : ["contract_detail"].includes(page) ? "contracts"
     : page;
 
@@ -16167,7 +16265,7 @@ export default function App() {
     rfp_detail:   "RFP Detail",
     vendors:      "Vendors",
     vendors_dir:  "Vendors",
-    vendors_acc:  "Vendors",
+    vendors_acc:  "Accreditation Status",
     users:        "Users & Roles",
     rfa_list:        "Recommendations for Award",
     rfa_form:        "Rec. for Award",
@@ -16186,9 +16284,9 @@ export default function App() {
     rfps:       <RFPsPage       profile={profile} setPage={setPage} setSelectedRFPId={setSelectedRFPId} />,
     rfp_create: <RFPCreatePage  profile={profile} setPage={setPage} />,
     rfp_detail: <RFPDetailPage   rfpId={selectedRFPId} profile={profile} setPage={setPage} setSelectedRFAId={setSelectedRFAId} setRfaPRId={setRfaPRId} />,
-    vendors:      <VendorsPage key="vendors_dir"  profile={profile} tab="directory"      sidebarCollapsed={sidebarCollapsed} />,
-    vendors_dir:  <VendorsPage key="vendors_dir"  profile={profile} tab="directory"      sidebarCollapsed={sidebarCollapsed} />,
-    vendors_acc:  <VendorsPage key="vendors_acc"  profile={profile} tab="accreditation"  sidebarCollapsed={sidebarCollapsed} />,
+    vendors:      <VendorsPage key="vendors_dir"  profile={profile} tab="directory"      sidebarCollapsed={sidebarCollapsed} setPage={setPage} />,
+    vendors_dir:  <VendorsPage key="vendors_dir"  profile={profile} tab="directory"      sidebarCollapsed={sidebarCollapsed} setPage={setPage} />,
+    vendors_acc:  <VendorsPage key="vendors_acc"  profile={profile} tab="accreditation"  sidebarCollapsed={sidebarCollapsed} setPage={setPage} />,
     reports:    <PlaceholderPage title="Reports" />,
     users:        <UsersPage        profile={profile} />,
     cost_reports: <CostReportsPage profile={profile} />,
