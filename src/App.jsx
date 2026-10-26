@@ -48,10 +48,10 @@ function HamburgerBtn() {
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 const C = {
-  coral:      "#E5503A",   // PH1 coral — primary CTA + logo mark only
-  coralDark:  "#B03020",
+  coral:      "#ED6055",   // PH1 coral (same as the D&C Dashboard) — primary CTA + highlights
+  coralDark:  "#C9473D",
   coralLight: "#FDF1EF",
-  coralMid:   "#F5D5CF",
+  coralMid:   "#F8D3CF",
   black:      "#000000",
   brandDark:  "#111827",   // near-black — header & sidebar
   mahogany:   "#1F2937",
@@ -94,36 +94,40 @@ const STATUS_COLORS = {
   "Completed":                 { bg: C.greenBg, color: C.greenText }, // legacy fallback
 };
 
+// Layout of the floating rail (see Sidebar); header and main content start right of it
+const PAGE_BG = "#ECEDF1";
+const RAIL_GAP = 8;
+const railWidth = (collapsed) => (collapsed ? 72 : 232);
+const railOffset = (collapsed) => railWidth(collapsed) + RAIL_GAP * 2;
+
 const styles = {
   appShell: {
     minHeight: "100vh",
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'DM Sans', 'Helvetica Neue', Arial, sans-serif",
-    background: "#F0F2F7",
+    fontFamily: "'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif",
+    background: PAGE_BG,
     color: C.textPri,
   },
+  // Header sits on the page's gray, like the D&C Dashboard (still fixed, 56px tall)
   appHeader: (collapsed) => ({
-    background: "#FFFFFF",
+    background: PAGE_BG,
     height: 56, display: "flex", alignItems: "center",
-    padding: "0 24px", gap: 14,
-    position: "fixed", top: 0, left: collapsed ? 80 : 240, right: 0, zIndex: 200,
-    borderBottom: "1px solid #E2E8F0",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+    padding: "0 24px 0 16px", gap: 12,
+    position: "fixed", top: 0, left: railOffset(collapsed), right: 0, zIndex: 200,
     transition: "left 0.26s cubic-bezier(0.23,1,0.32,1)",
   }),
+  // Floating rail: icons only when collapsed, labels when expanded
   sidebar: (collapsed) => ({
-    width: collapsed ? 80 : 240, minWidth: collapsed ? 80 : 240,
-    background: "rgba(5,5,8,0.55)",
+    width: railWidth(collapsed), minWidth: railWidth(collapsed),
+    background: "linear-gradient(180deg, #24324A 0%, #141A26 55%, #0B0B0F 100%)",
     display: "flex", flexDirection: "column",
-    position: "fixed", top: 0, left: 0,
-    height: "100vh", zIndex: 150,
-    borderRadius: "0 16px 16px 0",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderLeft: "none",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), inset 1px 0 0 rgba(255,255,255,0.06), 4px 0 32px rgba(0,0,0,0.4)",
+    position: "fixed", top: RAIL_GAP, left: RAIL_GAP,
+    height: `calc(100vh - ${RAIL_GAP * 2}px)`, zIndex: 150,
+    borderRadius: 18,
+    boxShadow: "0 10px 30px rgba(15,23,42,0.25)",
     overflow: "hidden",
     transition: "width 0.26s cubic-bezier(0.23,1,0.32,1), min-width 0.26s cubic-bezier(0.23,1,0.32,1)",
   }),
-  nav: { padding: "8px 8px", flex: 1, overflowY: "auto" },
+  nav: { padding: "4px 10px", flex: 1, overflowY: "auto", overflowX: "hidden" },
   navSection: (collapsed) => ({
     fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.22)",
     letterSpacing: "0.07em",
@@ -138,14 +142,15 @@ const styles = {
   navItem: (active, collapsed) => ({
     display: "flex", alignItems: "center",
     gap: collapsed ? 0 : 10,
-    padding: collapsed ? "0" : "0 12px",
+    padding: collapsed ? "0" : "0 14px",
     justifyContent: collapsed ? "center" : "flex-start",
-    height: 44, borderRadius: 10,
-    cursor: "pointer", fontSize: 12, fontWeight: active ? 600 : 500,
-    color: active ? "#FFFFFF" : "rgba(255,255,255,0.65)",
-    background: active ? "rgba(226,92,59,0.18)" : "transparent",
+    height: 44, borderRadius: 12,
+    cursor: "pointer", fontSize: 13, fontWeight: active ? 600 : 500,
+    color: active ? "#FFFFFF" : "rgba(255,255,255,0.72)",
+    background: active ? C.coral : "transparent",
     border: "none",
-    boxShadow: "none",
+    boxShadow: active ? "0 6px 16px rgba(237,96,85,0.35)" : "none",
+    fontFamily: "inherit",
     marginBottom: 2, transition: "background 0.12s, color 0.12s, box-shadow 0.12s",
     width: "100%", textAlign: "left",
   }),
@@ -166,11 +171,11 @@ const styles = {
   },
   mainContent: (collapsed, scrollLocked) => ({
     paddingTop: 56,
-    marginLeft: collapsed ? 80 : 240,
+    marginLeft: railOffset(collapsed),
     ...(scrollLocked
       ? { height: "100vh", overflowY: "auto", boxSizing: "border-box" }
       : { minHeight: "100vh" }),
-    background: C.offWhite,
+    background: PAGE_BG,
     transition: "margin-left 0.26s cubic-bezier(0.23,1,0.32,1)",
   }),
   topBar: {
@@ -203,20 +208,20 @@ const styles = {
   required: { color: C.coral, marginLeft: 2 },
   btnPrimary: {
     background: C.coral,
-    color: C.white, border: "none", borderRadius: 8,
-    padding: "10px 22px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+    color: C.white, border: `1px solid ${C.coral}`, borderRadius: 9,
+    padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer",
     transition: "opacity 0.15s, transform 0.15s, box-shadow 0.15s", fontFamily: "inherit",
-    boxShadow: "0 2px 10px rgba(229,80,58,0.3), 0 1px 2px rgba(229,80,58,0.2)",
+    boxShadow: "0 2px 8px rgba(237,96,85,0.25)",
   },
   btnSecondary: {
-    background: "transparent", color: C.textPri, border: `1.5px solid ${C.border}`,
-    borderRadius: 8, padding: "9px 20px", fontSize: 14, fontWeight: 600,
+    background: C.white, color: C.textPri, border: `1px solid ${C.border}`,
+    borderRadius: 9, padding: "8px 16px", fontSize: 13, fontWeight: 500,
     cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s",
     boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
   },
   btnGhost: {
-    background: "transparent", color: C.textSec, border: `1px solid ${C.border}`,
-    borderRadius: 7, padding: "6px 14px", fontSize: 12, fontWeight: 500,
+    background: C.white, color: C.textSec, border: `1px solid ${C.border}`,
+    borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 500,
     cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s",
   },
   btnDanger: {
@@ -519,7 +524,14 @@ function LoginPage() {
 }
 
 // ─── APP HEADER ───────────────────────────────────────────────────────────────
-function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, canCreatePR, headerSubtitle, headerActions, headerSearchValue, onHeaderSearchChange }) {
+function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, canCreatePR, headerSubtitle, headerActions, headerSearchValue, onHeaderSearchChange, onLogout }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [menuOpen]);
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
@@ -529,7 +541,7 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
       {/* Left — page title + optional subtitle */}
       {pageTitle && (
         <div style={{ flexShrink: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.textPri, letterSpacing: "-0.01em", lineHeight: 1.2 }}>{pageTitle}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: C.textPri, letterSpacing: "-0.01em", lineHeight: 1.15, whiteSpace: "nowrap" }}>{pageTitle}</div>
           {headerSubtitle && (
             <div style={{ fontSize: 11, color: C.textTer, marginTop: 2 }}>{headerSubtitle}</div>
           )}
@@ -541,10 +553,10 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
       {/* Center — search bar */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        background: "#F1F5F9", border: "1px solid #E2E8F0",
-        borderRadius: 8, padding: "0 12px", height: 34, width: 240,
+        background: "#E2E4EA", border: "none",
+        borderRadius: 10, padding: "0 14px", height: 38, width: 360, maxWidth: "32vw",
       }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
         {onHeaderSearchChange
@@ -552,9 +564,9 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
               value={headerSearchValue || ""}
               onChange={e => onHeaderSearchChange(e.target.value)}
               placeholder="Search…"
-              style={{ border: "none", background: "transparent", outline: "none", fontSize: 12, color: "#374151", width: "100%", fontFamily: "inherit" }}
+              style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, color: "#374151", width: "100%", fontFamily: "inherit" }}
             />
-          : <span style={{ fontSize: 12, color: "#94A3B8" }}>Search...</span>}
+          : <span style={{ fontSize: 13, color: "#94A3B8" }}>Search…</span>}
       </div>
 
       <div style={{ flex: 1 }} />
@@ -571,8 +583,6 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
         )}
         {/* Page-injected actions (via HeaderActionsCtx) */}
         {headerActions}
-        {/* Divider */}
-        <div style={{ width: 1, height: 24, background: "#E2E8F0", flexShrink: 0 }} />
 
         {/* Back to the D&C Dashboard (separate app), same tab */}
         <a href={DANDC_DASHBOARD_URL} title="D&C Dashboard" aria-label="Go to D&C Dashboard"
@@ -586,23 +596,33 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
           </svg>
         </a>
 
-        {/* User info */}
+        {/* User: name, role in coral, avatar, and a menu with Log out */}
         {profile && (
-          <>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.textPri, lineHeight: 1.3 }}>{profile.full_name || "User"}</div>
-              <div style={{ fontSize: 11, color: C.textSec, lineHeight: 1.3 }}>
-                {profile.is_admin ? "Admin" : profile.position || "—"}
+          <div style={{ position: "relative" }}>
+            <button onClick={e => { e.stopPropagation(); setMenuOpen(o => !o); }} aria-haspopup="menu" aria-expanded={menuOpen}
+              style={{ display: "flex", alignItems: "center", gap: 10, border: "none", background: menuOpen ? "rgba(0,0,0,0.05)" : "transparent", borderRadius: 12, padding: "4px 6px", cursor: "pointer", fontFamily: "inherit" }}>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textPri, lineHeight: 1.25, whiteSpace: "nowrap" }}>{profile.full_name || "User"}</div>
+                <div style={{ fontSize: 11.5, color: C.coral, fontWeight: 500, lineHeight: 1.25 }}>
+                  {profile.is_admin ? "Admin" : profile.position || "No role yet"}
+                </div>
               </div>
-            </div>
-            <div style={{
-              width: 34, height: 34, borderRadius: "50%",
-              background: C.coral,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0,
-              boxShadow: "0 2px 8px rgba(229,80,58,0.3)",
-            }}>{initials}</div>
-          </>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#FDE8E6", color: C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {menuOpen && (
+              <div role="menu" onClick={e => e.stopPropagation()}
+                style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.12)", minWidth: 220, padding: 6, zIndex: 300 }}>
+                {profile.email && <div style={{ padding: "8px 10px 10px", fontSize: 12, color: C.textTer, borderBottom: `1px solid ${C.border}`, marginBottom: 4 }}>Signed in as {profile.email}</div>}
+                <button role="menuitem" onClick={() => { setMenuOpen(false); onLogout?.(); }}
+                  style={{ display: "flex", width: "100%", alignItems: "center", gap: 8, border: "none", background: "none", padding: "8px 10px", borderRadius: 8, cursor: "pointer", fontSize: 13, color: C.redText, fontFamily: "inherit", textAlign: "left" }}
+                  onMouseOver={e => e.currentTarget.style.background = C.surface}
+                  onMouseOut={e => e.currentTarget.style.background = "none"}>
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -636,11 +656,11 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
       { key: "rfa_list",  label: "Rec. for Award", icon: "rfp",      section: null },
       { key: "contracts", label: "Contracts",       icon: "contract", section: null },
     ] : []),
-    ...(isAdm ? [
-      { key: "users",    label: "Users & Roles", icon: "users",    section: "Admin" },
-      { key: "settings", label: "Settings",      icon: "settings", section: null    },
-    ] : []),
   ];
+  const adminItems = isAdm ? [
+    { key: "users",    label: "Users & Roles", icon: "users"    },
+    { key: "settings", label: "Settings",      icon: "settings" },
+  ] : [];
 
   // Accordion: auto-open vendor group when on a vendor sub-page
   const vendorSubPages = ["vendors_dir", "vendors_acc"];
@@ -655,77 +675,16 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
     }
   }, [page]);
 
-  const initials = profile?.full_name
-    ? profile.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
-    : "?";
-
   let lastSection = null;
 
   return (
     <div style={styles.sidebar(collapsed)}>
 
-      {/* ── Frosted glass layers ── */}
-      {/* 1. Blurred background image */}
-      <div style={{
-        position: "absolute", top: -20, left: -20, right: -20, bottom: -20,
-        backgroundImage: "url('/Sidebar%20Background.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        filter: "blur(22px)",
-        transform: "scale(1.08)",
-        zIndex: 0,
-      }} />
-      {/* 2. Dark tint overlay */}
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "rgba(5,5,10,0.65)",
-        zIndex: 0,
-      }} />
-      {/* 3. Subtle inner highlight border */}
-      <div style={{
-        position: "absolute", inset: 0,
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.13), inset 1px 0 0 rgba(255,255,255,0.07)",
-        borderRadius: "0 16px 16px 0",
-        zIndex: 0, pointerEvents: "none",
-      }} />
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", padding: "12px 0 8px" }}>
 
-      {/* All content above the layers */}
-      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
-
-      {/* Logo card */}
-      <div style={{
-        margin: "10px 8px 16px",
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.09)",
-        borderRadius: 10,
-        padding: collapsed ? "9px 0" : "9px 12px",
-        display: "flex", alignItems: "center",
-        gap: collapsed ? 0 : 10,
-        justifyContent: collapsed ? "center" : "flex-start",
-        transition: "padding 0.26s",
-        flexShrink: 0,
-      }}>
-        {/* PH1 triangles mark */}
-        <div style={{
-          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-          background: C.coral,
-          boxShadow: `0 0 18px rgba(229,80,58,0.32), inset 0 1px 0 rgba(255,255,255,0.18)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <polygon points="2,14 7,6 12,14" fill="rgba(255,255,255,0.92)"/>
-            <polygon points="8,14 13,6 18,14" fill="rgba(255,255,255,0.52)"/>
-          </svg>
-        </div>
-
-        {/* Brand text — hidden when collapsed */}
-        {!collapsed && (
-          <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", lineHeight: 1.2, whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>Commercial 360</div>
-            <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>PH1 World Developers</div>
-          </div>
-        )}
-
+      {/* Logo tile (same PH1 World logo as the D&C Dashboard) */}
+      <div style={{ margin: "0 10px 14px", height: 48, borderRadius: 12, background: C.white, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+        <img src="/ph1-logo.png" alt="PH1 World Developers" style={{ height: collapsed ? 34 : 38, width: "auto", display: "block" }} />
       </div>
 
       {/* Nav */}
@@ -746,7 +705,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                 title={collapsed ? item.label : undefined}
                 style={{
                   ...styles.navItem(active || isParentActive, collapsed),
-                  ...(isParentActive && !active ? { background: "rgba(226,92,59,0.10)" } : {}),
+                  ...(isParentActive && !active ? { background: "rgba(237,96,85,0.10)" } : {}),
                 }}
                 onClick={() => {
                   if (isParent) {
@@ -763,7 +722,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                   }
                 }}
                 onMouseOver={e => { if (!active && !isParentActive) { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#fff"; }}}
-                onMouseOut={e  => { if (!active && !isParentActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.48)"; }}}>
+                onMouseOut={e  => { if (!active && !isParentActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.72)"; }}}>
                 <div style={{ width: collapsed ? 20 : 18, height: collapsed ? 20 : 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Icon name={item.icon} size={collapsed ? 16 : 15} color={(active || isParentActive) ? "#FFFFFF" : "rgba(255,255,255,0.5)"} />
                 </div>
@@ -787,7 +746,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "5px 10px 5px 30px",
                           width: "100%", border: "none", borderRadius: 7,
-                          background: childActive ? "rgba(226,92,59,0.16)" : "transparent",
+                          background: childActive ? "rgba(237,96,85,0.16)" : "transparent",
                           color: childActive ? "#fff" : "rgba(255,255,255,0.45)",
                           fontSize: 12, fontWeight: childActive ? 600 : 500,
                           cursor: "pointer", textAlign: "left", fontFamily: "inherit",
@@ -797,7 +756,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                         onClick={() => setPage(child.key)}
                         onMouseOver={e => { if (!childActive) { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "rgba(255,255,255,0.72)"; }}}
                         onMouseOut={e  => { if (!childActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}}>
-                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: childActive ? "#E25C3B" : "rgba(255,255,255,0.2)", flexShrink: 0 }} />
+                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: childActive ? "#ED6055" : "rgba(255,255,255,0.2)", flexShrink: 0 }} />
                         {child.label}
                       </button>
                     );
@@ -815,7 +774,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                         onClick={() => setPage(child.key)}
                         style={{
                           width: 32, height: 32, borderRadius: 7, border: "none",
-                          background: childActive ? "rgba(226,92,59,0.18)" : "transparent",
+                          background: childActive ? "rgba(237,96,85,0.18)" : "transparent",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           cursor: "pointer", transition: "background 0.12s",
                           position: "relative",
@@ -823,7 +782,7 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
                         onMouseOver={e => { if (!childActive) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
                         onMouseOut={e  => { if (!childActive) e.currentTarget.style.background = "transparent"; }}>
                         {childActive && (
-                          <span style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 2, height: 14, background: "#E25C3B", borderRadius: "0 2px 2px 0" }} />
+                          <span style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 2, height: 14, background: "#ED6055", borderRadius: "0 2px 2px 0" }} />
                         )}
                         <Icon name={child.icon} size={13} color={childActive ? "#FFFFFF" : "rgba(255,255,255,0.4)"} />
                       </button>
@@ -836,30 +795,35 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
         })}
       </nav>
 
-      {/* Divider + collapse toggle at bottom */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "0 8px" }} />
-      <button
-        onClick={onToggleCollapse}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center",
-          height: 44, width: "100%", border: "none", background: "none",
-          cursor: "pointer", color: "rgba(255,255,255,0.35)",
-          transition: "color 0.12s", flexShrink: 0,
-        }}
-        onMouseOver={e => e.currentTarget.style.color = "rgba(255,255,255,0.7)"}
-        onMouseOut={e  => e.currentTarget.style.color = "rgba(255,255,255,0.35)"}>
-        {collapsed ? (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6"/><polyline points="15 18 21 12 15 6"/>
-          </svg>
-        ) : (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/>
-          </svg>
-        )}
-        {!collapsed && <span style={{ fontSize: 11, fontWeight: 500, marginLeft: 8 }}>Collapse</span>}
-      </button>
+      {/* Bottom: admin pages + expand / collapse */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "0 10px", paddingTop: 8, display: "flex", flexDirection: "column" }}>
+        {adminItems.map(item => {
+          const active = page === item.key;
+          return (
+            <button key={item.key} title={collapsed ? item.label : undefined} style={styles.navItem(active, collapsed)}
+              onClick={() => setPage(item.key)}
+              onMouseOver={e => { if (!active) { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "#fff"; }}}
+              onMouseOut={e  => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.72)"; }}}>
+              <div style={{ width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name={item.icon} size={16} color={active ? "#FFFFFF" : "rgba(255,255,255,0.6)"} />
+              </div>
+              {!collapsed && <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>}
+            </button>
+          );
+        })}
+        <button onClick={onToggleCollapse} title={collapsed ? "Expand menu" : undefined} aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+          style={styles.navItem(false, collapsed)}
+          onMouseOver={e => { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "#fff"; }}
+          onMouseOut={e  => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.72)"; }}>
+          <div style={{ width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transform: collapsed ? "none" : "rotate(180deg)", transition: "transform 0.2s" }}>
+              <polyline points="6 17 11 12 6 7"/><polyline points="13 17 18 12 13 7"/>
+            </svg>
+          </div>
+          {!collapsed && <span style={{ flex: 1 }}>Collapse</span>}
+        </button>
+      </div>
 
       </div>{/* end content wrapper */}
     </div>
@@ -10284,7 +10248,7 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
     const row = (k, val, extra = "") => `<tr><td style="padding:6px 0;color:#888;width:140px;vertical-align:top;">${k}</td><td style="padding:6px 0;${extra}">${val}</td></tr>`;
     const who = ctx.sender;
     return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#222;">
-      <div style="border-bottom:3px solid #E5503A;padding-bottom:14px;margin-bottom:20px;">
+      <div style="border-bottom:3px solid #ED6055;padding-bottom:14px;margin-bottom:20px;">
         ${ctx.logoUrl ? `<img src="${escHtml(ctx.logoUrl)}" alt="${escHtml(ctx.company)}" style="max-height:44px;max-width:200px;display:block;margin-bottom:8px;" />` : ""}
         <div style="font-size:15px;font-weight:700;color:#1F2937;">${escHtml(ctx.company)}</div>
       </div>
@@ -10301,13 +10265,13 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
       </table>
       <p>Click the button below to see the full scope, quantities and documents, and to submit your quotation. No account is needed.</p>
       <p style="margin:24px 0;">
-        <a href="${submitUrl}" style="background:#E5503A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View RFQ and submit quotation</a>
+        <a href="${submitUrl}" style="background:#ED6055;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View RFQ and submit quotation</a>
       </p>
       <p style="font-size:12px;color:#888;">Or copy this link: ${submitUrl}</p>
       ${who.name ? `<div style="margin-top:22px;padding:12px 14px;background:#F3F4F6;border-radius:8px;font-size:13px;">
         <div style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Questions about this RFQ?</div>
         <div><strong>${escHtml(who.name)}</strong>${who.position ? ` · ${escHtml(who.position)}` : ""}</div>
-        ${who.email ? `<div><a href="mailto:${escHtml(who.email)}" style="color:#E5503A;">${escHtml(who.email)}</a></div>` : ""}
+        ${who.email ? `<div><a href="mailto:${escHtml(who.email)}" style="color:#ED6055;">${escHtml(who.email)}</a></div>` : ""}
       </div>` : ""}
       <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
       <p style="font-size:11px;color:#999;">Sent by ${escHtml(ctx.company)} through Commercial 360.</p>
@@ -16230,7 +16194,8 @@ export default function App() {
   const [selectedRFQId, setSelectedRFQId] = useState(null);
   const [rfaPRId, setRfaPRId] = useState(null);
   const [selectedContractId, setSelectedContractId] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("c360-rail-open") !== "1"; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem("c360-rail-open", sidebarCollapsed ? "0" : "1"); } catch { /* storage blocked */ } }, [sidebarCollapsed]);
   const [headerContent, setHeaderContent] = useState({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
   const [ph1LogoUrl, setPh1LogoUrl] = useState(null);
 
@@ -16322,7 +16287,7 @@ export default function App() {
       <AppHeader profile={profile} pageTitle={pageTitleMap[page] || ""} sidebarCollapsed={sidebarCollapsed}
         page={page} onCreatePR={() => setPage("create")} canCreatePR={can(profile, "pr.prepare")}
         headerSubtitle={headerContent.subtitle} headerActions={headerContent.actions}
-        headerSearchValue={headerContent.searchValue} onHeaderSearchChange={headerContent.onSearchChange} />
+        headerSearchValue={headerContent.searchValue} onHeaderSearchChange={headerContent.onSearchChange} onLogout={handleLogout} />
 
       {/* Persistent glass sidebar */}
       <Sidebar
