@@ -682,8 +682,8 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
 
       <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", padding: "12px 0 8px" }}>
 
-      {/* Logo tile (same PH1 World logo as the D&C Dashboard) */}
-      <div style={{ margin: "0 10px 14px", height: 48, borderRadius: 12, background: C.white, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+      {/* Logo tile: white PH1 World logo on a dark tile, like the D&C Dashboard */}
+      <div style={{ margin: "0 10px 14px", height: 48, borderRadius: 12, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
         <img src="/ph1-logo.png" alt="PH1 World Developers" style={{ height: collapsed ? 34 : 38, width: "auto", display: "block" }} />
       </div>
 
