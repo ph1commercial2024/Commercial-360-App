@@ -3214,8 +3214,8 @@ function VendorAccreditationPage({ token }) {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.offWhite }}>
       <div style={{ ...S.card, maxWidth: 400, textAlign: "center" }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>🔗</div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.textPri, marginBottom: 8 }}>Link not found</div>
-        <div style={{ fontSize: 13, color: C.textSec }}>This accreditation link is invalid or has expired. Please contact the admin for a new link.</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.textPri, marginBottom: 8 }}>This link isn't active</div>
+        <div style={{ fontSize: 13, color: C.textSec }}>This accreditation link is not valid or has been turned off. Please contact PH1 World Developers for a new link.</div>
       </div>
     </div>
   );

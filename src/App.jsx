@@ -830,6 +830,63 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
   );
 }
 
+// ─── SUMMARY CARDS (D&C Dashboard style) ──────────────────────────────────────
+// Colour by meaning, the same on every page: navy = everything, slate = not started, amber = in
+// progress, green = done, red = needs action, steel = finished with no further action.
+const SUMMARY_TONES = {
+  navy:  { bg: "linear-gradient(135deg, #2E3D58 0%, #111827 100%)", icon: "layers" },
+  slate: { bg: "linear-gradient(135deg, #5B6474 0%, #262B35 100%)", icon: "clock"  },
+  amber: { bg: "linear-gradient(135deg, #C9700F 0%, #5A2A08 100%)", icon: "trend"  },
+  green: { bg: "linear-gradient(135deg, #15A34A 0%, #08391C 100%)", icon: "check"  },
+  red:   { bg: "linear-gradient(135deg, #DC2626 0%, #3D0909 100%)", icon: "alert"  },
+  steel: { bg: "linear-gradient(135deg, #3E6A93 0%, #15253A 100%)", icon: "box"    },
+};
+const SUMMARY_TONE_BY_LABEL = {
+  Total: "navy",
+  Pending: "slate", Draft: "slate", Inactive: "slate",
+  "In Review": "amber", Open: "amber", Submitted: "amber", "For Signing": "amber",
+  Approved: "green", Accredited: "green", Signed: "green", Awarded: "green", Active: "green",
+  Returned: "red",
+  Closed: "steel",
+  // Accreditation tab (invited vendors still waiting)
+  "In Progress": "amber", "Not Started": "slate", Deactivated: "steel",
+};
+const SUMMARY_ICONS = {
+  layers: <><path d="M12 3 3 8l9 5 9-5z"/><path d="m3 13 9 5 9-5"/></>,
+  clock:  <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  trend:  <path d="m3 15 5-5 4 4 8-8"/>,
+  check:  <><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></>,
+  alert:  <><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></>,
+  box:    <><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12h6"/></>,
+};
+
+// One card; the first card of each row is "Total" and its value is the base for the percentages
+function SummaryCard({ label, value, total, desc, active, dimmed, onClick }) {
+  const tone = SUMMARY_TONES[SUMMARY_TONE_BY_LABEL[label] || "slate"];
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <div role="button" tabIndex={0} aria-pressed={active}
+      onClick={onClick}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      style={{
+        position: "relative", background: tone.bg, color: "#fff", borderRadius: 14, padding: "16px 18px",
+        minHeight: 104, cursor: "pointer", userSelect: "none", overflow: "hidden",
+        boxShadow: active ? "0 0 0 3px #FFFFFF, 0 10px 24px rgba(15,23,42,0.28)" : "0 4px 14px rgba(15,23,42,0.16)",
+        transform: active ? "translateY(-2px)" : "none",
+        opacity: dimmed ? 0.55 : 1,
+        transition: "transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease",
+      }}>
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.32)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+        style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)" }} aria-hidden="true">
+        {SUMMARY_ICONS[tone.icon]}
+      </svg>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", margin: "6px 0 4px", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)" }}>{label === "Total" ? desc : `${pct}% of total`}</div>
+    </div>
+  );
+}
+
 // ─── STAT CARD ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, accent }) {
   return (
@@ -1083,25 +1140,10 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
             { label: "In Review", value: prBase.filter(p => cardStatusMap["In Review"].includes(p.status)).length, color: C.tealText, desc: "Under commercial review or approval"  },
             { label: "Approved",  value: prBase.filter(p => cardStatusMap["Approved"].includes(p.status)).length,  color: C.greenText,desc: "Fully approved and ready to procure"  },
             { label: "Returned",  value: prBase.filter(p => cardStatusMap["Returned"].includes(p.status)).length,  color: C.redText,  desc: "Sent back to the preparer for fixes"  },
-          ].map(s => {
-            const isActive = activeCard === s.label;
-            return (
-              <div key={s.label}
-                onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                style={{
-                  background: isActive ? C.coralLight : C.white,
-                  border: `1px solid ${isActive ? C.coral : C.border}`,
-                  borderRadius: 12, padding: "14px 18px",
-                  boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                  cursor: "pointer", userSelect: "none",
-                  transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-              </div>
-            );
-          })}
+          ].map((s, _i, all) => (
+            <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
+              onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
+          ))}
         </div>
 
         {/* Search and filter */}
@@ -3327,25 +3369,10 @@ function ProjectsPage({ profile }) {
             { label: "Total",    value: projects.length,                                      color: C.textPri,  desc: "All projects"             },
             { label: "Active",   value: projects.filter(p => p.status === "active").length,   color: C.greenText,desc: "Currently in progress"     },
             { label: "Inactive", value: projects.filter(p => p.status === "inactive").length, color: C.grayText, desc: "Closed or on hold"         },
-          ].map(s => {
-            const isActive = activeCard === s.label;
-            return (
-              <div key={s.label}
-                onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                style={{
-                  background: isActive ? C.coralLight : C.white,
-                  border: `1px solid ${isActive ? C.coral : C.border}`,
-                  borderRadius: 12, padding: "14px 18px",
-                  boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                  cursor: "pointer", userSelect: "none",
-                  transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-              </div>
-            );
-          })}
+          ].map((s, _i, all) => (
+            <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
+              onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
+          ))}
         </div>
 
         {/* Search and filter */}
@@ -4831,25 +4858,10 @@ function RFPsPage({ profile, setPage, setSelectedRFPId }) {
             { label: "Draft",  value: rfpBase.filter(r => r.status === "Draft").length,  color: C.grayText, desc: "Not yet published"             },
             { label: "Open",   value: rfpBase.filter(r => r.status === "Open").length,   color: C.greenText,desc: "Accepting vendor proposals"    },
             { label: "Closed", value: rfpBase.filter(r => r.status === "Closed").length, color: C.redText,  desc: "Bidding period ended"          },
-          ].map(s => {
-            const isActive = activeCard === s.label;
-            return (
-              <div key={s.label}
-                onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                style={{
-                  background: isActive ? C.coralLight : C.white,
-                  border: `1px solid ${isActive ? C.coral : C.border}`,
-                  borderRadius: 12, padding: "14px 18px",
-                  boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                  cursor: "pointer", userSelect: "none",
-                  transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-              </div>
-            );
-          })}
+          ].map((s, _i, all) => (
+            <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
+              onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
+          ))}
         </div>
 
         {/* Search and filter */}
@@ -6530,18 +6542,20 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
   const [showAllInvited, setShowAllInvited]   = useState(false);
   const [accFilter, setAccFilter]             = useState(null); // "active"|"expiring"|"expired"|"in_progress"|"not_started"
 
-  const INVITE_EXPIRY_DAYS = 90;
-  const tokenLinkStatus = (createdAt) => {
-    const days = Math.floor((Date.now() - new Date(createdAt)) / 86400000);
-    if (days > INVITE_EXPIRY_DAYS) return "expired";
-    if (days > INVITE_EXPIRY_DAYS - 7) return "expiring";
-    return "active";
+  // Accreditation links don't expire; staff can turn one off (the vendor portal then can't open it)
+  const setInviteLinkActive = async (token, email, active) => {
+    if (!active && !confirm(`Deactivate the accreditation link for ${email}?\n\nThe vendor won't be able to open it until you reactivate it.`)) return;
+    const { data, error } = await supabase.from("vendor_accreditation_tokens")
+      .update(active ? { deactivated_at: null, deactivated_by_name: null } : { deactivated_at: new Date().toISOString(), deactivated_by_name: profile?.full_name || null })
+      .eq("token", token).select("token");
+    if (error || !data?.length) { alert("Could not update the link: " + (error?.message || "you may not have permission.")); return; }
+    fetchInviteTokens();
   };
 
   const fetchInviteTokens = async () => {
     const { data } = await supabase
       .from("vendor_accreditation_tokens")
-      .select("token, invited_email, created_at, vendor_id")
+      .select("token, invited_email, created_at, vendor_id, deactivated_at, deactivated_by_name")
       .order("created_at", { ascending: false });
     setInviteTokens(data || []);
     setInviteCount((data || []).length);
@@ -6701,6 +6715,7 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
           .from("vendor_accreditation_tokens")
           .select("token")
           .eq("vendor_id", vendorCode)
+          .is("deactivated_at", null)
           .order("created_at", { ascending: false })
           .limit(1);
         const tok = tokenRows?.[0]?.token;
@@ -6842,6 +6857,9 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
       .from("vendor_accreditation_tokens")
       .select("token")
       .eq("invited_email", inviteEmail.trim())
+      .is("deactivated_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     let createdToken = null;
@@ -7055,59 +7073,27 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
             return !linked || linked.accreditation_status === "Draft";
           });
-          const activeCount   = pendingTokens.filter(t => tokenLinkStatus(t.created_at) === "active").length;
-          const expiringCount = pendingTokens.filter(t => tokenLinkStatus(t.created_at) === "expiring").length;
-          const expiredCount  = pendingTokens.filter(t => tokenLinkStatus(t.created_at) === "expired").length;
-          const inProgressCount  = pendingTokens.filter(t => {
+          const liveTokens = pendingTokens.filter(t => !t.deactivated_at);
+          const deactivatedCount = pendingTokens.length - liveTokens.length;
+          const inProgressCount  = liveTokens.filter(t => {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
             return linked?.accreditation_status === "Draft";
           }).length;
-          const notStartedCount = pendingTokens.length - inProgressCount;
-          const cardStyle = (bg, border, key) => {
-            const isActive = accFilter === key;
-            return {
-              background: isActive ? border : bg,
-              border: `2px solid ${isActive ? border : border + "80"}`,
-              borderRadius: 10, padding: "12px 16px", textAlign: "center",
-              boxShadow: isActive ? `0 0 0 3px ${border}40` : "0 1px 3px rgba(0,0,0,0.05)",
-              cursor: "pointer", userSelect: "none",
-              transition: "background 0.12s, box-shadow 0.12s",
-              opacity: accFilter && !isActive ? 0.5 : 1,
-            };
-          };
-          const label = (txt, active) => <div style={{ fontSize: 10, fontWeight: 700, color: active ? "rgba(0,0,0,0.55)" : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{txt}</div>;
-          const val = (n, color, active) => <div style={{ fontSize: 24, fontWeight: 700, color: active ? "rgba(0,0,0,0.75)" : color, letterSpacing: "-0.02em", marginBottom: 2 }}>{n}</div>;
-          const desc = (txt, active) => <div style={{ fontSize: 10, color: active ? "rgba(0,0,0,0.45)" : C.textTer }}>{txt}</div>;
+          const notStartedCount = liveTokens.length - inProgressCount;
+          const total = pendingTokens.length;
           const toggle = (key) => setAccFilter(prev => prev === key ? null : key);
+          const cards = [
+            { key: "total",       label: "Total",       value: total, desc: "All invited" },
+            { key: "not_started", label: "Not Started", value: notStartedCount  },
+            { key: "in_progress", label: "In Progress", value: inProgressCount  },
+            { key: "deactivated", label: "Deactivated", value: deactivatedCount },
+          ];
           return (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-              {/* Link Status group */}
-              <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Link Status</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                  <div style={cardStyle("#EAF3DE", "#BBD9A0", "active")} onClick={() => toggle("active")}>
-                    {label("Active", accFilter === "active")}{val(activeCount, "#3B6D11", accFilter === "active")}{desc("Links usable", accFilter === "active")}
-                  </div>
-                  <div style={cardStyle("#FEF3E2", "#F5C97A", "expiring")} onClick={() => toggle("expiring")}>
-                    {label("Expiring", accFilter === "expiring")}{val(expiringCount, "#92580A", accFilter === "expiring")}{desc("Expires in 7 days", accFilter === "expiring")}
-                  </div>
-                  <div style={cardStyle("#FDEDED", "#F5B8B8", "expired")} onClick={() => toggle("expired")}>
-                    {label("Expired", accFilter === "expired")}{val(expiredCount, "#B91C1C", accFilter === "expired")}{desc("Need resend", accFilter === "expired")}
-                  </div>
-                </div>
-              </div>
-              {/* Progress group */}
-              <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.textSec, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Application Progress</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-                  <div style={cardStyle("#EEF2FF", "#C7D2FE", "in_progress")} onClick={() => toggle("in_progress")}>
-                    {label("In Progress", accFilter === "in_progress")}{val(inProgressCount, "#4338CA", accFilter === "in_progress")}{desc("Filling in form", accFilter === "in_progress")}
-                  </div>
-                  <div style={cardStyle("#F9FAFB", C.border, "not_started")} onClick={() => toggle("not_started")}>
-                    {label("Not Started", accFilter === "not_started")}{val(notStartedCount, C.textSec, accFilter === "not_started")}{desc("Haven't opened", accFilter === "not_started")}
-                  </div>
-                </div>
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+              {cards.map(c => (
+                <SummaryCard key={c.key} label={c.label} value={c.value} desc={c.desc} total={total}
+                  active={accFilter === c.key} dimmed={!!accFilter && accFilter !== c.key} onClick={() => toggle(c.key)} />
+              ))}
             </div>
           );
         })()}
@@ -7121,21 +7107,22 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
           });
           const invitedRows = accFilter ? allInvitedRows.filter(t => {
             const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
-            if (accFilter === "active")      return tokenLinkStatus(t.created_at) === "active";
-            if (accFilter === "expiring")    return tokenLinkStatus(t.created_at) === "expiring";
-            if (accFilter === "expired")     return tokenLinkStatus(t.created_at) === "expired";
+            if (accFilter === "total")       return true;
+            if (accFilter === "deactivated") return !!t.deactivated_at;
+            if (t.deactivated_at) return false;
             if (accFilter === "in_progress") return linked?.accreditation_status === "Draft";
             if (accFilter === "not_started") return !linked || linked.accreditation_status !== "Draft";
             return true;
           }) : allInvitedRows;
           if (invitedRows.length === 0) return null;
           const visibleRows = invitedRows;
-          const linkStatusBadge = (createdAt) => {
-            const s = tokenLinkStatus(createdAt);
-            if (s === "expired")  return <span style={{ fontSize: 10, fontWeight: 600, background: "#FDEDED", color: "#B91C1C", padding: "2px 8px", borderRadius: 99 }}>✕ Expired</span>;
-            if (s === "expiring") return <span style={{ fontSize: 10, fontWeight: 600, background: "#FEF3E2", color: "#92580A", padding: "2px 8px", borderRadius: 99 }}>⚠ Expiring soon</span>;
-            return <span style={{ fontSize: 10, fontWeight: 600, background: "#EAF3DE", color: "#3B6D11", padding: "2px 8px", borderRadius: 99 }}>● Active</span>;
-          };
+          const linkStatusBadge = (t) => t.deactivated_at
+            ? <div>
+                <span style={{ fontSize: 10, fontWeight: 600, background: C.grayBg, color: C.grayText, padding: "2px 8px", borderRadius: 99 }}>■ Deactivated</span>
+                <div style={{ fontSize: 10.5, color: C.textTer, marginTop: 3 }}>{t.deactivated_by_name ? `by ${t.deactivated_by_name} · ` : ""}{fmtShort(t.deactivated_at)}</div>
+              </div>
+            : <span style={{ fontSize: 10, fontWeight: 600, background: "#EAF3DE", color: "#3B6D11", padding: "2px 8px", borderRadius: 99 }}>● Active</span>;
+          const smallBtn = (color = C.textSec) => ({ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color, cursor: "pointer", fontFamily: "inherit" });
           return (
             <div style={{ marginBottom: 20 }}>
               {/* Section header */}
@@ -7162,14 +7149,13 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                     {visibleRows.map((t, i) => {
                       const linked = vendors.find(v => (t.vendor_id && String(v.id) === String(t.vendor_id)) || v.vendor_company_info?.rfq_email === t.invited_email);
                       const inProgress = linked?.accreditation_status === "Draft";
-                      const isExpired = tokenLinkStatus(t.created_at) === "expired";
                       return (
                         <tr key={t.token} style={{ borderBottom: i < visibleRows.length - 1 ? "1px dashed #E5E7EB" : "none" }}>
                           <td style={{ padding: "9px 14px" }}>
                             <div style={{ fontWeight: 500, color: C.textPri }}>{t.invited_email}</div>
                           </td>
                           <td style={{ padding: "9px 14px", color: C.textSec, whiteSpace: "nowrap" }}>{fmt(t.created_at)}</td>
-                          <td style={{ padding: "9px 14px" }}>{linkStatusBadge(t.created_at)}</td>
+                          <td style={{ padding: "9px 14px" }}>{linkStatusBadge(t)}</td>
                           <td style={{ padding: "9px 14px" }}>
                             {inProgress
                               ? <span style={{ fontSize: 10, fontWeight: 600, background: "#EEF2FF", color: "#4338CA", padding: "2px 8px", borderRadius: 99 }}>In progress</span>
@@ -7177,16 +7163,13 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
                           </td>
                           <td style={{ padding: "9px 14px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              {!isExpired && (
-                                <button onClick={() => handleCopyInviteLink(t.token)}
-                                  style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color: C.textSec, cursor: "pointer", fontFamily: "inherit" }}>
-                                  Copy Link
-                                </button>
-                              )}
-                              <button onClick={() => handleResendInvite(t.invited_email)}
-                                style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color: C.textSec, cursor: "pointer", fontFamily: "inherit" }}>
-                                {isExpired ? "Resend (new link)" : "Resend"}
-                              </button>
+                              {t.deactivated_at ? (
+                                canManage && <button onClick={() => setInviteLinkActive(t.token, t.invited_email, true)} style={smallBtn(C.greenText)}>Reactivate</button>
+                              ) : (<>
+                                <button onClick={() => handleCopyInviteLink(t.token)} style={smallBtn()}>Copy Link</button>
+                                <button onClick={() => handleResendInvite(t.invited_email)} style={smallBtn()}>Resend</button>
+                                {canManage && <button onClick={() => setInviteLinkActive(t.token, t.invited_email, false)} style={smallBtn(C.redText)}>Deactivate</button>}
+                              </>)}
                             </div>
                           </td>
                         </tr>
@@ -7212,26 +7195,10 @@ function VendorsPage({ profile, tab = "directory", sidebarCollapsed = false }) {
           ];
           return (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-              {dirCards.map(s => {
-                const isActive = activeCard === s.label;
-                return (
-                  <div key={s.label}
-                    onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                    style={{
-                      background: isActive ? C.coralLight : C.white,
-                      border: `1px solid ${isActive ? C.coral : C.border}`,
-                      borderRadius: 12, padding: "14px 18px",
-                      boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                      cursor: "pointer", userSelect: "none",
-                      transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                      textAlign: "center",
-                    }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                    <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                    <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-                  </div>
-                );
-              })}
+              {dirCards.map((s, _i, all) => (
+                <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
+                  onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
+              ))}
             </div>
           );
         })()}
@@ -9888,25 +9855,10 @@ function RFQListPage({ profile, setPage, setSelectedRFQId }) {
               { label: "Open",    value: rfqBase.filter(r => r.status === "Open").length,    color: C.tealText,  desc: "Accepting vendor quotes"  },
               { label: "Closed",  value: rfqBase.filter(r => r.status === "Closed").length,  color: C.amberText, desc: "Bidding period ended"     },
               { label: "Awarded", value: rfqBase.filter(r => r.status === "Awarded").length, color: C.greenText, desc: "Vendor selected"          },
-            ].map(s => {
-              const isActive = activeCard === s.label;
-              return (
-                <div key={s.label}
-                  onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                  style={{
-                    background: isActive ? C.coralLight : C.white,
-                    border: `1px solid ${isActive ? C.coral : C.border}`,
-                    borderRadius: 12, padding: "14px 18px",
-                    boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                    cursor: "pointer", userSelect: "none",
-                    transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                  }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-                </div>
-              );
-            })}
+            ].map((s, _i, all) => (
+              <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
+                onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
+            ))}
           </div>
 
           {/* Search and filter */}
@@ -11085,25 +11037,10 @@ function RFAListPage({ profile, setPage, setSelectedRFAId, setRfaPRId }) {
               { label: "Submitted", value: rfaBase.filter(r => r.status === "Submitted").length,                             color: C.amberText,desc: "Under review"                    },
               { label: "Returned",  value: rfaBase.filter(r => r.status === "Returned").length,                              color: C.redText,  desc: "Sent back for revision"          },
               { label: "Approved",  value: rfaBase.filter(r => r.status === "Approved" || r.status === "Completed").length,  color: C.greenText,desc: "Award confirmed"                 },
-            ].map(s => {
-              const isActive = activeCard === s.label;
-              return (
-                <div key={s.label}
-                  onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                  style={{
-                    background: isActive ? C.coralLight : C.white,
-                    border: `1px solid ${isActive ? C.coral : C.border}`,
-                    borderRadius: 12, padding: "14px 18px",
-                    boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                    cursor: "pointer", userSelect: "none",
-                    transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                  }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-                </div>
-              );
-            })}
+            ].map((s, _i, all) => (
+              <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
+                onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
+            ))}
           </div>
 
           {/* Search and filter */}
@@ -15823,25 +15760,10 @@ function ContractsListPage({ profile, setPage, setSelectedContractId }) {
               { label: "Draft",       value: contracts.filter(c => c.status === "Draft").length,       color: C.amberText,desc: "Being prepared"               },
               { label: "For Signing", value: contracts.filter(c => c.status === "For Signing").length, color: "#2563EB",  desc: "Awaiting signatures"           },
               { label: "Signed",      value: contracts.filter(c => c.status === "Signed").length,      color: C.greenText,desc: "Fully executed"                },
-            ].map(s => {
-              const isActive = activeCard === s.label;
-              return (
-                <div key={s.label}
-                  onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)}
-                  style={{
-                    background: isActive ? C.coralLight : C.white,
-                    border: `1px solid ${isActive ? C.coral : C.border}`,
-                    borderRadius: 12, padding: "14px 18px",
-                    boxShadow: isActive ? `0 0 0 2px ${C.coralMid}` : "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)",
-                    cursor: "pointer", userSelect: "none",
-                    transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s",
-                  }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? C.coralDark : C.textTer, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{s.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: s.color, letterSpacing: "-0.02em", marginBottom: 4 }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: C.textTer, lineHeight: 1.4 }}>{s.desc}</div>
-                </div>
-              );
-            })}
+            ].map((s, _i, all) => (
+              <SummaryCard key={s.label} {...s} total={all[0].value} active={activeCard === s.label} dimmed={!!activeCard && activeCard !== s.label}
+                onClick={() => setActiveCard(prev => prev === s.label ? null : s.label)} />
+            ))}
           </div>
 
           {/* Search and filter */}
