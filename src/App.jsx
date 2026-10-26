@@ -574,6 +574,18 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
         {/* Divider */}
         <div style={{ width: 1, height: 24, background: "#E2E8F0", flexShrink: 0 }} />
 
+        {/* Back to the D&C Dashboard (separate app), same tab */}
+        <a href={DANDC_DASHBOARD_URL} title="D&C Dashboard" aria-label="Go to D&C Dashboard"
+          style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: C.textSec, flexShrink: 0, transition: "background 0.12s, color 0.12s" }}
+          onMouseOver={e => { e.currentTarget.style.background = C.surface; e.currentTarget.style.color = C.textPri; }}
+          onMouseOut={e  => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.textSec; }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="3" width="16" height="18" rx="1.5"/>
+            <path d="M9 21v-4h6v4"/>
+            <path d="M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01M8 15h.01M16 15h.01"/>
+          </svg>
+        </a>
+
         {/* User info */}
         {profile && (
           <>
@@ -598,6 +610,8 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+const DANDC_DASHBOARD_URL = "https://dandc-dashboard.vercel.app/permits";
+
 function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse }) {
   const isAdm        = profile?.is_admin === true;
   const showPR       = can(profile, "pr.prepare") || isAdm || accessState(profile) === "pending";
@@ -821,7 +835,6 @@ function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse
           );
         })}
       </nav>
-
 
       {/* Divider + collapse toggle at bottom */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "0 8px" }} />
