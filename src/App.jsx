@@ -1905,6 +1905,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   const [prAreas, setPrAreas] = useState([]);
   const [selectedGMId, setSelectedGMId] = useState("");
   const isReviewerCreating = can(profile, "pr.review");
+  // A Manager creating their own PR is their own Manager: no Manager to pick, submits straight to review
+  const isManagerCreating = !isReviewerCreating && can(profile, "pr.submit");
   const [isRush, setIsRush] = useState(false);
   const [scope, setScope] = useState(emptyScope);
   const [saving, setSaving] = useState(false);
@@ -2018,7 +2020,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       const sp = scopeProblems(scope);
       if (sp.length) { alert("The Scope of Works isn't ready yet:\n• " + sp.join("\n• ")); return; }
     }
-    if (!isReviewerCreating && sendToGM && !selectedGMId) { alert("Please select a Manager to send to."); return; }
+    if (!isReviewerCreating && !isManagerCreating && sendToGM && !selectedGMId) { alert("Please select a Manager to send to."); return; }
     if (isReviewerCreating) {
       if (!budgetStatus) { alert('Please tick at least one budget line, or "No budget line covers this work".'); return; }
     }
@@ -2072,7 +2074,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     const isAutoApprover = can(profile, "pr.approve_budgeted"); // CM or D&C Head
     const isFinalApprover = can(profile, "pr.approve_unbudgeted"); // D&C Head only
     const autoStatus = !isReviewerCreating
-      ? (sendToGM ? "Pending Manager Approval" : "Draft")
+      ? (sendToGM ? (isManagerCreating ? "For Review" : "Pending Manager Approval") : "Draft")
       : isAutoApprover && budgetStatus === "Budgeted" ? "Approved"
       : isFinalApprover && budgetStatus === "Unbudgeted" ? "Approved"
       : isAutoApprover && budgetStatus === "Unbudgeted" ? "Pending Endorsement"
@@ -2080,7 +2082,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     const prFields = {
       project_id: parseInt(selectedProjectId),
       areas: prAreas,
-      group_manager_id: gmProfile?.profiles?.id || null,
+      group_manager_id: isManagerCreating ? profile.id : (gmProfile?.profiles?.id || null),
       description: formData.description,
       justification: formData.justification,
       is_rush: isRush,
@@ -2175,6 +2177,10 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
               onMouseOut={e => e.currentTarget.style.opacity = "1"}>
               {saving ? "Submitting…" : "Submit for review"}
             </button>
+          ) : isManagerCreating ? (
+            <button style={styles.btnPrimary} onClick={() => savePRRef.current(true)} disabled={saving}>
+              {saving ? "Submitting…" : "Submit for review"}
+            </button>
           ) : (
             <button style={styles.btnAmber} onClick={() => savePRRef.current(true)} disabled={saving}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2187,7 +2193,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       ),
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [saving, isReviewerCreating, submitted, editLoading, editPR]);
+  }, [saving, isReviewerCreating, isManagerCreating, submitted, editLoading, editPR]);
 
   if (submitted) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -2249,7 +2255,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
               )}
             </div>
           )}
-          {!isReviewerCreating && (
+          {!isReviewerCreating && !isManagerCreating && (
             <div>
               <label style={styles.label}>Manager <span style={styles.required}>*</span></label>
               <select value={selectedGMId} onChange={e => setSelectedGMId(e.target.value)} style={styles.input}>
@@ -2443,6 +2449,10 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
           )}
           {isReviewerCreating ? (
             <button style={styles.btnPrimary} onClick={() => savePR(false)} disabled={saving}>
+              {saving ? "Submitting…" : "Submit for review"}
+            </button>
+          ) : isManagerCreating ? (
+            <button style={styles.btnPrimary} onClick={() => savePR(true)} disabled={saving}>
               {saving ? "Submitting…" : "Submit for review"}
             </button>
           ) : (
