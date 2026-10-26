@@ -8,8 +8,12 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-// Only active staff (the main app) and our own server jobs (service key) may send email.
-// The public anon key is visible in the website, and anyone can sign up, so a login alone is not enough.
+// Only our own server jobs (service key) and active staff in the roles that send email from the app
+// may send. The public anon key is visible in the website and anyone can sign up, so a login alone is
+// not enough. Keep this list in step with the app's email buttons (RFQ page: pr.review; Vendors: vendor.add).
+// TODO(later): replace free-form sending with fixed server-side templates, like send-vendor-copy.
+const SENDER_POSITIONS = ["Commercial Officer", "Commercial Manager", "D&C Head"];
+
 async function isAllowed(req: Request): Promise<boolean> {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!token) return false;
@@ -26,7 +30,7 @@ async function isAllowed(req: Request): Promise<boolean> {
     headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
   });
   const [p] = prof.ok ? await prof.json().catch(() => []) : [];
-  return !!p && p.is_active !== false && (p.is_admin === true || !!String(p.position ?? "").trim());
+  return !!p && p.is_active !== false && (p.is_admin === true || SENDER_POSITIONS.includes(String(p.position ?? "").trim()));
 }
 
 Deno.serve(async (req) => {
