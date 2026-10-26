@@ -6,6 +6,7 @@ import { parseCostReport, decideBudget, parseAwardItems, parseVOItems, reconcile
 import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import { matchProjects, projectLabel } from "./lib/projectSearch";
+import { accessState } from "./lib/access";
 import { PROJECT_TYPES, AREA_KIND_LABEL, defaultAreas, setTowerCount, towerCount, addArea, hasAreaName, activeAreas, totalUnits, areaSummary, areaNames, switchType } from "./lib/projectAreas";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -356,6 +357,35 @@ function LoadingScreen({ logoUrl }) {
 }
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
+// Deactivated accounts get only this screen (the database also refuses them)
+function InactiveAccountScreen({ onLogout }) {
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.offWhite, padding: 24 }}>
+      <div style={{ ...styles.card, maxWidth: 420, textAlign: "center" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.textPri, marginBottom: 8 }}>Your account isn't active</div>
+        <p style={{ fontSize: 13, color: C.textSec, lineHeight: 1.6, margin: "0 0 18px" }}>An administrator has turned off access for this account. If you think this is a mistake, contact your administrator.</p>
+        <button style={styles.btnSecondary} onClick={onLogout}>Log out</button>
+      </div>
+    </div>
+  );
+}
+
+// New sign-ups (no position yet) see this in place of any page until an admin assigns their role
+function PendingAccessPage({ profile }) {
+  return (
+    <div style={styles.pageBody}>
+      <div style={{ ...styles.card, maxWidth: 560, margin: "40px auto", textAlign: "center" }}>
+        <div style={{ display: "inline-block", fontSize: 11, fontWeight: 600, color: C.amberText, background: C.amberBg, padding: "3px 10px", borderRadius: 999, marginBottom: 12 }}>Waiting for a role</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.textPri, marginBottom: 8 }}>Your account is set up, but has no access yet</div>
+        <p style={{ fontSize: 13, color: C.textSec, lineHeight: 1.6, margin: 0 }}>
+          An administrator needs to assign your role. No purchase requests are shown until then.
+          {profile?.email ? <> You're signed in as <strong>{profile.email}</strong>.</> : null}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -570,7 +600,7 @@ function AppHeader({ profile, pageTitle, sidebarCollapsed, page, onCreatePR, can
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 function Sidebar({ page, setPage, profile, onLogout, collapsed, onToggleCollapse }) {
   const isAdm        = profile?.is_admin === true;
-  const showPR       = can(profile, "pr.prepare") || isAdm;
+  const showPR       = can(profile, "pr.prepare") || isAdm || accessState(profile) === "pending";
   const showProjects = can(profile, "project.view");
   const showVendors  = can(profile, "vendor.view");
   const showRFPs     = can(profile, "rfp.create") || can(profile, "rfp.bidcom1") || can(profile, "rfp.bidcom2");
@@ -9161,7 +9191,7 @@ function UsersPage({ profile }) {
 
   const openEdit = (user) => {
     setEditingUser(user);
-    setForm({ full_name: user.full_name || "", email: "", password: "", position: user.position || "Supervisor", is_admin: user.is_admin || false });
+    setForm({ full_name: user.full_name || "", email: "", password: "", position: user.position || "", is_admin: user.is_admin || false });
     setShowModal(true);
   };
 
@@ -9172,6 +9202,7 @@ function UsersPage({ profile }) {
     if (!editingUser && !form.email) { alert("Email is required."); return; }
     if (!editingUser && !form.password) { alert("Password is required."); return; }
     if (!editingUser && form.password.length < 6) { alert("Password must be at least 6 characters."); return; }
+    if (!form.position && !form.is_admin) { alert("Choose a position. Without one the account has no access."); return; }
     setSaving(true);
 
     if (editingUser) {
@@ -9213,13 +9244,16 @@ function UsersPage({ profile }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
+  // New sign-ups waiting for a role are listed first so an admin notices them
   const filtered = users.filter(u =>
     (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (u.email || "").toLowerCase().includes(search.toLowerCase()) ||
     (u.position || "").toLowerCase().includes(search.toLowerCase())
-  );
+  ).sort((a, b) => (accessState(a) === "pending" ? 0 : 1) - (accessState(b) === "pending" ? 0 : 1));
 
   const positionColor = (position, isAdm) => {
     if (isAdm) return { bg: "#EDE9FE", color: "#5B21B6" };
+    if (!position) return { bg: C.redBg, color: C.redText };
     const map = {
       "Commercial Manager": { bg: C.amberBg,  color: C.amberText },
       "D&C Head":           { bg: C.amberBg,  color: C.amberText },
@@ -9351,7 +9385,7 @@ function UsersPage({ profile }) {
                       {/* Position */}
                       <td style={{ padding: "10px 14px" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: pc.bg, color: pc.color }}>
-                          {user.position || "—"}
+                          {user.position || (accessState(user) === "pending" ? "New · waiting for role" : "—")}
                         </span>
                       </td>
                       {/* Access / Admin */}
@@ -9471,6 +9505,7 @@ function UsersPage({ profile }) {
               <div>
                 <label style={styles.label}>Position <span style={styles.required}>*</span></label>
                 <select value={form.position} onChange={e => setForm(p => ({ ...p, position: e.target.value }))} style={styles.input}>
+                  {!form.position && <option value="">Choose a position…</option>}
                   {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
@@ -16194,7 +16229,7 @@ export default function App() {
   }, []);
 
   const fetchProfile = async (userId) => {
-    const { data } = await supabase.from("profiles").select("id, full_name, position, is_admin").eq("id", userId).single();
+    const { data } = await supabase.from("profiles").select("id, full_name, email, position, is_admin, is_active").eq("id", userId).single();
     if (data) setProfile(data);
   };
 
@@ -16202,6 +16237,8 @@ export default function App() {
 
   if (session === undefined) return <LoadingScreen logoUrl={ph1LogoUrl} />;
   if (!session) return <LoginPage />;
+  const access = accessState(profile);
+  if (access === "inactive") return <InactiveAccountScreen onLogout={handleLogout} />;
 
   const activeSidebarPage = ["create", "detail", "edit_pr"].includes(page) ? "dashboard"
     : ["rfp_create", "rfp_detail"].includes(page) ? "rfps"
@@ -16272,7 +16309,7 @@ export default function App() {
       />
 
       {/* Main content — shifts right with sidebar */}
-      <div style={styles.mainContent(sidebarCollapsed, false)}>{pageMap[page] || pageMap.dashboard}</div>
+      <div style={styles.mainContent(sidebarCollapsed, false)}>{access === "pending" ? <PendingAccessPage profile={profile} /> : (pageMap[page] || pageMap.dashboard)}</div>
     </div>
     </HeaderActionsCtx.Provider>
     </SidebarCtx.Provider>

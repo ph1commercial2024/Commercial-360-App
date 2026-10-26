@@ -8,19 +8,25 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-// Only logged-in staff (the main app) and our own server jobs (service key) may send email.
-// The public anon key is visible in the website, so it must not be enough.
+// Only active staff (the main app) and our own server jobs (service key) may send email.
+// The public anon key is visible in the website, and anyone can sign up, so a login alone is not enough.
 async function isAllowed(req: Request): Promise<boolean> {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!token) return false;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (serviceKey && token === serviceKey) return true;
-  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/auth/v1/user`, {
+  const url = Deno.env.get("SUPABASE_URL");
+  const res = await fetch(`${url}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${token}`, apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "" },
   });
   if (!res.ok) return false;
   const user = await res.json().catch(() => null);
-  return !!user?.id;
+  if (!user?.id || !serviceKey) return false;
+  const prof = await fetch(`${url}/rest/v1/profiles?id=eq.${user.id}&select=position,is_admin,is_active`, {
+    headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
+  });
+  const [p] = prof.ok ? await prof.json().catch(() => []) : [];
+  return !!p && p.is_active !== false && (p.is_admin === true || !!String(p.position ?? "").trim());
 }
 
 Deno.serve(async (req) => {
