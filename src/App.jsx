@@ -1614,9 +1614,24 @@ function ScopeOfWorksEditor({ scope, onChange }) {
       {step === 4 && (
         <>
           <div style={{ fontSize: 12.5, color: C.textSec }}>Read it once, top to bottom. This is what the Manager and, later, the vendors will see.</div>
-          {scopeNotices({ ...scope, confirmed: true }).map(p => (
-            <div key={p} style={{ fontSize: 12.5, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px" }}>⚠ {p}</div>
-          ))}
+          {(() => {
+            // One notice for everything still to fill in
+            const notes = scopeNotices({ ...scope, confirmed: true }).map(p => p.replace("(Scope of Works, ", "("));
+            if (!notes.length) return null;
+            return (
+              <div style={{ display: "flex", gap: 8, fontSize: 12.5, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px" }}>
+                <span>⚠</span>
+                <div>
+                  {notes.length === 1 ? notes[0] : (
+                    <>
+                      <div style={{ fontWeight: 600, marginBottom: 2 }}>Still to fill in:</div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>{notes.map(p => <li key={p}>{p}</li>)}</ul>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           <ScopeOfWorksView saved={scope} />
           <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.coralMid}`, background: C.coralLight, fontSize: 13, color: C.textPri, cursor: "pointer" }}>
             <input type="checkbox" checked={!!scope.confirmed} disabled={scopeProblems({ ...scope, confirmed: true }).length > 0}
