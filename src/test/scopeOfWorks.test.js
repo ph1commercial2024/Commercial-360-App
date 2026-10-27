@@ -89,6 +89,23 @@ describe('scopeProblems', () => {
   })
 })
 
+describe('lot lines', () => {
+  it('explains that a lot line needs a fuller description, instead of calling it missing', () => {
+    const t = { ...sample(), confirmed: true }
+    t.lines[k('General Requirements', 'Full-Time Safety Officer')][0] = { spec: 'dadada', qty: '1', unit: 'lot', location: 'Whole site' }
+    const p = scopeProblems(t)
+    expect(p).toEqual(['1 "lot" line needs a fuller description of what the lot includes, at least 12 characters (Scope of Works, step 3).'])
+  })
+
+  it('reports a lot line with other gaps under the general message only', () => {
+    const t = { ...sample(), confirmed: true }
+    t.lines[k('General Requirements', 'Full-Time Safety Officer')][0] = { spec: 'dadada', qty: '1', unit: 'lot', location: '' }
+    const p = scopeProblems(t)
+    expect(p).toHaveLength(1)
+    expect(p[0]).toMatch(/missing a spec, unit or specific location/)
+  })
+})
+
 describe('scopeNotices', () => {
   it('also mentions lines with no quantity, without making it a blocking problem', () => {
     const t = { ...sample(), confirmed: true }

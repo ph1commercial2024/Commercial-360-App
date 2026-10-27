@@ -1622,12 +1622,23 @@ function ScopeOfWorksEditor({ scope, onChange }) {
               <div style={{ display: "flex", gap: 8, fontSize: 12.5, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px" }}>
                 <span>⚠</span>
                 <div>
-                  {notes.length === 1 ? notes[0] : (
-                    <>
-                      <div style={{ fontWeight: 600, marginBottom: 2 }}>Still to fill in:</div>
-                      <ul style={{ margin: 0, paddingLeft: 18 }}>{notes.map(p => <li key={p}>{p}</li>)}</ul>
-                    </>
-                  )}
+                  {notes.length > 1 && <div style={{ fontWeight: 600, marginBottom: 2 }}>Still to fill in:</div>}
+                  {/* Each point opens the step it refers to */}
+                  <ul style={{ margin: 0, paddingLeft: notes.length > 1 ? 18 : 0, listStyle: notes.length > 1 ? "disc" : "none" }}>
+                    {notes.map(p => {
+                      const target = Number((p.match(/(step (d))/) || [])[1]) || (/work type/i.test(p) ? 1 : /at least one work/i.test(p) ? 2 : null);
+                      return (
+                        <li key={p}>
+                          {target ? (
+                            <button type="button" onClick={() => setStep(target)} title={`Go to step ${target}`}
+                              style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", textAlign: "left", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                              {p}
+                            </button>
+                          ) : p}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
               </div>
             );
@@ -2297,7 +2308,6 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   // Header buttons are rendered once per effect run; the ref lets them call the latest savePR with current form state
   const savePRRef = useRef(savePR);
   useEffect(() => { savePRRef.current = savePR; });
-  const leavePage = () => setPage(editPRId ? "detail" : "dashboard");
 
   useEffect(() => {
     if (submitted || editLoading) { setHeaderContent({ subtitle: "", actions: null }); return; }
@@ -2320,7 +2330,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
             <button style={styles.btnPrimary} onClick={() => savePRRef.current(false)} disabled={saving}
               onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
               onMouseOut={e => e.currentTarget.style.opacity = "1"}>
-              {saving ? "Submitting…" : "Submit for review"}
+              {saving ? "Submitting…" : "Submit"}
             </button>
           ) : isManagerCreating ? (
             <button style={styles.btnPrimary} onClick={() => savePRRef.current(true)} disabled={saving}>
@@ -2587,27 +2597,6 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button style={styles.btnSecondary} onClick={leavePage}>Cancel</button>
-          {!isReviewerCreating && (
-            <button style={styles.btnSecondary} onClick={() => savePR(false)} disabled={saving}>Save as draft</button>
-          )}
-          {isReviewerCreating ? (
-            <button style={styles.btnPrimary} onClick={() => savePR(false)} disabled={saving}>
-              {saving ? "Submitting…" : "Submit for review"}
-            </button>
-          ) : isManagerCreating ? (
-            <button style={styles.btnPrimary} onClick={() => savePR(true)} disabled={saving}>
-              {saving ? "Submitting…" : "Submit for review"}
-            </button>
-          ) : (
-            <button style={styles.btnAmber} onClick={() => savePR(true)} disabled={saving}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name="send" size={13} color={C.amberText} /> Send to Manager
-              </span>
-            </button>
-          )}
-        </div>
       </div>
     </>
   );
@@ -2685,7 +2674,6 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
   const isAdmin    = profile?.is_admin === true;
   const isOwner    = !!pr && pr.prepared_by === profile?.id;
 
-  const canSendToManager   = can(profile, "pr.send_to_manager") && pr?.status === "Draft";
   const canSubmitForReview = (can(profile, "pr.submit") && (pr?.status === "Pending Manager Approval" || pr?.status === "Pending GM Approval")) ;
   const canReview          = can(profile, "pr.review") && pr?.status === "For Review";
   const canApproveBudgeted = can(profile, "pr.approve_budgeted") && pr?.status === "Under Review" && pr?.reviewer_budget_status === "Budgeted";
@@ -2727,13 +2715,6 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
     if (error) { alert("Upload error: " + error.message); return null; }
     const { data: urlData } = supabase.storage.from("pr-documents").getPublicUrl(path);
     return { url: urlData.publicUrl, name: file.name };
-  };
-
-  const handleSendToManager = async () => {
-    setUpdating(true);
-    await supabase.from("purchase_requests").update({ status: "Pending Manager Approval", current_step: "Pending Manager Approval" }).eq("pr_number", prId);
-    await stampPRResubmitted(prId, profile?.full_name);
-    await fetchPR(); setUpdating(false);
   };
 
   const handleManagerSubmit = async () => {
@@ -2914,11 +2895,6 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
           {canEdit && (
             <button style={styles.btnSecondary} disabled={updating} onClick={() => setPage("edit_pr")}>Edit</button>
           )}
-          {canSendToManager && (
-            <button style={styles.btnAmber} disabled={updating} onClick={handleSendToManager}>
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="send" size={13} color={C.amberText} /> Send to Manager</span>
-            </button>
-          )}
           {canSubmitForReview && (
             <button style={styles.btnPrimary} disabled={updating} onClick={handleManagerSubmit}>Submit for review</button>
           )}
@@ -2964,7 +2940,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
       ),
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, rvBudgetPick, canSendToManager, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canEdit, canCreateRFA, canCreateRFQ]);
+  }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, rvBudgetPick, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canEdit, canCreateRFA, canCreateRFQ]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR details…</div></div>;
   if (!pr) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;

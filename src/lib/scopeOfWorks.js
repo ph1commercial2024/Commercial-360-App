@@ -38,7 +38,12 @@ export function scopeProblems(s) {
   if (st.types === 0) return ["Choose at least one work type in the Scope of Works."];
   const p = [];
   if (st.items === 0) p.push("Include at least one work in the Scope of Works.");
-  if (st.done < st.lines) p.push(`${st.lines - st.done} line${st.lines - st.done > 1 ? "s are" : " is"} missing a spec, unit or specific location, or has a quantity that isn't a number (Scope of Works, step 3).`);
+  // A "lot" line that is complete except for a too-short description gets its own, clearer message
+  const open = activeIncluded(s).flatMap(k => s.lines[k] || []).filter(l => !lineComplete(l));
+  const lotShort = open.filter(l => lineComplete({ ...l, unit: l.unit === "lot" ? "m²" : l.unit }) && l.unit === "lot").length;
+  const other = open.length - lotShort;
+  if (other) p.push(`${other} line${other > 1 ? "s are" : " is"} missing a spec, unit or specific location, or has a quantity that isn't a number (Scope of Works, step 3).`);
+  if (lotShort) p.push(`${lotShort} "lot" line${lotShort > 1 ? "s need" : " needs"} a fuller description of what the lot includes, at least 12 characters (Scope of Works, step 3).`);
   if (st.missingWho) p.push(`${st.missingWho} "By others" item${st.missingWho > 1 ? "s don't" : " doesn't"} say who (Scope of Works, step 2).`);
   if (!s.confirmed) p.push("Confirm the scope on the Summary step of the Scope of Works.");
   return p;
