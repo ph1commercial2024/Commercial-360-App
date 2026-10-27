@@ -3,7 +3,7 @@ import { supabase } from "./lib/supabase";
 import { venCode, vendorRef } from "./lib/vendorCode";
 import { toDateStr, fromDateStr } from "./lib/dates";
 import { parseCostReport, decideBudget, parseAwardItems, parseVOItems, reconcileItems } from "./lib/costReport";
-import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
+import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, scopeNotices, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import { matchProjects, projectLabel } from "./lib/projectSearch";
 import { accessState } from "./lib/access";
@@ -1244,38 +1244,44 @@ function DashboardPage({ setPage, setSelectedPRId, profile }) {
 }
 
 // ─── SCOPE OF WORKS WORK TYPES ────────────────────────────────────────────────
+// Work types follow the usual Philippine trade divisions; each holds broad works, and the preparer
+// states sizes and specs in the lines under each work. Examples per work are in SCOPE_HINTS.
 const SCOPE_WORK_TYPES = [
   { name: "General Requirements", groups: [
-    { group: "Site Management", items: ["Full-Time Safety Officer","Part-Time Safety Officer","Temporary Site Office","Temporary Bodega / Warehouse","Temporary Comfort Rooms / Sanitation Facilities","Temporary Power (Generator / Metered Connection)","Temporary Water Supply","Construction Signage and Barricades","Mobilization / Demobilization","Waste Management and Disposal","Security Personnel"] },
-    { group: "Insurance & Permits", items: ["Construction Insurance (CARI)","Third-Party Liability Insurance (TPL)","Workers' Compensation / ECC Coverage","Permits and Licenses"] },
-    { group: "Submittals & Documentation", items: ["Shop Drawing Preparation and Submission","Material Submittal Preparation","Method Statement Preparation","As-Built Drawing Preparation","O&M Manuals Preparation","Warranties and Guarantees Documentation"] },
+    { group: null, items: ["Site Facilities","Safety & Health","Insurance & Bonds","Permits & Licenses","Submittals & Documentation","Site Management & Housekeeping"] },
   ]},
-  { name: "Civil / Site Development", groups: [
-    { group: null, items: ["Site Clearing and Grubbing","Demolition Works","Earthworks — Cut and Fill","Soil Compaction","Dewatering","Retaining Walls","Road and Pavement Works","Curbs and Gutters","Drainage System (Catch Basins, Culverts)","Stormwater Management","Perimeter Fence / Hoarding"] },
+  { name: "Site Works", groups: [
+    { group: null, items: ["Site Preparation & Demolition","Earthworks","Temporary Shoring / Slope Protection","Soil Investigation & Testing"] },
   ]},
   { name: "Structural Works", groups: [
-    { group: null, items: ["Pile Works (Driven / Bored)","Pile Cap and Tie Beams","Footing / Foundation Works","Concrete Works — Columns","Concrete Works — Beams","Concrete Works — Slabs","Concrete Works — Walls / Shear Walls","Structural Steel Works","Rebar / Reinforcement Works","Formwork and Scaffolding","Post-Tensioning Works","Below-Grade Waterproofing","Slab Waterproofing"] },
+    { group: null, items: ["Piling & Foundations","Concrete Works","Post-Tensioning","Structural Steel","Material Testing"] },
   ]},
   { name: "Architectural Works", groups: [
-    { group: null, items: ["Masonry / Blockwork","Plastering and Skimming","Ceiling Works (Framing and Board)","Flooring — Tiles","Flooring — Hardwood / Engineered Wood","Flooring — Polished Concrete","Wall Tiling (Wet Areas)","Painting — Interior","Painting — Exterior","Doors — Hollow Core","Doors — Solid Core / Fire-Rated","Windows — Aluminum Framed","Window Grilles / Security Screens","Kitchen Cabinets and Countertops","Bathroom Fixtures and Accessories","Built-in Wardrobes / Cabinets","Staircase and Railings","Wet Area Waterproofing","Roof Works — Waterproofing Membrane","Roof Works — Roofing Sheet / Tiles","Roof Gutters and Downspouts","Expansion Joints"] },
+    { group: null, items: ["Masonry & Plastering","Drywall & Ceiling Works","Floor Finishes","Wall Finishes","Painting & Coatings","Stone Works","Doors & Hardware","Windows & Glazing","Cabinets & Millwork","Waterproofing","Roofing","Railings & Metal Works","Signages","Toilet Partitions & Accessories","Furniture, Fixtures & Equipment (FF&E)","Façade / Curtain Wall"] },
   ]},
   { name: "Mechanical Works", groups: [
-    { group: null, items: ["Water Supply System (Pipes and Fittings)","Sanitary / Drainage System","Sewer Line Works","Septic Tank / STP (Sewage Treatment Plant)","Grease Trap","Fire Standpipe System","Fire Sprinkler System","Fire Suppression System (Special Hazard)","HVAC — Split Type Units","HVAC — Central / Chilled Water System","Exhaust and Ventilation System","Sanitary Fixtures and Equipment","Water Tanks (Overhead / Underground)","Booster Pump System","Sump Pump System"] },
+    { group: null, items: ["Air-conditioning & Ventilation","Testing & Commissioning"] },
   ]},
   { name: "Electrical Works", groups: [
-    { group: null, items: ["Main Distribution Panel / MDP","Sub-Distribution Panels","Branch Circuit Wiring","Conduit and Roughing-In Works","Lighting Fixtures — Indoor","Lighting Fixtures — Outdoor / Façade","Power Outlets and Convenience Outlets","Grounding and Bonding System","Lightning Protection System","Generator Set","Automatic Transfer Switch (ATS)","UPS System","Fire Alarm System (Detection and Annunciation)","CCTV System","Access Control System","Public Address / Intercom System","Structured Cabling / Data Network","Solar PV System"] },
+    { group: null, items: ["Power Distribution","Lighting & Wiring Devices","Grounding & Lightning Protection","Testing & Commissioning"] },
   ]},
-  { name: "Façade Works", groups: [
-    { group: null, items: ["Curtain Wall System","Glass and Aluminum Works","External Cladding (ACP / Stone / Composite)","Sealants and Expansion Joints","External Wall Insulation","Balcony Railings and Balustrades","Signage and Building Identification"] },
+  { name: "Plumbing & Sanitary Works", groups: [
+    { group: null, items: ["Water Supply","Sanitary & Drainage","Sanitary Fixtures","Pumps & Tanks","STP / Septic","Testing & Commissioning"] },
   ]},
-  { name: "Vertical Transportation", groups: [
-    { group: null, items: ["Passenger Elevators","Service / Cargo Elevator","Escalators","Elevator Lobby Finishing Works"] },
+  { name: "Fire Protection Works", groups: [
+    { group: null, items: ["Sprinklers","Standpipe & Hose Cabinets","Fire Pumps","Fire Extinguishers","Special Suppression","Testing & Commissioning"] },
   ]},
-  { name: "Landscaping", groups: [
-    { group: null, items: ["Softscape — Planting and Turf","Hardscape — Pavers and Walkways","Hardscape — Retaining / Landscape Walls","Irrigation System","Landscape Lighting","Water Features (Fountain / Reflecting Pool)","Playground Equipment","Outdoor Furniture and Amenities","Swimming Pool and Pool Equipment","Amenity Area Finishing Works"] },
+  { name: "Auxiliary Systems", groups: [
+    { group: null, items: ["CCTV","Access Control & Intercom","Data & Telephone","MATV / CATV","PA / Background Music","Building Management System (BMS)","Testing & Commissioning"] },
   ]},
-  { name: "Testing & Commissioning", groups: [
-    { group: null, items: ["Soil Investigation / Geotechnical Boring","Soil Compaction Testing","Concrete Cylinder / Compression Test","Rebar / Steel Material Testing","Pile Load Testing (Static / Dynamic)","Waterproofing Flood Test","Water Pressure Testing (Plumbing)","Drain / Sewage Line Testing","Fire Alarm System Testing and Commissioning","Fire Suppression System Testing","Sprinkler Hydraulic Test","Electrical Load Testing","Generator Load Bank Testing","HVAC Air Balancing and Commissioning","Elevator Load and Safety Testing","BMS Integration Testing","Third-Party / Independent Inspection"] },
+  { name: "FDAS", groups: [
+    { group: null, items: ["Detectors & Devices","FDAS Panel","Voice Evacuation","Testing & Commissioning"] },
+  ]},
+  { name: "Allied Services", groups: [
+    { group: null, items: ["Elevators & Escalators","Building Maintenance Unit (BMU / Gondola)","Generator Set","Testing & Commissioning"] },
+  ]},
+  { name: "Site Development", groups: [
+    { group: null, items: ["Roads & Paving","Storm Drainage","Site Utilities","Perimeter Fence & Gates","Guardhouse","Softscape","Hardscape","Irrigation","Landscape Lighting","Pools & Water Features","Outdoor Amenities"] },
   ]},
   { name: "Design & Consultancy", groups: [
     { group: "Architectural Design", items: ["Concept Design / Concept Development","Schematic Design (SD)","Design Development (DD)","Contract Documents / Working Drawings","Interior Design","Landscape Architecture","As-Built Drawings","Façade / Curtain Wall Design"] },
@@ -1290,12 +1296,106 @@ const SCOPE_WORK_TYPES = [
   ]},
 ];
 
+// Example spec and specific location shown in empty Quantities lines, per work type
+const SCOPE_LINE_EXAMPLES = {
+  "General Requirements":      ["e.g. Licensed SO2 safety officer, full-time on site", "e.g. Whole project site"],
+  "Site Works":                ["e.g. Excavation to footing level, haul-out included", "e.g. Tower 2 footprint"],
+  "Structural Works":          ["e.g. 4,000 psi concrete for columns and beams", "e.g. Tower 1, L1–L10"],
+  "Architectural Works":       ["e.g. 600×600 porcelain, matte", "e.g. Tower 1, L2–L5 corridors"],
+  "Mechanical Works":          ["e.g. 2.0 TR inverter split-type aircon", "e.g. Units 1–20, Tower 1"],
+  "Electrical Works":          ["e.g. 12W LED downlight, 4000K", "e.g. Basement parking, B1–B2"],
+  "Plumbing & Sanitary Works": ["e.g. PPR pipe 25mm, PN20", "e.g. Tower 1 risers"],
+  "Fire Protection Works":     ["e.g. Pendent sprinkler head, 68°C", "e.g. Basement 1–2"],
+  "Auxiliary Systems":         ["e.g. 4MP IP dome camera", "e.g. Lobby and elevator halls"],
+  "FDAS":                      ["e.g. Photoelectric smoke detector", "e.g. All residential corridors"],
+  "Allied Services":           ["e.g. 13-passenger elevator, 1.75 m/s", "e.g. Tower 1 core"],
+  "Site Development":          ["e.g. Bermuda grass sod with soil mix", "e.g. Amenity deck"],
+  "Design & Consultancy":      ["e.g. Schematic design to construction drawings", "e.g. Whole project"],
+};
+const scopeLineExample = (wt) => SCOPE_LINE_EXAMPLES[wt] || ["e.g. Size, model or specification", "e.g. Building, floor or area"];
+
+const SCOPE_HINTS = {
+  "Site Facilities": "Temporary office, bodega, toilets, power and water, fencing / hoarding",
+  "Safety & Health": "Safety officer, PPE, safety signages, first aid",
+  "Insurance & Bonds": "CARI, third-party liability, workers' compensation",
+  "Permits & Licenses": "Permits the contractor secures for its own works",
+  "Submittals & Documentation": "Shop drawings, material submittals, method statements, as-builts, O&M manuals, warranties",
+  "Site Management & Housekeeping": "Supervision, coordination, cleaning, debris hauling",
+  "Site Preparation & Demolition": "Clearing and grubbing, demolition, removal",
+  "Earthworks": "Excavation, backfill, compaction, dewatering, soil poisoning",
+  "Temporary Shoring / Slope Protection": "Sheet piles, shoring, slope protection",
+  "Soil Investigation & Testing": "Soil boring, compaction tests",
+  "Piling & Foundations": "Driven / bored piles, pile caps, footings",
+  "Concrete Works": "Columns, beams, slabs, walls, formworks, rebar",
+  "Post-Tensioning": "PT slabs and beams",
+  "Structural Steel": "Steel frames, trusses, mezzanines, steel decking",
+  "Material Testing": "Concrete cylinder, rebar and pile load tests",
+  "Masonry & Plastering": "CHB walls, plastering",
+  "Drywall & Ceiling Works": "Gypsum / fiber-cement board partitions and ceilings, metal studs, acoustic ceilings, access panels",
+  "Floor Finishes": "Tiles, engineered wood, vinyl, carpet, polished concrete, epoxy",
+  "Wall Finishes": "Wall tiles, wallpaper, wall cladding, skim coat",
+  "Painting & Coatings": "Interior and exterior paint, special coatings",
+  "Stone Works": "Granite / marble countertops, stone flooring and cladding, thresholds",
+  "Doors & Hardware": "Wood, steel, fire-rated and glass doors; locksets, closers, hinges",
+  "Windows & Glazing": "Aluminum windows, glass, louvers, grilles",
+  "Cabinets & Millwork": "Kitchen cabinets, wardrobes, vanities, built-ins, wall panelling",
+  "Waterproofing": "Wet areas, roof deck, basement, tanks, planters; flood test",
+  "Roofing": "Roofing sheets / tiles, flashings, gutters and downspouts",
+  "Railings & Metal Works": "Staircase and balcony railings, metal fabrication",
+  "Signages": "Wayfinding, unit numbers, building logo, safety signs",
+  "Toilet Partitions & Accessories": "Partitions, grab bars, mirrors, dispensers",
+  "Furniture, Fixtures & Equipment (FF&E)": "Loose furniture, appliances, decor, blinds, model unit furnishing",
+  "Façade / Curtain Wall": "Curtain wall, storefront, external cladding, skylights",
+  "Air-conditioning & Ventilation": "Split / VRF / chilled water, exhaust and fresh-air fans, ducting",
+  "Power Distribution": "MDP, panels, feeders, transformers",
+  "Lighting & Wiring Devices": "Indoor and outdoor lighting, outlets, switches, roughing-ins",
+  "Grounding & Lightning Protection": "Grounding system, lightning arresters",
+  "Water Supply": "Water lines, fittings, valves, meters",
+  "Sanitary & Drainage": "Soil, waste, vent and storm lines inside the building",
+  "Sanitary Fixtures": "Toilets, lavatories, faucets, showers",
+  "Pumps & Tanks": "Booster pumps, water tanks, cisterns",
+  "STP / Septic": "Sewage treatment plant, septic tank, grease traps",
+  "Sprinklers": "Sprinkler heads, piping, valves",
+  "Standpipe & Hose Cabinets": "Standpipe risers, fire hose cabinets",
+  "Fire Pumps": "Fire pump, jockey pump, controllers",
+  "Fire Extinguishers": "Portable extinguishers and cabinets",
+  "Special Suppression": "Clean-agent and kitchen hood suppression",
+  "CCTV": "Cameras, recorders, monitors",
+  "Access Control & Intercom": "Card access, turnstiles, intercom",
+  "Data & Telephone": "Structured cabling, telephone, fiber",
+  "MATV / CATV": "TV distribution",
+  "PA / Background Music": "Public address and music system",
+  "Building Management System (BMS)": "BMS, metering",
+  "Detectors & Devices": "Smoke and heat detectors, manual call points, horns and strobes",
+  "FDAS Panel": "Fire alarm control panel, annunciators",
+  "Voice Evacuation": "Voice evacuation and emergency paging",
+  "Elevators & Escalators": "Passenger and service elevators, escalators",
+  "Building Maintenance Unit (BMU / Gondola)": "Gondola, façade access system",
+  "Generator Set": "Genset, ATS, fuel system",
+  "Roads & Paving": "Roads, pavements, curbs and gutters",
+  "Storm Drainage": "Catch basins, culverts, storm lines",
+  "Site Utilities": "Water, power and sewer lines up to the building",
+  "Perimeter Fence & Gates": "Perimeter wall / fence, gates",
+  "Guardhouse": "Guardhouse and entrance structures",
+  "Softscape": "Trees, shrubs, groundcover, turf, soil mix",
+  "Hardscape": "Pavers, walkways, landscape walls, planters",
+  "Irrigation": "Irrigation lines, controllers, hose bibbs",
+  "Landscape Lighting": "Garden lights, uplights, bollards",
+  "Pools & Water Features": "Swimming pools, fountains, pool equipment",
+  "Outdoor Amenities": "Playground, benches, pergolas, gazebos",
+  "Testing & Commissioning": "Testing, balancing and commissioning of this trade's systems",
+};
+
 // ─── SCOPE OF WORKS EDITOR / VIEW ─────────────────────────────────────────────
 const scopeItemsFor = (scope, wt) => {
   const def = SCOPE_WORK_TYPES.find(t => t.name === wt);
   const groups = def ? def.groups.map(g => ({ group: g.group, items: g.items })) : [];
   const own = scope.custom[wt] || [];
   if (own.length) groups.push({ group: "Added by you", items: own, custom: true });
+  const listed = new Set(groups.flatMap(g => g.items));
+  const earlier = [...new Set([...scope.included, ...Object.keys(scope.byOthers)]
+    .filter(k => splitKey(k)[0] === wt).map(k => splitKey(k)[1]).filter(l => !listed.has(l)))];
+  if (earlier.length) groups.push({ group: "Saved earlier", items: earlier });
   return groups;
 };
 
@@ -1379,14 +1479,14 @@ function ScopeOfWorksEditor({ scope, onChange }) {
         <>
           <div style={{ fontSize: 12.5, color: C.textSec }}>What kind of work is this request for? Click every type that applies.</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
-            {SCOPE_WORK_TYPES.map(t => {
+            {[...SCOPE_WORK_TYPES, ...scope.types.filter(n => !SCOPE_WORK_TYPES.some(d => d.name === n)).map(n => ({ name: n, groups: [] }))].map(t => {
               const on = scope.types.includes(t.name);
               const n = t.groups.reduce((a, g) => a + g.items.length, 0);
               return (
                 <button key={t.name} type="button" onClick={() => toggleType(t.name)}
                   style={{ display: "flex", gap: 10, alignItems: "flex-start", textAlign: "left", padding: "10px 12px", borderRadius: 9, cursor: "pointer", fontFamily: "inherit", border: `1px solid ${on ? C.coral : C.borderMid}`, background: on ? C.coralLight : C.white }}>
                   <span style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1, border: `1.5px solid ${on ? C.coral : C.borderMid}`, background: on ? C.coral : "transparent", color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{on ? "✓" : ""}</span>
-                  <span><span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.textPri }}>{t.name}</span><span style={{ fontSize: 11, color: C.textTer }}>{n} suggested works</span></span>
+                  <span><span style={{ display: "block", fontSize: 13, fontWeight: 600, color: C.textPri }}>{t.name}</span><span style={{ fontSize: 11, color: C.textTer }}>{n ? `${n} suggested works` : "From an earlier list"}</span></span>
                 </button>
               );
             })}
@@ -1425,7 +1525,10 @@ function ScopeOfWorksEditor({ scope, onChange }) {
                           const btn = (active, bg, color) => ({ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "3px 9px", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", border: `1px solid ${active ? bg : C.borderMid}`, background: active ? bg : C.white, color: active ? color : C.textSec });
                           return (
                             <div key={it} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: "4px 8px", alignItems: "center", padding: "5px 8px", borderRadius: 7, border: `1px solid ${on ? C.coralMid : isBo ? "#FCD34D" : "transparent"}`, background: on ? C.coralLight : isBo ? C.amberBg : "transparent" }}>
-                              <span style={{ fontSize: 12.5, fontWeight: on ? 600 : 400, color: C.textPri }}>{it}</span>
+                              <span style={{ minWidth: 0 }}>
+                                <span style={{ display: "block", fontSize: 12.5, fontWeight: on ? 600 : 400, color: C.textPri }}>{it}</span>
+                                {SCOPE_HINTS[it] && <span style={{ display: "block", fontSize: 11, color: C.textTer, lineHeight: 1.35, marginTop: 1 }}>{SCOPE_HINTS[it]}</span>}
+                              </span>
                               <span style={{ display: "flex", gap: 4 }}>
                                 <button type="button" onClick={() => include(k)} style={btn(on, C.coral, "#fff")}>{on ? "✓ " : ""}Include</button>
                                 <button type="button" onClick={() => markByOthers(k)} style={btn(isBo, C.amberText, "#fff")}>{isBo ? "✓ " : ""}By others</button>
@@ -1461,9 +1564,6 @@ function ScopeOfWorksEditor({ scope, onChange }) {
 
       {step === 3 && (
         <>
-          <div style={{ fontSize: 12.5, color: C.textSec }}>
-            Every line needs a spec or size, a quantity and a unit. Add a line for each size or spec. "Per Specifications 09 30 00" is fine when the spec document covers it.
-          </div>
           {st.items === 0 && <div style={{ fontSize: 12.5, color: C.textTer }}>Include at least one work in step 2.</div>}
           {scope.types.flatMap(wt => includedByType(wt).map(k => {
             const ls = scope.lines[k] || [];
@@ -1473,19 +1573,19 @@ function ScopeOfWorksEditor({ scope, onChange }) {
               <div key={k} style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 14px", background: C.offWhite, borderBottom: `1px solid ${C.border}` }}>
                   <span><span style={{ fontSize: 13, fontWeight: 650, color: C.textPri }}>{splitKey(k)[1]}</span> <span style={{ fontSize: 11, color: C.textTer }}>· {wt}</span></span>
-                  <button type="button" onClick={() => addLine(k)} style={{ background: "none", border: "none", color: C.coral, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>+ Add size/spec</button>
+                  <button type="button" onClick={() => addLine(k)} style={{ background: "none", border: "none", color: C.coral, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>+ Add line</button>
                 </div>
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
-                    <thead><tr><th style={{ ...head, width: "42%" }}>Spec / size</th><th style={{ ...head, width: "13%" }}>Quantity</th><th style={{ ...head, width: "13%" }}>Unit</th><th style={head}>Location</th><th style={{ ...head, width: 30 }}></th></tr></thead>
+                    <thead><tr><th style={{ ...head, width: "42%" }}>Spec / size</th><th style={{ ...head, width: "13%" }}>Quantity</th><th style={{ ...head, width: "13%" }}>Unit</th><th style={head}>Specific location</th><th style={{ ...head, width: 30 }}></th></tr></thead>
                     <tbody>
                       {ls.map((l, i) => {
                         const specBad = !String(l.spec).trim() || (l.unit === "lot" && String(l.spec).trim().length < 12);
-                        const qtyBad = !(parseFloat(String(l.qty).replace(/,/g, "")) > 0);
+                        const qtyBad = !!String(l.qty ?? "").trim() && !(parseFloat(String(l.qty).replace(/,/g, "")) > 0);
                         return (
                           <tr key={i}>
                             <td style={cell}>
-                              <input value={l.spec} onChange={e => setLine(k, i, "spec", e.target.value)} placeholder="e.g. 600×600 porcelain, matte" style={{ ...styles.input, ...(specBad ? bad : {}) }} />
+                              <input value={l.spec} onChange={e => setLine(k, i, "spec", e.target.value)} placeholder={scopeLineExample(wt)[0]} style={{ ...styles.input, ...(specBad ? bad : {}) }} />
                               {l.unit === "lot" && String(l.spec).trim().length < 12 && <div style={{ fontSize: 11, color: C.amberText, marginTop: 3 }}>For "lot", describe what the lot includes.</div>}
                             </td>
                             <td style={cell}><input value={l.qty} inputMode="decimal" onChange={e => setLine(k, i, "qty", e.target.value)} placeholder="0" style={{ ...styles.input, ...(qtyBad ? bad : {}) }} /></td>
@@ -1495,7 +1595,7 @@ function ScopeOfWorksEditor({ scope, onChange }) {
                                 {SCOPE_UNITS.map(u => <option key={u}>{u}</option>)}
                               </select>
                             </td>
-                            <td style={cell}><input value={l.location} onChange={e => setLine(k, i, "location", e.target.value)} placeholder="Optional" style={styles.input} /></td>
+                            <td style={cell}><input value={l.location} onChange={e => setLine(k, i, "location", e.target.value)} placeholder={scopeLineExample(wt)[1]} style={{ ...styles.input, ...(String(l.location || "").trim() ? {} : bad) }} /></td>
                             <td style={{ ...cell, paddingTop: 10, textAlign: "center" }}>
                               {ls.length > 1 && <button type="button" title="Remove this line" onClick={() => removeLine(k, i)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textTer, fontSize: 16 }}>×</button>}
                             </td>
@@ -1514,7 +1614,7 @@ function ScopeOfWorksEditor({ scope, onChange }) {
       {step === 4 && (
         <>
           <div style={{ fontSize: 12.5, color: C.textSec }}>Read it once, top to bottom. This is what the Manager and, later, the vendors will see.</div>
-          {scopeProblems({ ...scope, confirmed: true }).map(p => (
+          {scopeNotices({ ...scope, confirmed: true }).map(p => (
             <div key={p} style={{ fontSize: 12.5, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px" }}>⚠ {p}</div>
           ))}
           <ScopeOfWorksView saved={scope} />
@@ -1569,38 +1669,50 @@ function ScopeOfWorksView({ saved }) {
 
   const th = { background: C.brandDark, color: "#E5E7EB", fontWeight: 600, fontSize: 11, textAlign: "left", padding: "7px 10px" };
   const td = { padding: "7px 10px", borderTop: `1px solid ${C.border}`, fontSize: 12.5, verticalAlign: "top" };
-  const missing = <span style={{ fontSize: 10.5, fontWeight: 700, color: C.amberText, background: C.amberBg, borderRadius: 99, padding: "1px 7px" }}>missing</span>;
+  // Empty cells stay blank; the notice above the summary already says what still needs filling in
+  const missing = null;
   const bo = Object.entries(saved.byOthers || {}).filter(([k]) => saved.types.includes(splitKey(k)[0]));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {saved.types.map(wt => {
-        const keys = saved.included.filter(k => splitKey(k)[0] === wt);
-        if (!keys.length) return null;
+      {/* One bill of quantities: each work type is a numbered heading row, each work a numbered item */}
+      {(() => {
+        const sections = saved.types
+          .map(wt => ({ wt, keys: saved.included.filter(k => splitKey(k)[0] === wt) }))
+          .filter(sec => sec.keys.length);
+        if (!sections.length) return null;
         return (
-          <div key={wt}>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSec, marginBottom: 6 }}>{wt}</div>
-            <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
-                <thead><tr><th style={th}>Work</th><th style={th}>Spec / size</th><th style={{ ...th, textAlign: "right" }}>Quantity</th><th style={th}>Unit</th><th style={th}>Location</th></tr></thead>
-                <tbody>
-                  {keys.flatMap(k => (saved.lines[k] || []).map((l, i) => {
+          <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
+              <thead><tr>
+                <th style={{ ...th, width: 56 }}>Item</th><th style={th}>Work</th><th style={th}>Spec / size</th><th style={th}>Specific location</th>
+                <th style={{ ...th, textAlign: "right", width: 90 }}>Quantity</th><th style={{ ...th, width: 70 }}>Unit</th>
+              </tr></thead>
+              <tbody>
+                {sections.map((sec, si) => [
+                  <tr key={sec.wt}>
+                    <td style={{ ...td, background: C.surface, fontWeight: 700, color: C.textPri }}>{si + 1}</td>
+                    <td colSpan={5} style={{ ...td, background: C.surface, fontWeight: 700, color: C.textPri, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 12 }}>{sec.wt}</td>
+                  </tr>,
+                  ...sec.keys.flatMap((k, wi) => (saved.lines[k] || []).map((l, i) => {
                     const q = parseFloat(String(l.qty).replace(/,/g, ""));
+                    const first = i === 0;
                     return (
                       <tr key={`${k}-${i}`}>
-                        <td style={{ ...td, fontWeight: 600, color: i ? "transparent" : C.textPri }}>{splitKey(k)[1]}</td>
+                        <td style={{ ...td, color: C.textSec, fontVariantNumeric: "tabular-nums", ...(first ? {} : { borderTop: "none" }) }}>{first ? `${si + 1}.${wi + 1}` : ""}</td>
+                        <td style={{ ...td, fontWeight: 600, color: C.textPri, ...(first ? {} : { borderTop: "none" }) }}>{first ? splitKey(k)[1] : ""}</td>
                         <td style={td}>{String(l.spec || "").trim() || missing}</td>
-                        <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{q > 0 ? q.toLocaleString("en-PH", { maximumFractionDigits: 2 }) : missing}</td>
+                        <td style={td}>{String(l.location || "").trim() || missing}</td>
+                        <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{q > 0 ? q.toLocaleString("en-PH", { maximumFractionDigits: 2 }) : String(l.qty ?? "").trim() ? missing : <span style={{ color: C.textTer }}>—</span>}</td>
                         <td style={td}>{l.unit || missing}</td>
-                        <td style={{ ...td, color: l.location ? C.textPri : C.textTer }}>{l.location || "—"}</td>
                       </tr>
                     );
-                  }))}
-                </tbody>
-              </table>
-            </div>
+                  })),
+                ])}
+              </tbody>
+            </table>
           </div>
         );
-      })}
+      })()}
       {bo.length > 0 && (
         <div style={{ border: "1px solid #FCD34D", borderRadius: 10, overflow: "hidden" }}>
           <div style={{ background: C.amberBg, padding: "9px 14px", borderBottom: "1px solid #FCD34D" }}>
@@ -2127,7 +2239,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     // Derive scope_items from Required checklist items (for RFA proposal pre-population)
     const scopeRows = toScopeItems(scope);
     if (scopeRows.length > 0) {
-      await supabase.from("scope_items").insert(scopeRows.map(r => ({ ...r, pr_id: pr.pr_number })));
+      const { error: scopeErr } = await supabase.from("scope_items").insert(scopeRows.map(r => ({ ...r, pr_id: pr.pr_number })));
+      if (scopeErr) alert("The PR was saved, but its scope lines could not be saved:\n\n" + scopeErr.message + "\n\nPlease tell the administrator.");
     }
 
     // Apply budget review + auto-approval fields for CO/CM/D&C Head creating their own PRs
@@ -9734,7 +9847,7 @@ function defaultPtData() {
 
 function defaultProposal(scopeItems = []) {
   const items = scopeItems.length
-    ? scopeItems.map(si => ({ id: uid(), description: si.description || "", qty: String(si.quantity || "1"), unit: si.unit_of_measure || "", unit_price: "" }))
+    ? scopeItems.map(si => ({ id: uid(), description: si.description || "", qty: si.quantity != null ? String(si.quantity) : "", unit: si.unit_of_measure || "", unit_price: "" }))
     : [{ id: uid(), description: "", qty: "1", unit: "", unit_price: "" }];
   return { id: uid(), date: "", items, taxes: [{ id: uid(), name: "VAT", rate: "12" }], notes: "", attachment_url: "", attachment_name: "" };
 }
@@ -10467,9 +10580,9 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
                       </td>
                       <td style={{ padding: "4px 6px" }}>
                         {canEdit
-                          ? <input type="number" min="0" step="any" value={item.quantity ?? 1} onChange={e => updateScopeItem(item.id, "qty", e.target.value)}
+                          ? <input type="number" min="0" step="any" value={item.quantity ?? ""} placeholder="By vendor" onChange={e => updateScopeItem(item.id, "qty", e.target.value)}
                               style={{ ...styles.input, marginBottom: 0, fontSize: 13, textAlign: "right", width: 64 }} />
-                          : <span style={{ fontSize: 12, color: C.textSec, display: "block", textAlign: "right" }}>{item.quantity ?? 1}</span>
+                          : <span style={{ fontSize: 12, color: item.quantity != null ? C.textSec : C.textTer, display: "block", textAlign: "right" }}>{item.quantity ?? "By vendor"}</span>
                         }
                       </td>
                       <td style={{ padding: "4px 6px" }}>
@@ -13476,7 +13589,7 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
                           <tr key={si.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                             <td style={{ padding: "7px 10px", color: C.textTer, width: 32 }}>{idx + 1}</td>
                             <td style={{ padding: "7px 10px", color: C.textPri }}>{si.description}</td>
-                            <td style={{ padding: "7px 10px", textAlign: "right", fontFamily: "monospace", color: C.textSec }}>{si.quantity}</td>
+                            <td style={{ padding: "7px 10px", textAlign: "right", fontFamily: "monospace", color: si.quantity != null ? C.textSec : C.textTer }}>{si.quantity ?? "By vendor"}</td>
                             <td style={{ padding: "7px 10px", color: C.textSec }}>{si.unit_of_measure}</td>
                           </tr>
                         ))}

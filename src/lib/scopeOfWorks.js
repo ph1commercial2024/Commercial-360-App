@@ -10,9 +10,12 @@ export const emptyLine = (unit = "") => ({ spec: "", qty: "", unit, location: ""
 
 const qtyNum = (q) => parseFloat(String(q ?? "").replace(/,/g, ""));
 
+// Spec, unit of measure and specific location are required. Quantity may be left blank (vendors then
+// measure it from the plans), but when one is entered it must be a number above zero
 export function lineComplete(l) {
   const spec = String(l.spec || "").trim();
-  if (!spec || !(qtyNum(l.qty) > 0) || !l.unit) return false;
+  const qty = String(l.qty ?? "").trim();
+  if (!spec || !l.unit || !String(l.location ?? "").trim() || (qty && !(qtyNum(qty) > 0))) return false;
   return l.unit !== "lot" || spec.length >= 12;
 }
 
@@ -35,9 +38,17 @@ export function scopeProblems(s) {
   if (st.types === 0) return ["Choose at least one work type in the Scope of Works."];
   const p = [];
   if (st.items === 0) p.push("Include at least one work in the Scope of Works.");
-  if (st.done < st.lines) p.push(`${st.lines - st.done} line${st.lines - st.done > 1 ? "s are" : " is"} missing a spec, quantity or unit (Scope of Works, step 3).`);
+  if (st.done < st.lines) p.push(`${st.lines - st.done} line${st.lines - st.done > 1 ? "s are" : " is"} missing a spec, unit or specific location, or has a quantity that isn't a number (Scope of Works, step 3).`);
   if (st.missingWho) p.push(`${st.missingWho} "By others" item${st.missingWho > 1 ? "s don't" : " doesn't"} say who (Scope of Works, step 2).`);
   if (!s.confirmed) p.push("Confirm the scope on the Summary step of the Scope of Works.");
+  return p;
+}
+
+/** What the summary notice shows: the blocking problems, plus lines with no quantity (a reminder, not a block). */
+export function scopeNotices(s) {
+  const noQty = activeIncluded(s).flatMap(k => s.lines[k] || []).filter(l => !String(l.qty ?? "").trim()).length;
+  const p = scopeProblems(s);
+  if (noQty) p.push(`${noQty} line${noQty > 1 ? "s have" : " has"} no quantity (Scope of Works, step 3).`);
   return p;
 }
 
@@ -52,7 +63,7 @@ export function toScopeItems(s) {
         const loc = String(l.location || "").trim();
         out.push({
           description: `${label} — ${String(l.spec).trim()}${loc ? ` (${loc})` : ""}`,
-          quantity: qtyNum(l.qty),
+          quantity: String(l.qty ?? "").trim() ? qtyNum(l.qty) : null,
           unit_of_measure: l.unit,
           sort_order: out.length,
         });
@@ -86,9 +97,9 @@ export function defaultUnit(label) {
   if (/site visit|inspection/.test(s)) return "visit";
   if (/officer|supervision|management|rental|temporary site office|bodega|comfort room/.test(s)) return "month";
   if (/insurance|permit|license|design|survey|study|report|model|drawing|manual|review|commissioning/.test(s)) return "lot";
-  if (/floor|tiling|tiles|paint|plaster|ceiling|waterproof|cladding|curtain wall|insulation|pavers|turf|planting/.test(s)) return "m²";
+  if (/floor|finish|drywall|tiling|tiles|paint|plaster|ceiling|waterproof|cladding|curtain wall|insulation|pavers|turf|planting|softscape|hardscape/.test(s)) return "m²";
   if (/concrete|earthworks|fill/.test(s)) return "m³";
   if (/curb|gutter|railing|balustrade|pipe|conduit|wiring/.test(s)) return "lm";
-  if (/elevator|escalator|panel|fixture|door|window|pump|tank/.test(s)) return "unit";
+  if (/elevator|escalator|panel|fixture|door|window|pump|tank|generator/.test(s)) return "unit";
   return "";
 }

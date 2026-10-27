@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  emptyScope, scopeKey, lineComplete, scopeStats, scopeProblems, toScopeItems, fromLegacyScope, defaultUnit,
+  emptyScope, scopeKey, lineComplete, scopeStats, scopeProblems, scopeNotices, toScopeItems, fromLegacyScope, defaultUnit,
 } from '../lib/scopeOfWorks.js'
 
 const k = scopeKey
@@ -14,7 +14,7 @@ const sample = () => ({
   lines: {
     [k('Architectural Works', 'Flooring — Tiles')]: [
       { spec: '600×600 porcelain, matte', qty: '1250', unit: 'm²', location: 'Tower 1, L2–L5' },
-      { spec: '300×600 anti-slip', qty: '180', unit: 'm²', location: '' },
+      { spec: '300×600 anti-slip', qty: '180', unit: 'm²', location: 'Tower 2, L1' },
     ],
     [k('General Requirements', 'Full-Time Safety Officer')]: [
       { spec: 'Licensed SO2, full-time on site', qty: '12', unit: 'month', location: 'Site' },
@@ -24,19 +24,32 @@ const sample = () => ({
 
 describe('lineComplete', () => {
   it('needs a spec, a positive quantity and a unit', () => {
-    expect(lineComplete({ spec: 'x', qty: '2', unit: 'm²' })).toBe(true)
-    expect(lineComplete({ spec: '', qty: '2', unit: 'm²' })).toBe(false)
-    expect(lineComplete({ spec: 'x', qty: '0', unit: 'm²' })).toBe(false)
-    expect(lineComplete({ spec: 'x', qty: '2', unit: '' })).toBe(false)
+    expect(lineComplete({ spec: 'x', qty: '2', unit: 'm²', location: 'Tower 1' })).toBe(true)
+    expect(lineComplete({ spec: '', qty: '2', unit: 'm²', location: 'Tower 1' })).toBe(false)
+    expect(lineComplete({ spec: 'x', qty: '0', unit: 'm²', location: 'Tower 1' })).toBe(false)
+    expect(lineComplete({ spec: 'x', qty: '2', unit: '', location: 'Tower 1' })).toBe(false)
+  })
+
+  it('allows a blank quantity (vendors measure it) but always needs the unit of measure', () => {
+    expect(lineComplete({ spec: '600×600 porcelain tiles', qty: '', unit: 'm²', location: 'Tower 1' })).toBe(true)
+    expect(lineComplete({ spec: '600×600 porcelain tiles', qty: '  ', unit: 'm²', location: 'Tower 1' })).toBe(true)
+    expect(lineComplete({ spec: '600×600 porcelain tiles', qty: '', unit: '', location: 'Tower 1' })).toBe(false)
+    expect(lineComplete({ spec: '600×600 porcelain tiles', qty: 'abc', unit: 'm²', location: 'Tower 1' })).toBe(false)
+  })
+
+  it('needs a specific location', () => {
+    expect(lineComplete({ spec: '600×600 porcelain tiles', qty: '450', unit: 'm²', location: '' })).toBe(false)
+    expect(lineComplete({ spec: '600×600 porcelain tiles', qty: '450', unit: 'm²', location: '   ' })).toBe(false)
+    expect(lineComplete({ spec: '600×600 porcelain tiles', qty: '450', unit: 'm²' })).toBe(false)
   })
 
   it('accepts quantities written with commas', () => {
-    expect(lineComplete({ spec: 'x', qty: '1,250', unit: 'm²' })).toBe(true)
+    expect(lineComplete({ spec: 'x', qty: '1,250', unit: 'm²', location: 'Tower 1' })).toBe(true)
   })
 
   it('needs a real description of what a "lot" includes', () => {
-    expect(lineComplete({ spec: 'lot', qty: '1', unit: 'lot' })).toBe(false)
-    expect(lineComplete({ spec: 'All building permits and fees', qty: '1', unit: 'lot' })).toBe(true)
+    expect(lineComplete({ spec: 'lot', qty: '1', unit: 'lot', location: 'Tower 1' })).toBe(false)
+    expect(lineComplete({ spec: 'All building permits and fees', qty: '1', unit: 'lot', location: 'Tower 1' })).toBe(true)
   })
 })
 
@@ -67,7 +80,7 @@ describe('scopeProblems', () => {
     const s = { ...emptyScope() }
     expect(scopeProblems(s)[0]).toMatch(/work type/i)
     const t = sample()
-    t.lines[k('Architectural Works', 'Flooring — Tiles')][1].qty = ''
+    t.lines[k('Architectural Works', 'Flooring — Tiles')][1].unit = ''
     t.byOthers[k('Architectural Works', 'Masonry / Blockwork')] = ''
     const p = scopeProblems(t)
     expect(p.some(m => /1 line/.test(m))).toBe(true)
@@ -76,11 +89,38 @@ describe('scopeProblems', () => {
   })
 })
 
+describe('scopeNotices', () => {
+  it('also mentions lines with no quantity, without making it a blocking problem', () => {
+    const t = { ...sample(), confirmed: true }
+    t.lines[k('Architectural Works', 'Flooring — Tiles')][0].qty = ''
+    t.lines[k('Architectural Works', 'Flooring — Tiles')][1].qty = ' '
+    expect(scopeProblems(t)).toEqual([])
+    expect(scopeNotices(t)).toEqual(['2 lines have no quantity (Scope of Works, step 3).'])
+  })
+
+  it('says nothing extra when every line has a quantity', () => {
+    expect(scopeNotices({ ...sample(), confirmed: true })).toEqual([])
+  })
+
+  it('ignores works that are not included', () => {
+    const t = { ...sample(), confirmed: true, types: ['General Requirements'] }
+    t.lines[k('Architectural Works', 'Flooring — Tiles')][0].qty = ''
+    expect(scopeNotices(t)).toEqual([])
+  })
+})
+
 describe('toScopeItems', () => {
+  it('sends a blank quantity on as empty, not as 1', () => {
+    const s = emptyScope()
+    const key = k('Architectural Works', 'Floor Finishes')
+    Object.assign(s, { types: ['Architectural Works'], included: [key], lines: { [key]: [{ spec: '600×600 porcelain tiles', qty: '', unit: 'm²', location: 'Units 1–10' }] } })
+    expect(toScopeItems(s)).toEqual([{ description: 'Floor Finishes — 600×600 porcelain tiles (Units 1–10)', quantity: null, unit_of_measure: 'm²', sort_order: 0 }])
+  })
+
   it('turns each line into a scope item with the spec and location in the description', () => {
     expect(toScopeItems(sample())).toEqual([
       { description: 'Flooring — Tiles — 600×600 porcelain, matte (Tower 1, L2–L5)', quantity: 1250, unit_of_measure: 'm²', sort_order: 0 },
-      { description: 'Flooring — Tiles — 300×600 anti-slip', quantity: 180, unit_of_measure: 'm²', sort_order: 1 },
+      { description: 'Flooring — Tiles — 300×600 anti-slip (Tower 2, L1)', quantity: 180, unit_of_measure: 'm²', sort_order: 1 },
       { description: 'Full-Time Safety Officer — Licensed SO2, full-time on site (Site)', quantity: 12, unit_of_measure: 'month', sort_order: 2 },
     ])
   })
@@ -115,5 +155,14 @@ describe('defaultUnit', () => {
     expect(defaultUnit('Flooring — Tiles')).toBe('m²')
     expect(defaultUnit('Permits and Licenses')).toBe('lot')
     expect(defaultUnit('Something unusual')).toBe('')
+  })
+
+  it('suggests units for the broad Philippine trade items', () => {
+    expect(defaultUnit('Wall Finishes')).toBe('m²')
+    expect(defaultUnit('Drywall & Ceiling Works')).toBe('m²')
+    expect(defaultUnit('Softscape')).toBe('m²')
+    expect(defaultUnit('Hardscape')).toBe('m²')
+    expect(defaultUnit('Generator Set')).toBe('unit')
+    expect(defaultUnit('Testing & Commissioning')).toBe('lot')
   })
 })

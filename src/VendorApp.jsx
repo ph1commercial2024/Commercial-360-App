@@ -765,7 +765,7 @@ function VendorRFQPage({ token }) {
         const { data: si } = await supabase.from("scope_items").select("*").eq("pr_id", prId).order("sort_order");
         setLineItems((si || []).map(s => ({
           scope_item_id: s.id, description: s.description,
-          qty: String(s.quantity || "1"), unit: s.unit_of_measure || "lot",
+          qty: s.quantity != null ? String(s.quantity) : "", unit: s.unit_of_measure || "lot",
           unit_price: "", is_custom: false,
         })));
       }
