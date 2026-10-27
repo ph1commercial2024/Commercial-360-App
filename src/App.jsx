@@ -1626,7 +1626,7 @@ function ScopeOfWorksEditor({ scope, onChange }) {
                   {/* Each point opens the step it refers to */}
                   <ul style={{ margin: 0, paddingLeft: notes.length > 1 ? 18 : 0, listStyle: notes.length > 1 ? "disc" : "none" }}>
                     {notes.map(p => {
-                      const target = Number((p.match(/(step (d))/) || [])[1]) || (/work type/i.test(p) ? 1 : /at least one work/i.test(p) ? 2 : null);
+                      const target = Number((p.match(/\(step (\d)\)/) || [])[1]) || (/work type/i.test(p) ? 1 : /at least one work/i.test(p) ? 2 : null);
                       return (
                         <li key={p}>
                           {target ? (
