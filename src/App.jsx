@@ -342,21 +342,34 @@ const Icon = ({ name, size = 14, color = "currentColor" }) => {
 };
 
 // ─── LOADING SCREEN ───────────────────────────────────────────────────────────
-function LoadingScreen({ logoUrl }) {
+// Same as the D&C Dashboard: dark screen, 12-bar coral spinner, "LOADING" label.
+// Covers the whole window (header and rail too), at app start and while a page loads.
+function LoadingScreen() {
+  // The screen hides the header and rail, so after 10 s offer a way out in case the connection stalled
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 10000); return () => clearTimeout(t); }, []);
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.white }}>
+    <div role="status" aria-label="Loading" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 40, background: "#111111" }}>
       <style>{`
-        @keyframes ph1-pulse {
-          0%, 100% { opacity: 0.4; }
-          50%       { opacity: 1;   }
-        }
+        @keyframes ph1-spin-fade { from { opacity: 1; } to { opacity: 0.2; } }
+        @media (prefers-reduced-motion: reduce) { .ph1-spin-bar { animation: none !important; opacity: 0.6; } }
       `}</style>
-      {logoUrl && (
-        <img
-          src={logoUrl}
-          alt="PH1 World Developers Inc."
-          style={{ width: 200, maxWidth: "60vw", objectFit: "contain", animation: "ph1-pulse 1.8s ease-in-out infinite" }}
-        />
+      <div aria-hidden="true" style={{ position: "relative", width: 84, height: 84 }}>
+        {Array.from({ length: 12 }, (_, i) => (
+          <span key={i} className="ph1-spin-bar" style={{
+            position: "absolute", left: "50%", top: "50%", width: 7, height: 22, marginLeft: -3.5, marginTop: -11,
+            borderRadius: 4, background: C.coral,
+            transform: `rotate(${i * 30}deg) translateY(-30px)`,
+            animation: "ph1-spin-fade 1s linear infinite", animationDelay: `${(i - 12) / 12}s`,
+          }} />
+        ))}
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A8A8A" }}>Loading</div>
+      {slow && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, marginTop: -16 }}>
+          <div style={{ fontSize: 13, color: "#B5B5B5" }}>This is taking longer than usual. Check your connection.</div>
+          <button onClick={() => window.location.reload()} style={{ padding: "8px 18px", fontSize: 13, fontWeight: 600, color: "#FFFFFF", background: C.coral, border: "none", borderRadius: 8, cursor: "pointer" }}>Reload</button>
+        </div>
       )}
     </div>
   );
@@ -2115,8 +2128,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
         .eq("pr_number", editPRId).is("resubmitted_at", null)
         .order("returned_at", { ascending: false }).limit(1).maybeSingle();
       setOpenReturn(ret || null);
-      setEditLoading(false);
-    })();
+    })().catch(err => console.error("Loading the PR failed", err)).finally(() => setEditLoading(false));
   }, [editPRId]);
   // Budget lines belong to one project's cost report, so changing project clears the selection
   useEffect(() => { setBudgetPick(emptyBudgetPick); }, [selectedProjectId]);
@@ -2407,7 +2419,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
     </div>
   );
 
-  if (editLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR…</div></div>;
+  if (editLoading) return <LoadingScreen />;
   if (editPRId && !editPR) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
 
   return (
@@ -3010,7 +3022,8 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [pr, updating, rvUploading, a1Uploading, showRejectBox, linkedRFQ, rvBudgetPick, canSubmitForReview, canReview, canApproveBudgeted, canEndorseUnbudgeted, canApproveUnbudgeted, canReject, canRevise, canEdit, canCreateRFA, canCreateRFQ]);
 
-  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading PR details…</div></div>;
+  // Full-window loader only on the first load; refreshes after an action keep the page in place
+  if (loading && !pr) return <LoadingScreen />;
   if (!pr) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
 
   return (
@@ -5953,13 +5966,7 @@ function RFPDetailPage({ rfpId, profile, setPage, setSelectedRFAId, setRfaPRId }
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [rfp, canManage, closing, submittedCount, linkedRFA]);
 
-  if (loading) return (
-    <>
-      <div style={{ ...styles.pageBody, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
-        <span style={{ color: C.textTer, fontSize: 13 }}>Loading…</span>
-      </div>
-    </>
-  );
+  if (loading) return <LoadingScreen />;
   if (!rfp) return null;
 
   return (
@@ -10553,7 +10560,8 @@ function RFQDetailPage({ profile, rfqId, setPage }) {
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [rfq, canEdit, saving]);
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: C.textSec }}>Loading…</div>;
+  // Full-window loader only on the first load; refreshes after an action keep the page in place
+  if (loading && !rfq) return <LoadingScreen />;
 
   const tabs = ["details", "vendors", "submissions", "preview"];
 
@@ -12906,7 +12914,7 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [status, rfaNumber, linkedContract, awardedSlot, awardPcab, checklist.length, saving, actionSaving, rfaId]);
 
-  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading…</div></div>;
+  if (loading) return <LoadingScreen />;
 
   return (
     <>
@@ -16104,7 +16112,7 @@ function ContractsListPage({ profile, setPage, setSelectedContractId }) {
 function ContractDetailPage({ profile, setPage, contractId, setSelectedRFAId, setRfaPRId }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [contract, setContract]       = useState(null);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]         = useState(!!contractId); // no contract picked (e.g. after a reload) -> show "not found", never a stuck loader
   const [saving, setSaving]           = useState(false);
   const [notes, setNotes]             = useState("");
   const [notesEditing, setNotesEditing] = useState(false);
@@ -16210,7 +16218,7 @@ function ContractDetailPage({ profile, setPage, contractId, setSelectedRFAId, se
     return () => setHeaderContent({ subtitle: "", actions: null });
   }, [contract, canManage, saving]);
 
-  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.textTer }}>Loading…</div></div>;
+  if (loading) return <LoadingScreen />;
   if (!contract) return <div style={{ padding: 40, textAlign: "center", color: C.textTer }}>Contract not found.</div>;
 
   const rfa = contract.rfas;
@@ -16388,13 +16396,8 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("c360-rail-open") !== "1"; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem("c360-rail-open", sidebarCollapsed ? "0" : "1"); } catch { /* storage blocked */ } }, [sidebarCollapsed]);
   const [headerContent, setHeaderContent] = useState({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
-  const [ph1LogoUrl, setPh1LogoUrl] = useState(null);
 
   useEffect(() => {
-    // Fetch PH1 World Developers Inc. logo for loading screen (public, no auth needed)
-    supabase.from("business_units").select("logo_url").eq("name", "PH1 World Developers Inc.").maybeSingle()
-      .then(({ data }) => { if (data?.logo_url) setPh1LogoUrl(data.logo_url); });
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchProfile(session.user.id);
@@ -16414,7 +16417,7 @@ export default function App() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); setPage("dashboard"); };
 
-  if (session === undefined) return <LoadingScreen logoUrl={ph1LogoUrl} />;
+  if (session === undefined) return <LoadingScreen />;
   if (!session) return <LoginPage />;
   const access = accessState(profile);
   if (access === "inactive") return <InactiveAccountScreen onLogout={handleLogout} />;
