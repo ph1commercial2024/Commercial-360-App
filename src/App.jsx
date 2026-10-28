@@ -16396,6 +16396,9 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("c360-rail-open") !== "1"; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem("c360-rail-open", sidebarCollapsed ? "0" : "1"); } catch { /* storage blocked */ } }, [sidebarCollapsed]);
   const [headerContent, setHeaderContent] = useState({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
+  // Keep the start-up loading screen up for at least 2 s so it is seen, even when the login check is instant
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setIntroDone(true), 2000); return () => clearTimeout(t); }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -16417,7 +16420,7 @@ export default function App() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); setPage("dashboard"); };
 
-  if (session === undefined) return <LoadingScreen />;
+  if (session === undefined || !introDone) return <LoadingScreen />;
   if (!session) return <LoginPage />;
   const access = accessState(profile);
   if (access === "inactive") return <InactiveAccountScreen onLogout={handleLogout} />;
