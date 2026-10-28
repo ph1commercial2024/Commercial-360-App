@@ -2727,7 +2727,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
         plans_file_url, plans_file_name,
         tor_file_url, tor_file_name,
         specs_file_url, specs_file_name,
-        remarks, scope_of_works,
+        remarks, scope_of_works, areas, areas_tagged_by_name, areas_tagged_at,
         projects (name, business_unit, project_code, short_name, project_type, areas),
         profiles!purchase_requests_prepared_by_fkey (full_name, position)
       `)
@@ -3163,7 +3163,6 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
             </InfoRow>
             <InfoRow label="PR Number">{pr.pr_number}</InfoRow>
             <InfoRow label="Prepared by">{pr.profiles?.full_name || "—"}</InfoRow>
-            <InfoRow label="Manager">—</InfoRow>
           </div>
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Work Schedule</h3>
