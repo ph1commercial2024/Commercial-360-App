@@ -32,29 +32,42 @@ export function scopeStats(s) {
   };
 }
 
-/** What still blocks sending the PR, in plain words. Empty when the scope is ready. */
-export function scopeProblems(s) {
+/**
+ * What still blocks sending the PR, as { message, step } items. "step" is the Scope of Works step
+ * (1 work types, 2 works, 3 lines, 4 Summary) where the problem is fixed, so callers never parse the text.
+ */
+export function scopeProblemItems(s) {
   const st = scopeStats(s);
-  if (st.types === 0) return ["Choose at least one work type in the Scope of Works."];
+  if (st.types === 0) return [{ message: "Choose at least one work type in the Scope of Works.", step: 1 }];
   const p = [];
-  if (st.items === 0) p.push("Include at least one work in the Scope of Works.");
+  if (st.items === 0) p.push({ message: "Include at least one work in the Scope of Works.", step: 2 });
   // A "lot" line that is complete except for a too-short description gets its own, clearer message
   const open = activeIncluded(s).flatMap(k => s.lines[k] || []).filter(l => !lineComplete(l));
   const lotShort = open.filter(l => lineComplete({ ...l, unit: l.unit === "lot" ? "m²" : l.unit }) && l.unit === "lot").length;
   const other = open.length - lotShort;
-  if (other) p.push(`${other} line${other > 1 ? "s are" : " is"} missing a spec, unit or specific location, or has a quantity that isn't a number (Scope of Works, step 3).`);
-  if (lotShort) p.push(`${lotShort} "lot" line${lotShort > 1 ? "s need" : " needs"} a fuller description of what the lot includes, at least 12 characters (Scope of Works, step 3).`);
-  if (st.missingWho) p.push(`${st.missingWho} "By others" item${st.missingWho > 1 ? "s don't" : " doesn't"} say who (Scope of Works, step 2).`);
-  if (!s.confirmed) p.push("Confirm the scope on the Summary step of the Scope of Works.");
+  if (other) p.push({ message: `${other} line${other > 1 ? "s are" : " is"} missing a spec, unit or specific location, or has a quantity that isn't a number (Scope of Works, step 3).`, step: 3 });
+  if (lotShort) p.push({ message: `${lotShort} "lot" line${lotShort > 1 ? "s need" : " needs"} a fuller description of what the lot includes, at least 12 characters (Scope of Works, step 3).`, step: 3 });
+  if (st.missingWho) p.push({ message: `${st.missingWho} "By others" item${st.missingWho > 1 ? "s don't" : " doesn't"} say who (Scope of Works, step 2).`, step: 2 });
+  if (!s.confirmed) p.push({ message: "Confirm the scope on the Summary step of the Scope of Works.", step: 4 });
   return p;
 }
 
-/** What the summary notice shows: the blocking problems, plus lines with no quantity (a reminder, not a block). */
-export function scopeNotices(s) {
+/** What still blocks sending the PR, in plain words. Empty when the scope is ready. */
+export function scopeProblems(s) {
+  return scopeProblemItems(s).map(i => i.message);
+}
+
+/** The summary notice as { message, step } items: the blocking problems, plus lines with no quantity (a reminder, not a block). */
+export function scopeNoticeItems(s) {
   const noQty = activeIncluded(s).flatMap(k => s.lines[k] || []).filter(l => !String(l.qty ?? "").trim()).length;
-  const p = scopeProblems(s);
-  if (noQty) p.push(`${noQty} line${noQty > 1 ? "s have" : " has"} no quantity (Scope of Works, step 3).`);
+  const p = scopeProblemItems(s);
+  if (noQty) p.push({ message: `${noQty} line${noQty > 1 ? "s have" : " has"} no quantity (Scope of Works, step 3).`, step: 3 });
   return p;
+}
+
+/** What the summary notice shows, in plain words. */
+export function scopeNotices(s) {
+  return scopeNoticeItems(s).map(i => i.message);
 }
 
 /** One scope item per line, in the order chosen; these feed the RFQ, RFA and vendor portal. */

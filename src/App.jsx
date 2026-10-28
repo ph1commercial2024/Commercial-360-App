@@ -3,7 +3,8 @@ import { supabase } from "./lib/supabase";
 import { venCode, vendorRef } from "./lib/vendorCode";
 import { toDateStr, fromDateStr } from "./lib/dates";
 import { parseCostReport, decideBudget, parseAwardItems, parseVOItems, reconcileItems } from "./lib/costReport";
-import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, scopeNotices, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
+import { SCOPE_UNITS, BY_OTHERS_WHO, scopeKey, splitKey, emptyScope, emptyLine, scopeStats, scopeProblems, scopeNoticeItems, toScopeItems, fromLegacyScope, defaultUnit } from "./lib/scopeOfWorks";
+import { prSubmitProblems, blockersFor, isSubmitClick, canSaveDraft, checklistVisible, clickTarget } from "./lib/prSubmit";
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import { matchProjects, projectLabel } from "./lib/projectSearch";
 import { accessState } from "./lib/access";
@@ -1399,8 +1400,11 @@ const scopeItemsFor = (scope, wt) => {
   return groups;
 };
 
-function ScopeOfWorksEditor({ scope, onChange }) {
+function ScopeOfWorksEditor({ scope, onChange, jump = null }) {
   const [step, setStep] = useState(1);
+  // The parent can ask for a step with jump={{ step, n }}; n changes on every click so the same step can be asked for again
+  const [seenJump, setSeenJump] = useState(0);
+  if (jump && jump.n !== seenJump) { setSeenJump(jump.n); setStep(jump.step); }
   const [ownDraft, setOwnDraft] = useState({});
   const st = scopeStats(scope);
   const set = (patch) => onChange({ ...scope, ...patch, confirmed: patch.confirmed ?? false });
@@ -1616,7 +1620,7 @@ function ScopeOfWorksEditor({ scope, onChange }) {
           <div style={{ fontSize: 12.5, color: C.textSec }}>Read it once, top to bottom. This is what the Manager and, later, the vendors will see.</div>
           {(() => {
             // One notice for everything still to fill in
-            const notes = scopeNotices({ ...scope, confirmed: true }).map(p => p.replace("(Scope of Works, ", "("));
+            const notes = scopeNoticeItems({ ...scope, confirmed: true }).map(i => ({ ...i, message: i.message.replace("(Scope of Works, ", "(") }));
             if (!notes.length) return null;
             return (
               <div style={{ display: "flex", gap: 8, fontSize: 12.5, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px" }}>
@@ -1625,19 +1629,14 @@ function ScopeOfWorksEditor({ scope, onChange }) {
                   {notes.length > 1 && <div style={{ fontWeight: 600, marginBottom: 2 }}>Still to fill in:</div>}
                   {/* Each point opens the step it refers to */}
                   <ul style={{ margin: 0, paddingLeft: notes.length > 1 ? 18 : 0, listStyle: notes.length > 1 ? "disc" : "none" }}>
-                    {notes.map(p => {
-                      const target = Number((p.match(/\(step (\d)\)/) || [])[1]) || (/work type/i.test(p) ? 1 : /at least one work/i.test(p) ? 2 : null);
-                      return (
-                        <li key={p}>
-                          {target ? (
-                            <button type="button" onClick={() => setStep(target)} title={`Go to step ${target}`}
-                              style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", textAlign: "left", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}>
-                              {p}
-                            </button>
-                          ) : p}
-                        </li>
-                      );
-                    })}
+                    {notes.map(n => (
+                      <li key={n.message}>
+                        <button type="button" onClick={() => setStep(n.step)} title={`Go to step ${n.step}`}
+                          style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", textAlign: "left", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                          {n.message}
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               </div>
@@ -2152,47 +2151,76 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   minDateObj.setDate(minDateObj.getDate() + MIN_DAYS);
   const minDate = toDateStr(minDateObj);
 
+  // Everything still missing, from one pure function (src/lib/prSubmit.js); the button, the checklist and savePR all read it
+  const prProblems = prSubmitProblems({
+    projectId: selectedProjectId, projectHasAreas, areas: prAreas,
+    description: formData.description, justification: formData.justification,
+    isRush, rushJustification: formData.rushJustification,
+    startDate: formData.startDate, endDate: formData.endDate, minDate, minDays: MIN_DAYS,
+    scope,
+    isReviewerCreating, isManagerCreating, managerId: selectedGMId, budgetStatus,
+    docModes, docLinks, docFiles: { plans: plansFile, tor: torFile, specs: specsFile }, existingDocs,
+  });
+  const draftCount = prProblems.draft.length;
+  const submitCount = prProblems.submit.length;
+  // Plain strings for the button tooltips (also the header effect's dependencies, so the buttons update as you type)
+  const listTip = (list) => list.map(p => "• " + p.message).join("\n");
+  const submitTip = listTip(prProblems.submit);
+  const draftTip = listTip(prProblems.draft);
+  // Tag the checklist items that also block "Save draft", only while one is missing and only for creators who have that button
+  const showDraftTags = canSaveDraft({ isReviewerCreating }) && draftCount > 0 && checklistVisible(submitCount);
+
+  // Jump links: scroll to a section, flash it for 1.5 s, and open the matching Scope of Works step
+  const [flashId, setFlashId] = useState(null);
+  const [scopeJump, setScopeJump] = useState(null);
+  const flashTimer = useRef(null);
+  const anchorId = (p) => p.doc ? `pr-sec-doc-${p.doc}` : `pr-sec-${p.section}`;
+  const scrollToId = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // The page scrolls on the window (mainContent is not scroll-locked). scrollIntoView would also nudge the
+    // overflow:hidden ancestors, shifting the fixed header and sidebar a few px, so scroll the window directly.
+    window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 124), behavior: calm ? "auto" : "smooth" });
+    el.focus({ preventScroll: true });
+    setFlashId(id);
+    clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlashId(null), 1500);
+  };
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
+  const jumpTo = (p) => {
+    if (p.section === "scope" && p.step) setScopeJump(j => ({ step: p.step, n: (j?.n || 0) + 1 }));
+    scrollToId(anchorId(p));
+  };
+  // Spread onto a section: its anchor id, and the highlight while it is flashing
+  const sec = (id, base = {}) => ({
+    id, tabIndex: -1,
+    style: { ...base, scrollMarginTop: 124, outline: "none", borderRadius: base.borderRadius ?? 8, ...(flashId === id ? { boxShadow: `0 0 0 3px ${C.coral}` } : {}), transition: "box-shadow 0.3s" },
+  });
+
   const fetchPRNumber = async () => {
     const { data, error } = await supabase.rpc("next_pr_number");
     if (error || !data) throw new Error(error?.message || "No PR number returned");
     return data;
   };
 
+  // In-flight guard: setSaving(true) only reaches the header buttons after a re-render, so two fast clicks
+  // could both start a save and create two PRs. A ref flips at once.
+  const savingRef = useRef(false);
   const savePR = async (sendToGM = false) => {
-    if (!selectedProjectId) { alert("Please select a project."); return; }
-    if (projectHasAreas && prAreas.length === 0) { alert("Please pick the building(s) / area(s) this work is for."); return; }
-    if (!formData.description.trim()) { alert("Please enter a description."); return; }
-    if (!formData.justification.trim()) { alert("Please enter a justification."); return; }
-    if (isRush && !formData.rushJustification.trim()) { alert("Please explain the reason for the late (rush) request."); return; }
-    if (!formData.startDate) { alert("Please select a start date."); return; }
-    if (!formData.endDate) { alert("Please select an end date."); return; }
-    const isSubmitting = sendToGM || isReviewerCreating;
-    if (isSubmitting && formData.startDate < minDate) {
-      alert(`The start date must be on or after ${minDate} (${MIN_DAYS}-day lead time${isRush ? " for rush requests" : ""}). Please pick a later date.`);
-      return;
-    }
-    if (isSubmitting) {
-      const sp = scopeProblems(scope);
-      if (sp.length) { alert("The Scope of Works isn't ready yet:\n• " + sp.join("\n• ")); return; }
-    }
-    if (!isReviewerCreating && !isManagerCreating && sendToGM && !selectedGMId) { alert("Please select a Manager to send to."); return; }
-    if (isReviewerCreating) {
-      if (!budgetStatus) { alert('Please tick at least one budget line, or "No budget line covers this work".'); return; }
-    }
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try { await savePRInner(sendToGM); }
+    finally { savingRef.current = false; }
+  };
 
-    // Required documents — only enforced on actual submission (not draft save)
-    if (isSubmitting) {
-      const missing = [];
-      if (docModes.plans === "file"  && !plansFile && !existingDocs.plans) missing.push("Plans (upload a file)");
-      if (docModes.plans === "link"  && !docLinks.plans.trim()) missing.push("Plans (provide a link)");
-      if (docModes.tor   === "file"  && !torFile && !existingDocs.tor)     missing.push("Terms of Reference (upload a file)");
-      if (docModes.tor   === "link"  && !docLinks.tor.trim())  missing.push("Terms of Reference (provide a link)");
-      if (docModes.specs === "file"  && !specsFile && !existingDocs.specs) missing.push("Specifications (upload a file)");
-      if (docModes.specs === "link"  && !docLinks.specs.trim()) missing.push("Specifications (provide a link)");
-      if (missing.length > 0) {
-        alert("Please provide all required documents before submitting:\n• " + missing.join("\n• "));
-        return;
-      }
+  const savePRInner = async (sendToGM) => {
+    // Same check the button and the checklist use. The buttons stop an incomplete click before it gets here; this is the backstop
+    const isSubmitting = isSubmitClick({ isReviewerCreating }, sendToGM);
+    const missingNow = blockersFor(prProblems, { isReviewerCreating }, sendToGM);
+    if (missingNow.length) {
+      alert((isSubmitting ? "Please complete the following before submitting:\n• " : "Please complete the following before saving the draft:\n• ") + missingNow.map(p => p.message).join("\n• "));
+      return;
     }
 
     setSaving(true);
@@ -2306,8 +2334,19 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   };
 
   // Header buttons are rendered once per effect run; the ref lets them call the latest savePR with current form state
-  const savePRRef = useRef(savePR);
-  useEffect(() => { savePRRef.current = savePR; });
+  // An incomplete button does not save: it scrolls to the checklist when it is shown, otherwise jumps to the first item that blocks the click
+  const clickSave = (sendToGM) => {
+    const target = clickTarget(prProblems, { isReviewerCreating }, sendToGM);
+    if (target) { if (target.kind === "item") jumpTo(target.item); else scrollToId("pr-checklist"); return; }
+    savePR(sendToGM);
+  };
+  const savePRRef = useRef(clickSave);
+  useEffect(() => { savePRRef.current = clickSave; });
+
+  // Looks disabled but stays clickable (aria-disabled, not the disabled attribute), so a click can explain what is missing
+  // Explicit greys instead of opacity, so the label stays at 4.5:1 or better (#4B5563 on #EEF0F3 is about 7:1)
+  const notReady = { background: "#EEF0F3", color: "#4B5563", border: "1px solid #D1D5DB", boxShadow: "none", cursor: "not-allowed", opacity: 1 };
+  const submitTitle = submitCount ? `${submitCount} to complete before you can submit:\n${submitTip}` : undefined;
 
   useEffect(() => {
     if (submitted || editLoading) { setHeaderContent({ subtitle: "", actions: null }); return; }
@@ -2322,24 +2361,29 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
         </div>
       ),
       actions: (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           {!isReviewerCreating && (
-            <button style={styles.btnSecondary} onClick={() => savePRRef.current(false)} disabled={saving}>{saving ? "Saving…" : "Save draft"}</button>
+            <button style={{ ...styles.btnSecondary, ...(draftCount ? notReady : {}) }} onClick={() => savePRRef.current(false)} disabled={saving}
+              aria-disabled={draftCount > 0}
+              title={draftCount ? `To save a draft, first:\n${draftTip}` : undefined}>{saving ? "Saving…" : "Save draft"}</button>
           )}
           {isReviewerCreating ? (
-            <button style={styles.btnPrimary} onClick={() => savePRRef.current(false)} disabled={saving}
-              onMouseOver={e => e.currentTarget.style.opacity = "0.9"}
-              onMouseOut={e => e.currentTarget.style.opacity = "1"}>
+            <button style={{ ...styles.btnPrimary, ...(submitCount ? notReady : {}) }} onClick={() => savePRRef.current(false)} disabled={saving}
+              aria-disabled={submitCount > 0} title={submitTitle}
+              onMouseOver={e => { if (!submitCount) e.currentTarget.style.opacity = "0.9"; }}
+              onMouseOut={e => { if (!submitCount) e.currentTarget.style.opacity = "1"; }}>
               {saving ? "Submitting…" : "Submit"}
             </button>
           ) : isManagerCreating ? (
-            <button style={styles.btnPrimary} onClick={() => savePRRef.current(true)} disabled={saving}>
+            <button style={{ ...styles.btnPrimary, ...(submitCount ? notReady : {}) }} onClick={() => savePRRef.current(true)} disabled={saving}
+              aria-disabled={submitCount > 0} title={submitTitle}>
               {saving ? "Submitting…" : "Submit for review"}
             </button>
           ) : (
-            <button style={styles.btnAmber} onClick={() => savePRRef.current(true)} disabled={saving}>
+            <button style={{ ...styles.btnAmber, ...(submitCount ? notReady : {}) }} onClick={() => savePRRef.current(true)} disabled={saving}
+              aria-disabled={submitCount > 0} title={submitTitle}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name="send" size={13} color={C.amberText} />
+                <Icon name="send" size={13} color={submitCount ? "#4B5563" : C.amberText} />
                 Send to Manager
               </span>
             </button>
@@ -2348,7 +2392,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       ),
     });
     return () => setHeaderContent({ subtitle: "", actions: null });
-  }, [saving, isReviewerCreating, isManagerCreating, submitted, editLoading, editPR]);
+    // submitCount / draftCount / the tips are dependencies on purpose: the buttons live in this effect, so without them they would not update as the form is filled in
+  }, [saving, isReviewerCreating, isManagerCreating, submitted, editLoading, editPR, submitCount, draftCount, submitTip, draftTip]);
 
   if (submitted) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -2382,8 +2427,31 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
           </div>
         )}
 
+        {/* One checklist of everything still missing. Scrolls with the page; shown only while 1 to 3 items are left */}
+        {checklistVisible(submitCount) && (
+          <div {...sec("pr-checklist", { display: "flex", gap: 8, fontSize: 12.5, color: C.amberText, background: C.amberBg, border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px", marginBottom: 16 })}>
+            <span aria-hidden="true">⚠</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>Complete {submitCount} {submitCount === 1 ? "item" : "items"} before you can submit</div>
+              <ul style={{ margin: 0, paddingLeft: 18, listStyle: "disc" }}>
+                {prProblems.submit.map(p => (
+                  <li key={p.message}>
+                    <button type="button" onClick={() => jumpTo(p)} title="Go to this part of the form"
+                      style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", textAlign: "left", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                      {p.message}
+                    </button>
+                    {showDraftTags && p.blocksDraft && (
+                      <span style={{ display: "inline-block", fontSize: 11, lineHeight: "16px", color: "#4B5563", background: C.grayBg, borderRadius: 8, padding: "0 7px", margin: "2px 0 3px" }}>needed to save a draft</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         {/* Section 1 — Project & GM */}
-        <div style={{ ...styles.card, marginBottom: 16 }}>
+        <div {...sec("pr-sec-project", { ...styles.card, marginBottom: 16 })}>
           <h3 style={styles.cardTitle}>Project details</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
@@ -2411,7 +2479,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
             </div>
           )}
           {!isReviewerCreating && !isManagerCreating && (
-            <div>
+            <div {...sec("pr-sec-manager")}>
               <label style={styles.label}>Manager <span style={styles.required}>*</span></label>
               <select value={selectedGMId} onChange={e => setSelectedGMId(e.target.value)} style={styles.input}>
                 <option value="">Select a Manager…</option>
@@ -2425,7 +2493,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
         </div>
 
         {/* Section 2 — Work Request */}
-        <div style={{ ...styles.card, marginBottom: 16 }}>
+        <div {...sec("pr-sec-details", { ...styles.card, marginBottom: 16 })}>
           <h3 style={styles.cardTitle}>Work request details</h3>
           <div style={{ marginBottom: 14 }}>
             <label style={styles.label}>Description <span style={styles.required}>*</span></label>
@@ -2448,7 +2516,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
         </div>
 
         {/* Section 3 — Work Schedule */}
-        <div style={{ ...styles.card, marginBottom: 16 }}>
+        <div {...sec("pr-sec-dates", { ...styles.card, marginBottom: 16 })}>
           <h3 style={styles.cardTitle}>Work Schedule</h3>
           <div style={{ marginBottom: 16 }}>
             <label style={styles.label}>Requested date range <span style={styles.required}>*</span></label>
@@ -2500,14 +2568,14 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
         </div>
 
         {/* Section 4 — Scope of Works */}
-        <div style={{ ...styles.card, marginBottom: 16 }}>
+        <div {...sec("pr-sec-scope", { ...styles.card, marginBottom: 16 })}>
           <h3 style={styles.cardTitle}>Scope of Works <span style={styles.required}>*</span></h3>
-          <ScopeOfWorksEditor scope={scope} onChange={setScope} />
+          <ScopeOfWorksEditor scope={scope} onChange={setScope} jump={scopeJump} />
         </div>
 
         {/* Section 4b — Budget Review (CO/CM/D&C Head creating their own PR) */}
         {isReviewerCreating && (
-          <div style={{ ...styles.card, marginBottom: 16, borderColor: budgetStatus ? C.border : "#FCD34D" }}>
+          <div {...sec("pr-sec-budget", { ...styles.card, marginBottom: 16, borderColor: budgetStatus ? C.border : "#FCD34D" })}>
             <h3 style={{ ...styles.cardTitle, borderBottomColor: C.coral, color: C.coral }}>Budget lines <span style={styles.required}>*</span></h3>
             <BudgetLinePicker projectId={selectedProjectId ? parseInt(selectedProjectId) : null} pick={budgetPick} onChange={setBudgetPick} />
           </div>
@@ -2531,7 +2599,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
               const hasFile = !!(doc.file || existing);
               const isDone = hasFile || link.trim();
               return (
-                <div key={doc.key} style={{ border: `1px solid ${isDone ? C.greenText : C.border}`, borderRadius: 10, padding: "14px 16px", background: isDone ? C.greenBg : C.surface }}>
+                <div key={doc.key} {...sec(`pr-sec-doc-${doc.key}`, { border: `1px solid ${isDone ? C.greenText : C.border}`, borderRadius: 10, padding: "14px 16px", background: isDone ? C.greenBg : C.surface })}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.textPri, marginBottom: 8 }}>
                     {doc.label} <span style={{ color: C.redText }}>*</span>
                   </div>

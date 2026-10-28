@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  emptyScope, scopeKey, lineComplete, scopeStats, scopeProblems, scopeNotices, toScopeItems, fromLegacyScope, defaultUnit,
+  emptyScope, scopeKey, lineComplete, scopeStats, scopeProblems, scopeNotices, scopeProblemItems, scopeNoticeItems, toScopeItems, fromLegacyScope, defaultUnit,
 } from '../lib/scopeOfWorks.js'
 
 const k = scopeKey
@@ -123,6 +123,60 @@ describe('scopeNotices', () => {
     const t = { ...sample(), confirmed: true, types: ['General Requirements'] }
     t.lines[k('Architectural Works', 'Flooring — Tiles')][0].qty = ''
     expect(scopeNotices(t)).toEqual([])
+  })
+})
+
+describe('scopeProblemItems / scopeNoticeItems (step field)', () => {
+  const stepOf = (items, re) => items.find(i => re.test(i.message))?.step
+  const withAll = () => {
+    const t = sample()
+    t.lines[k('Architectural Works', 'Flooring — Tiles')][1].unit = ''
+    t.byOthers[k('Architectural Works', 'Masonry / Blockwork')] = ''
+    return t
+  }
+
+  it('gives every problem and notice a step from 1 to 4', () => {
+    const cases = [
+      emptyScope(),
+      { ...emptyScope(), types: ['Architectural Works'] },
+      withAll(),
+      { ...sample(), confirmed: true, lines: { [k('General Requirements', 'Full-Time Safety Officer')]: [{ spec: 'dadada', qty: '1', unit: 'lot', location: 'Site' }] } },
+    ]
+    const noQty = { ...sample(), confirmed: true }
+    noQty.lines[k('Architectural Works', 'Flooring — Tiles')][0].qty = ''
+    cases.push(noQty)
+    let seen = 0
+    for (const c of cases) {
+      for (const i of [...scopeProblemItems(c), ...scopeNoticeItems(c)]) {
+        seen++
+        expect(Number.isInteger(i.step)).toBe(true)
+        expect(i.step).toBeGreaterThanOrEqual(1)
+        expect(i.step).toBeLessThanOrEqual(4)
+      }
+    }
+    expect(seen).toBeGreaterThan(8)
+  })
+
+  it('maps each rule to its step', () => {
+    expect(scopeProblemItems(emptyScope())[0].step).toBe(1)
+    expect(stepOf(scopeProblemItems({ ...emptyScope(), types: ['Architectural Works'] }), /at least one work/)).toBe(2)
+    const t = withAll()
+    const items = scopeProblemItems(t)
+    expect(stepOf(items, /who/)).toBe(2)
+    expect(stepOf(items, /missing a spec/)).toBe(3)
+    expect(stepOf(items, /Confirm the scope/)).toBe(4)
+    const lot = { ...sample(), confirmed: true }
+    lot.lines[k('General Requirements', 'Full-Time Safety Officer')][0] = { spec: 'dadada', qty: '1', unit: 'lot', location: 'Site' }
+    expect(stepOf(scopeProblemItems(lot), /"lot"/)).toBe(3)
+    const nq = { ...sample(), confirmed: true }
+    nq.lines[k('Architectural Works', 'Flooring — Tiles')][0].qty = ''
+    expect(stepOf(scopeNoticeItems(nq), /no quantity/)).toBe(3)
+  })
+
+  it('keeps the plain-string functions in step with the items', () => {
+    const t = withAll()
+    expect(scopeProblems(t)).toEqual(scopeProblemItems(t).map(i => i.message))
+    expect(scopeNotices(t)).toEqual(scopeNoticeItems(t).map(i => i.message))
   })
 })
 
