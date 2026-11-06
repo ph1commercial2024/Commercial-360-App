@@ -8,6 +8,7 @@ import { prSubmitProblems, blockersFor, isSubmitClick, canSaveDraft, checklistVi
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import { matchProjects, projectLabel } from "./lib/projectSearch";
 import { accessState } from "./lib/access";
+import { isNetworkError, CONNECTION_DROPPED_SAVE_MSG } from "./lib/fetchTimeout";
 import { PROJECT_TYPES, AREA_KIND_LABEL, defaultAreas, setTowerCount, towerCount, addArea, hasAreaName, activeAreas, totalUnits, areaSummary, areaNames, switchType } from "./lib/projectAreas";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -2221,9 +2222,19 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
   const savingRef = useRef(false);
   const savePR = async (sendToGM = false) => {
     if (savingRef.current) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      alert("You're offline, so nothing was saved. Check your internet connection and try again.");
+      return;
+    }
     savingRef.current = true;
     try { await savePRInner(sendToGM); }
-    finally { savingRef.current = false; }
+    catch (e) {
+      // Anything that throws mid-save (a dropped connection, a timeout) must not leave the button on "Saving…"
+      alert(isNetworkError(e?.message || String(e))
+        ? CONNECTION_DROPPED_SAVE_MSG
+        : "Something went wrong while saving:\n\n" + (e?.message || e));
+    }
+    finally { savingRef.current = false; setSaving(false); }
   };
 
   const savePRInner = async (sendToGM) => {
@@ -2297,7 +2308,12 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
       ? await supabase.from("purchase_requests").update(prFields).eq("pr_number", prNumber).select().single()
       : await supabase.from("purchase_requests").insert({ ...prFields, pr_number: prNumber, prepared_by: profile.id }).select().single();
 
-    if (error) { alert("Error saving PR: " + error.message); setSaving(false); return; }
+    if (error) {
+      alert(isNetworkError(error.message)
+        ? CONNECTION_DROPPED_SAVE_MSG
+        : "Error saving PR: " + error.message);
+      setSaving(false); return;
+    }
 
     // A draft has no RFQ/RFA yet, so its scope items can be rebuilt from the edited checklist
     if (editPR) await supabase.from("scope_items").delete().eq("pr_id", prNumber);
@@ -2335,7 +2351,8 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
           budget_status: "Unbudgeted", budget_code: finalBudgetCode,
           approved1_by: profile.id, approved1_at: now };
       }
-      await supabase.from("purchase_requests").update(budgetUpdate).eq("pr_number", pr.pr_number);
+      const { error: budgetErr } = await supabase.from("purchase_requests").update(budgetUpdate).eq("pr_number", pr.pr_number);
+      if (budgetErr) alert(`PR ${pr.pr_number} was saved, but its budget review could not be recorded:\n\n${budgetErr.message}\n\nOpen the PR to check it, or tell the administrator.`);
     }
 
     if (editPR && autoStatus !== "Draft") await stampPRResubmitted(prNumber, profile?.full_name);
@@ -2686,6 +2703,7 @@ function CreatePRPage({ setPage, profile, editPRId = null }) {
 function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, setSelectedRFQId }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const [pr, setPR] = useState(null);
+  const [loadError, setLoadError] = useState("");
   const [scopeItems, setScopeItems] = useState([]);
   const [scopeOfWorks, setScopeOfWorks] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2717,7 +2735,7 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
 
   const fetchPR = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error: prErr } = await supabase
       .from("purchase_requests")
       .select(`
         id, pr_number, project_id, prepared_by, description, justification, status, current_step,
@@ -2733,6 +2751,14 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
       `)
       .eq("pr_number", prId)
       .single();
+    // PGRST116 = no such PR (really "not found"); anything else is a failed load, e.g. a dropped connection
+    const failed = prErr && prErr.code !== "PGRST116";
+    setLoadError(failed ? prErr.message : "");
+    if (failed) {
+      // Already showing the PR (a refresh after an action): keep it on screen and say the refresh failed
+      if (pr) alert("The latest changes couldn't be loaded. " + (isNetworkError(prErr.message) ? "Check your internet, then reload the page." : prErr.message));
+      setLoading(false); return;
+    }
     if (data) {
       setPR(data);
       if (data.scope_of_works) setScopeOfWorks(data.scope_of_works);
@@ -3024,6 +3050,15 @@ function PRDetailPage({ prId, setPage, profile, setSelectedRFAId, setRfaPRId, se
 
   // Full-window loader only on the first load; refreshes after an action keep the page in place
   if (loading && !pr) return <LoadingScreen />;
+  if (!pr && loadError) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, minHeight: 400, textAlign: "center", padding: "0 16px" }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.textPri }}>This purchase request couldn't be loaded</div>
+      <div style={{ fontSize: 13, color: C.textSec, maxWidth: 420 }}>
+        {isNetworkError(loadError) ? "The connection dropped or timed out. Check your internet and try again." : loadError}
+      </div>
+      <button style={styles.btnPrimary} onClick={fetchPR}>Try again</button>
+    </div>
+  );
   if (!pr) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 }}><div style={{ fontSize: 13, color: C.redText }}>Purchase request not found.</div></div>;
 
   return (
