@@ -9,6 +9,8 @@ import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import { matchProjects, projectLabel } from "./lib/projectSearch";
 import { accessState } from "./lib/access";
 import { isNetworkError, CONNECTION_DROPPED_SAVE_MSG } from "./lib/fetchTimeout";
+import { emptyAgreement, agreementData, agreementMissing, isSuggested, renderAgreement, agreementNo, agreementFileName, parseAmount, pesoWords, pesoFigures, WORK_TYPES, DP_SUGGESTIONS, BILLING_TYPES, BILLING_SUGGESTIONS, RETENTION_SUGGESTIONS } from "./lib/agreement";
+import agreementTemplateUrl from "./assets/construction_agreement_template.docx?url";
 import { PROJECT_TYPES, AREA_KIND_LABEL, defaultAreas, setTowerCount, towerCount, addArea, hasAreaName, activeAreas, totalUnits, areaSummary, areaNames, switchType } from "./lib/projectAreas";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -287,6 +289,8 @@ function can(profile, action) {
     case "vendor.add":            return ["Commercial Officer","Commercial Manager"].includes(pos);
     case "vendor.edit":           return ["Commercial Officer","Commercial Manager"].includes(pos);
     case "vendor.delete":         return pos === "Commercial Manager";
+    // Construction Agreements (generated from the Word template)
+    case "agreement.manage":      return ["Commercial Manager","D&C Head"].includes(pos);
     // RFP (legacy)
     case "rfp.create":            return ["Commercial Officer","Commercial Manager"].includes(pos);
     case "rfp.manage":            return ["Commercial Officer","Commercial Manager"].includes(pos);
@@ -4465,6 +4469,14 @@ function SettingsPage({ profile }) {
     fetchBusinessUnits();
   };
 
+  const saveBUAddress = async (id, value, current) => {
+    const v = value.trim();
+    if (v === (current || "")) return;
+    const { error } = await supabase.from("business_units").update({ address: v || null }).eq("id", id);
+    if (error) { alert("Could not save the address: " + error.message + (error.message.includes("address") ? "\n\nRun supabase/migrations/construction_agreements.sql first." : "")); return; }
+    fetchBusinessUnits();
+  };
+
   const renameBU = async (id, name) => {
     if (!name.trim()) return;
     await supabase.from("business_units").update({ name: name.trim() }).eq("id", id);
@@ -4638,6 +4650,7 @@ function SettingsPage({ profile }) {
                           <span style={{ fontSize: 8, color: C.textTer, whiteSpace: "nowrap" }}>No logo</span>
                         </div>
                       )}
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
                       {/* BU name — inline editable */}
                       {editingBUId === bu.id ? (
                         <input
@@ -4655,6 +4668,15 @@ function SettingsPage({ profile }) {
                           {bu.name}
                         </span>
                       )}
+                      {/* Office address: the CLIENT's address in generated Construction Agreements */}
+                      {canManage ? (
+                        <input key={`addr-${bu.id}-${bu.address || ""}`} defaultValue={bu.address || ""} placeholder="Office address (used in construction agreements)"
+                          aria-label={`Office address of ${bu.name}`}
+                          onBlur={e => saveBUAddress(bu.id, e.target.value, bu.address)}
+                          onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                          style={{ ...styles.input, padding: "4px 8px", fontSize: 12 }} />
+                      ) : bu.address ? <span style={{ fontSize: 12, color: C.textSec }}>{bu.address}</span> : null}
+                      </div>
                       {/* Action buttons */}
                       {canManage && (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
@@ -16009,6 +16031,562 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
   );
 }
 
+// ─── CONSTRUCTION AGREEMENTS ──────────────────────────────────────────────────
+// Separate agreements generated from the user's Word template (src/assets/construction_agreement_template.docx).
+// Commercial Manager and D&C Head only. The CA-YYYY-NNN reference is internal and never printed in the document.
+
+async function downloadAgreementDocx(form) {
+  const res = await fetch(agreementTemplateUrl);
+  if (!res.ok) throw new Error("The agreement template could not be loaded.");
+  const out = renderAgreement(await res.arrayBuffer(), agreementData(form));
+  const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = agreementFileName(form);
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function NoAgreementAccess() {
+  return (
+    <div style={styles.pageBody}>
+      <div style={{ ...styles.card, maxWidth: 520, margin: "40px auto", textAlign: "center" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: C.textPri, marginBottom: 6 }}>Construction Agreements</div>
+        <p style={{ fontSize: 13, color: C.textSec, margin: 0 }}>Only the Commercial Manager and the D&amp;C Head can generate construction agreements.</p>
+      </div>
+    </div>
+  );
+}
+
+function AgreementsListPage({ profile, setPage, setSelectedAgreementId }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
+  const allowed = can(profile, "agreement.manage");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [search, setSearch] = useState("");
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+
+  useEffect(() => {
+    if (!allowed) return;
+    let alive = true;
+    supabase.from("construction_agreements")
+      .select("id, project_name, contractor_name, contract_price, created_by_name, created_at, updated_at, data")
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!alive) return;
+        setLoadError(!error ? "" : error.message.includes("construction_agreements")
+          ? "The agreements table isn't set up yet. Run supabase/migrations/construction_agreements.sql in Supabase."
+          : isNetworkError(error.message) ? "The connection dropped. Check your internet and reload the page." : error.message);
+        setRows(data || []);
+        setLoading(false);
+      });
+    return () => { alive = false; };
+  }, [allowed]);
+
+  const openNew = () => { setSelectedAgreementId(null); setPage("agreement_form"); };
+  useEffect(() => {
+    if (!allowed) return;
+    setHeaderContent({
+      subtitle: "Separate agreements generated from your template",
+      actions: <button style={styles.btnPrimary} onClick={openNew}>+ Generate agreement</button>,
+      searchValue: search, onSearchChange: setSearch,
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
+  }, [allowed, search]);
+
+  if (!allowed) return <NoAgreementAccess />;
+
+  const download = async (row) => {
+    const form = { ...emptyAgreement(), ...row.data };
+    const missing = agreementMissing(form);
+    if (missing.length) {
+      alert(`${agreementNo(row)} isn't complete yet, so the Word file would have gaps:\n\n• ${missing.join("\n• ")}\n\nOpen it to finish, then download.`);
+      return;
+    }
+    setBusyId(row.id);
+    try { await downloadAgreementDocx(form); }
+    catch (e) { alert("The Word file could not be made: " + e.message); }
+    setBusyId(null);
+  };
+  const doDelete = async () => {
+    const row = confirmDel;
+    const { error } = await supabase.from("construction_agreements").delete().eq("id", row.id);
+    if (error) { alert("Could not delete: " + (isNetworkError(error.message) ? "the connection dropped. Try again." : error.message)); return; }
+    setConfirmDel(null);
+    setRows(rs => rs.filter(r => r.id !== row.id));
+    try { if (localStorage.getItem("cc_agreement_id") === String(row.id)) localStorage.removeItem("cc_agreement_id"); } catch { /* storage blocked */ }
+  };
+
+  const q = search.trim().toLowerCase();
+  const shown = rows.filter(r => !q || [agreementNo(r), r.project_name, r.contractor_name, r.created_by_name].some(v => (v || "").toLowerCase().includes(q)));
+  const th = { textAlign: "left", fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: C.textTer, padding: "10px 14px", borderBottom: `1px solid ${C.border}` };
+  const td = { padding: "12px 14px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textPri, verticalAlign: "top" };
+
+  return (
+    <div style={styles.pageBody}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <button style={{ ...styles.btnGhost, paddingLeft: 0, marginBottom: 10 }} onClick={() => setPage("contracts")}>← Contracts</button>
+        <div style={{ ...styles.card, padding: 0, overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>
+              <th style={th}>Ref. (app only)</th><th style={th}>Project</th><th style={th}>Contractor</th>
+              <th style={{ ...th, textAlign: "right" }}>Contract price</th><th style={th}>Generated</th><th style={th}></th>
+            </tr></thead>
+            <tbody>
+              {loading && <tr><td colSpan={6} style={{ ...td, textAlign: "center", color: C.textTer, padding: 32 }}>Loading…</td></tr>}
+              {!loading && loadError && <tr><td colSpan={6} style={{ ...td, textAlign: "center", color: C.redText, padding: 32 }}>{loadError}</td></tr>}
+              {!loading && !loadError && shown.length === 0 && (
+                <tr><td colSpan={6} style={{ ...td, textAlign: "center", color: C.textTer, padding: 40 }}>
+                  {rows.length ? "No agreements match your search." : <>No agreements yet. <span style={{ color: C.coral, cursor: "pointer", fontWeight: 600 }} onClick={openNew}>Generate the first one</span>.</>}
+                </td></tr>
+              )}
+              {!loading && shown.map(r => (
+                <tr key={r.id}>
+                  <td style={{ ...td, fontWeight: 600, whiteSpace: "nowrap" }}>{agreementNo(r)}</td>
+                  <td style={td}>{r.project_name || "—"}</td>
+                  <td style={td}>{r.contractor_name || "—"}</td>
+                  <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.contract_price ? "₱" + pesoFigures(r.contract_price) : "—"}</td>
+                  <td style={{ ...td, whiteSpace: "nowrap", color: C.textSec }}>{fmtShort(r.created_at)}{r.created_by_name ? <div style={{ fontSize: 11, color: C.textTer }}>{r.created_by_name}</div> : null}</td>
+                  <td style={{ ...td, whiteSpace: "nowrap", textAlign: "right" }}>
+                    <div style={{ display: "inline-flex", gap: 6 }}>
+                      <button style={styles.btnSecondary} onClick={() => { setSelectedAgreementId(r.id); setPage("agreement_form"); }}>Open</button>
+                      <button style={styles.btnSecondary} disabled={busyId === r.id} onClick={() => download(r)}>{busyId === r.id ? "Preparing…" : "Word"}</button>
+                      <button style={{ ...styles.btnSecondary, color: C.redText }} onClick={() => setConfirmDel(r)}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {confirmDel && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(17,24,39,0.45)", zIndex: 1500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setConfirmDel(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="agr-del-title" style={{ ...styles.card, maxWidth: 420, width: "100%" }} onClick={e => e.stopPropagation()}>
+            <div id="agr-del-title" style={{ fontSize: 16, fontWeight: 700, color: C.textPri, marginBottom: 6 }}>Delete this agreement?</div>
+            <p style={{ fontSize: 13, color: C.textSec, margin: "0 0 18px", lineHeight: 1.55 }}>
+              {agreementNo(confirmDel)} for {confirmDel.project_name || "this project"} will be removed from the app. Word files you already downloaded are not affected.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button style={styles.btnSecondary} autoFocus onClick={() => setConfirmDel(null)}>Cancel</button>
+              <button style={styles.btnDanger} onClick={doDelete}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Clause and heading lines for the agreement preview
+const AgrClause = ({ n, children }) => <p style={{ margin: "6px 0", display: "grid", gridTemplateColumns: "34px 1fr" }}><span>{n}</span><span>{children}</span></p>;
+const AgrHead = ({ children }) => <div style={{ fontWeight: 700, margin: "14px 0 4px", fontSize: 12.5 }}>{children}</div>;
+
+function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreementId }) {
+  const { setHeaderContent } = useContext(HeaderActionsCtx);
+  const allowed = can(profile, "agreement.manage");
+  const [f, setF] = useState(emptyAgreement);
+  const [projects, setProjects] = useState([]);
+  const [bus, setBus] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [row, setRow] = useState(null);
+  const [showMissing, setShowMissing] = useState(false);
+  const savingRef = useRef(false);
+  // The agreement this page opened with; saving a new one sets the app's selected id without reloading the form
+  const [openedId] = useState(agreementId);
+  // Unsaved-changes guard: compare the form with what was last saved (or the blank form for a new one)
+  const [savedJson, setSavedJson] = useState(() => JSON.stringify(emptyAgreement()));
+  const dirty = JSON.stringify(f) !== savedJson;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  const leave = () => {
+    if (dirty && !window.confirm("You have unsaved changes to this agreement. Leave without saving?")) return;
+    setPage("agreements");
+  };
+
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+
+  useEffect(() => {
+    if (!allowed) return;
+    let alive = true;
+    const agreementId = openedId;
+    (async () => {
+      const [pRes, bRes, vRes] = await Promise.all([
+        supabase.from("projects").select("id, name, address, business_unit").eq("status", "active").order("name"),
+        supabase.from("business_units").select("*").order("name"),
+        supabase.from("vendors").select("id, vendor_code, accreditation_status").eq("accreditation_status", "Accredited"),
+      ]);
+      const vs = vRes.data || [];
+      let ci = [], ciErr = null;
+      if (vs.length) {
+        const { data, error } = await supabase.from("vendor_company_info")
+          .select("vendor_id, company_name, registered_address, authorized_representative, representative_title, registration_type")
+          .in("vendor_id", vs.map(v => vendorRef(v)));
+        ci = data || []; ciErr = error;
+      }
+      // Without these lists the dropdowns would just look empty, so say what went wrong
+      const lookupErr = pRes.error || bRes.error || vRes.error || ciErr;
+      if (lookupErr) throw new Error(lookupErr.message);
+      const ciMap = Object.fromEntries(ci.map(c => [c.vendor_id, c]));
+      const vendorList = vs.map(v => ({ id: v.id, ...(ciMap[vendorRef(v)] || {}) }))
+        .filter(v => v.company_name).sort((a, b) => a.company_name.localeCompare(b.company_name));
+      let existing = null;
+      if (agreementId) {
+        const { data, error } = await supabase.from("construction_agreements").select("*").eq("id", agreementId).maybeSingle();
+        if (error || !data) { if (alive) { setLoadError(error ? error.message : "This agreement no longer exists."); setLoading(false); } return; }
+        existing = data;
+      }
+      if (!alive) return;
+      setProjects(pRes.data || []); setBus(bRes.data || []); setVendors(vendorList);
+      if (existing) {
+        const loaded = { ...emptyAgreement(), ...existing.data };
+        setRow(existing); setF(loaded); setSavedJson(JSON.stringify(loaded));
+      }
+      setLoading(false);
+    })().catch(e => { if (alive) { setLoadError(isNetworkError(e?.message) ? "The connection dropped. Check your internet and try again." : String(e?.message || e)); setLoading(false); } });
+    return () => { alive = false; };
+  }, [allowed, openedId]);
+
+  const pickProject = (id) => {
+    const p = projects.find(x => String(x.id) === String(id));
+    const bu = bus.find(b => b.name === p?.business_unit);
+    setF(prev => ({ ...prev, projectId: id, projectName: p?.name || "", projectLocation: p?.address || "",
+      clientName: p?.business_unit || "", clientAddress: bu?.address || prev.clientAddress }));
+  };
+  const pickVendor = (id) => {
+    const v = vendors.find(x => String(x.id) === String(id));
+    setF(prev => ({ ...prev, vendorId: id, contractorName: v?.company_name || "",
+      contractorType: v?.registration_type === "DTI" ? "sole proprietorship" : "corporation",
+      contractorAddress: v?.registered_address || "", contractorRep: v?.authorized_representative || prev.contractorRep,
+      contractorRepDesignation: v?.representative_title || prev.contractorRepDesignation }));
+  };
+  // Switching type fills the suggested wording, but never silently replaces wording the user rewrote
+  const pickWorkType = (t) => {
+    const edited = ["lead", "a12", "a23"].filter(k => !isSuggested(k, f[k]));
+    const replace = !edited.length || window.confirm("You've edited Articles 1.1, 1.2 or 2.3. Replace your wording with the suggested wording for this type of works?\n\nCancel keeps your wording.");
+    setF(prev => ({ ...prev, workType: t, ...(replace ? { lead: WORK_TYPES[t].lead, a12: WORK_TYPES[t].a12, a23: WORK_TYPES[t].a23 } : {}) }));
+  };
+  const pickBilling = (t) => {
+    const replace = isSuggested("billing", f.billing) || window.confirm("You've edited the billing wording. Replace it with the suggested wording for this billing type?\n\nCancel keeps your wording.");
+    setF(prev => ({ ...prev, billingType: t, ...(replace ? { billing: BILLING_SUGGESTIONS[t] } : {}) }));
+  };
+
+  const missing = agreementMissing(f);
+
+  const save = async (download) => {
+    if (savingRef.current) return;
+    if (!f.projectId || !f.vendorId) { alert("Choose a project and a contractor before saving."); return; }
+    if (download && missing.length) { setShowMissing(true); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    savingRef.current = true; setSaving(true);
+    try {
+      const payload = {
+        project_id: parseInt(f.projectId) || null, vendor_id: parseInt(f.vendorId) || null,
+        project_name: f.projectName, contractor_name: f.contractorName,
+        contract_price: parseAmount(f.price) || null, data: f, updated_at: new Date().toISOString(),
+      };
+      const { data, error } = row
+        ? await supabase.from("construction_agreements").update(payload).eq("id", row.id).select().single()
+        : await supabase.from("construction_agreements").insert({ ...payload, created_by: profile.id, created_by_name: profile.full_name || null }).select().single();
+      if (error) {
+        alert(isNetworkError(error.message) ? "The connection dropped while saving. Check your internet and try again." : "Could not save the agreement: " + error.message);
+        return;
+      }
+      setRow(data); setSelectedAgreementId(data.id); setSavedJson(JSON.stringify(f));
+      if (download) {
+        try { await downloadAgreementDocx(f); }
+        catch (e) { alert("The agreement was saved, but the Word file could not be made: " + e.message); }
+      }
+    } catch (e) {
+      alert(isNetworkError(e?.message || "") ? "The connection dropped while saving. Check your internet and try again." : "Something went wrong: " + (e?.message || e));
+    } finally { savingRef.current = false; setSaving(false); }
+  };
+
+  // The header buttons call the latest save through a ref, so typing doesn't re-render the whole app
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; });
+  useEffect(() => {
+    if (!allowed || loading || loadError) { setHeaderContent({ subtitle: "", actions: null }); return; }
+    setHeaderContent({
+      subtitle: row ? `${agreementNo(row)} · internal reference, not printed` : "New agreement",
+      actions: (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={styles.btnSecondary} disabled={saving} onClick={() => saveRef.current(false)}>{saving ? "Saving…" : "Save"}</button>
+          <button style={styles.btnPrimary} disabled={saving} onClick={() => saveRef.current(true)}>Save &amp; download Word</button>
+        </div>
+      ),
+    });
+    return () => setHeaderContent({ subtitle: "", actions: null });
+  }, [allowed, loading, loadError, row, saving]);
+
+  if (!allowed) return <NoAgreementAccess />;
+  if (loading) return <LoadingScreen />;
+  if (loadError) return (
+    <div style={styles.pageBody}><div style={{ ...styles.card, maxWidth: 520, margin: "40px auto", textAlign: "center" }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.textPri, marginBottom: 6 }}>This agreement couldn't be opened</div>
+      <p style={{ fontSize: 13, color: C.textSec, margin: "0 0 14px" }}>{loadError}</p>
+      <button style={styles.btnSecondary} onClick={() => setPage("agreements")}>Back to Construction Agreements</button>
+    </div></div>
+  );
+
+  const d = agreementData(f);
+  const lbl = styles.label;
+  const inp = { ...styles.input, fontSize: 13, padding: "8px 11px" };
+  const auto = { ...inp, background: C.offWhite };
+  const ta = (rows) => ({ ...inp, minHeight: rows * 22, resize: "vertical", lineHeight: 1.5 });
+  const sec = { ...styles.card, padding: "18px 20px", marginBottom: 14 };
+  const secTitle = (t, src) => (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textSec }}>{t}</span>
+      {src && <span style={{ fontSize: 11, color: C.textTer }}>{src}</span>}
+    </div>
+  );
+  const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
+  const field = (k, label, opts = {}) => (
+    <div style={opts.span ? { gridColumn: "1 / -1" } : undefined}>
+      <label style={lbl} htmlFor={`agr-${k}`}>{label}</label>
+      {opts.rows
+        ? <textarea id={`agr-${k}`} value={f[k]} onChange={e => set(k, e.target.value)} style={ta(opts.rows)} placeholder={opts.placeholder} />
+        : <input id={`agr-${k}`} value={f[k]} onChange={e => set(k, e.target.value)} style={opts.auto ? auto : inp} placeholder={opts.placeholder} inputMode={opts.numeric ? "numeric" : undefined} />}
+      {opts.hint && <div style={styles.hint}>{opts.hint}</div>}
+    </div>
+  );
+  const seg = (options, value, onPick, label) => (
+    <div role="group" aria-label={label} style={{ display: "inline-flex", border: `1px solid ${C.border}`, borderRadius: 9, overflow: "hidden" }}>
+      {Object.entries(options).map(([k, l]) => (
+        <button key={k} type="button" aria-pressed={value === k} onClick={() => onPick(k)}
+          style={{ border: "none", padding: "7px 13px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            background: value === k ? C.coral : C.white, color: value === k ? C.white : C.textSec }}>{l}</button>
+      ))}
+    </div>
+  );
+  const chips = (list) => (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+      {list.map(([l, onClick]) => (
+        <button key={l} type="button" onClick={onClick}
+          style={{ border: `1px dashed ${C.borderMid || C.border}`, background: "transparent", color: C.textSec, borderRadius: 99, padding: "3px 10px", fontSize: 11.5, cursor: "pointer", fontFamily: "inherit" }}>{l}</button>
+      ))}
+    </div>
+  );
+
+  // Live preview of the key clauses, from the same values that fill the Word file
+  const V = (v, ph) => v ? <mark style={{ background: "#FFF4D6", color: "#7A4B00", padding: "0 2px", borderRadius: 2 }}>{v}</mark> : <span style={{ color: "#9A9A9A", borderBottom: "1px solid #9A9A9A" }}>{ph}</span>;
+  const priceOk = parseAmount(f.price) > 0;
+
+  return (
+    <div style={styles.pageBody}>
+      <button style={{ ...styles.btnGhost, paddingLeft: 0, marginBottom: 10 }} onClick={leave}>← Construction Agreements</button>
+
+      {showMissing && missing.length > 0 && (
+        <div role="alert" style={{ background: C.amberBg, color: C.amberText, borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: 13 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Complete these before downloading the Word file</div>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map(m => <li key={m}>{m}</li>)}</ul>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)", gap: 20, alignItems: "start" }}>
+        <div>
+          <div style={sec}>
+            {secTitle("Project", "from Projects")}
+            <label style={lbl} htmlFor="agr-project">Project</label>
+            <select id="agr-project" value={f.projectId} onChange={e => pickProject(e.target.value)} style={inp}>
+              <option value="">Choose a project…</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {f.projectId && !projects.some(p => String(p.id) === String(f.projectId)) && <option value={f.projectId}>{f.projectName} (inactive)</option>}
+            </select>
+            <div style={{ ...grid2, marginTop: 12 }}>
+              {field("projectLocation", "Project location", { auto: true, hint: "From the project's address. You can edit it." })}
+              {field("works", "Brief description of the works", { hint: "Just the works, e.g. “the perimeter fence and guardhouse”." })}
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <div style={lbl}>Type of works</div>
+              {seg(Object.fromEntries(Object.entries(WORK_TYPES).map(([k, v]) => [k, v.label])), f.workType, pickWorkType, "Type of works")}
+            </div>
+            <div style={{ marginTop: 10 }}>{field("lead", "Article 1.1 opening", { rows: 4, hint: "Keep {works} where the description goes. Suggested for the type; you can rewrite it." })}</div>
+            <div style={{ marginTop: 10 }}>
+              <div style={lbl}>Work items (Article 1.1)</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {f.items.map((it, i) => (
+                  <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ width: 24, fontSize: 12, color: C.textTer }}>({String.fromCharCode(97 + i)})</span>
+                    <input aria-label={`Work item ${String.fromCharCode(97 + i)}`} value={it} placeholder="Work item" style={inp}
+                      onChange={e => set("items", f.items.map((x, j) => j === i ? e.target.value : x))} />
+                    <button type="button" aria-label="Remove work item" onClick={() => set("items", f.items.length > 1 ? f.items.filter((_, j) => j !== i) : [""])}
+                      style={{ border: "none", background: "transparent", color: C.textTer, fontSize: 18, cursor: "pointer", padding: "2px 6px" }}>×</button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" style={{ ...styles.btnGhost, paddingLeft: 0, marginTop: 4 }} onClick={() => set("items", [...f.items, ""])}>+ Add work item</button>
+            </div>
+            <div style={{ marginTop: 10 }}>{field("a12", "Article 1.2 (design and plans)", { rows: 4 })}</div>
+          </div>
+
+          <div style={sec}>
+            {secTitle("Client", "the project's business unit")}
+            <div style={grid2}>
+              {field("clientName", "Client", { auto: true, hint: "Set by the project." })}
+              {field("clientAddress", "Office address", { hint: bus.find(b => b.name === f.clientName)?.address ? "From Settings › Business Units." : "Tip: save it once in Settings › Business Units." })}
+              {field("clientRep", "Representative", { placeholder: "Full name" })}
+              {field("clientRepDesignation", "Designation", { placeholder: "e.g. President" })}
+            </div>
+          </div>
+
+          <div style={sec}>
+            {secTitle("Contractor", "accredited vendors in the Vendor directory")}
+            <label style={lbl} htmlFor="agr-vendor">Contractor</label>
+            <select id="agr-vendor" value={f.vendorId} onChange={e => pickVendor(e.target.value)} style={inp}>
+              <option value="">Choose a contractor…</option>
+              {vendors.map(v => <option key={v.id} value={v.id}>{v.company_name}</option>)}
+              {f.vendorId && !vendors.some(v => String(v.id) === String(f.vendorId)) && <option value={f.vendorId}>{f.contractorName} (no longer accredited)</option>}
+            </select>
+            <div style={{ ...grid2, marginTop: 12 }}>
+              <div>
+                <label style={lbl} htmlFor="agr-ctype">Type</label>
+                <select id="agr-ctype" value={f.contractorType} onChange={e => set("contractorType", e.target.value)} style={inp}>
+                  <option value="corporation">Corporation</option>
+                  <option value="sole proprietorship">Sole proprietorship</option>
+                  <option value="partnership">Partnership</option>
+                </select>
+                <div style={styles.hint}>From the vendor's registration (SEC or DTI).</div>
+              </div>
+              {field("contractorAddress", "Office address", { auto: true })}
+              {field("contractorRep", "Representative", { placeholder: "Full name" })}
+              {field("contractorRepDesignation", "Designation", { placeholder: "e.g. General Manager" })}
+            </div>
+          </div>
+
+          <div style={sec}>
+            {secTitle("Contract price")}
+            <div style={grid2}>
+              <div>
+                <label style={lbl} htmlFor="agr-price">Amount, VAT inclusive (₱)</label>
+                <input id="agr-price" value={f.price} inputMode="decimal" style={inp} placeholder="0.00"
+                  onChange={e => set("price", e.target.value)}
+                  onBlur={e => { const n = parseAmount(e.target.value); if (n) set("price", pesoFigures(n)); }} />
+              </div>
+              <div>
+                <div style={lbl}>In words</div>
+                <div style={{ fontSize: 12.5, color: C.textSec, background: C.offWhite, borderRadius: 9, padding: "8px 11px", minHeight: 36 }}>{priceOk ? `${pesoWords(f.price)} (Php ${pesoFigures(f.price)})` : "—"}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 10 }}>{field("a23", "Article 2.3 (what the price covers)", { rows: 4 })}</div>
+          </div>
+
+          <div style={sec}>
+            {secTitle("Commencement and completion")}
+            {seg({ duration: "Duration", dates: "Start and end date" }, f.completionMode, v => set("completionMode", v), "Completion basis")}
+            {f.completionMode === "duration" ? (
+              <div style={{ ...grid2, marginTop: 12 }}>
+                {field("days", "Completion period (calendar days)", { numeric: true, hint: "Counted from the first day after the Notice to Proceed." })}
+              </div>
+            ) : (
+              <div style={{ ...grid2, marginTop: 12 }}>
+                <div><label style={lbl} htmlFor="agr-start">Start date</label><input id="agr-start" type="date" value={f.startDate} onChange={e => set("startDate", e.target.value)} style={inp} /></div>
+                <div><label style={lbl} htmlFor="agr-end">Completion date</label><input id="agr-end" type="date" value={f.endDate} min={f.startDate || undefined} onChange={e => set("endDate", e.target.value)} style={inp} /></div>
+              </div>
+            )}
+          </div>
+
+          <div style={sec}>
+            {secTitle("Terms of payment")}
+            {field("dp", "Down payment (Article 4.1)", { rows: 3 })}
+            {chips([["No down payment", () => set("dp", DP_SUGGESTIONS.none)], ["15% with DP bond", () => set("dp", DP_SUGGESTIONS.fifteen)], ["20% with DP bond", () => set("dp", DP_SUGGESTIONS.twenty)]])}
+            <div style={{ marginTop: 14 }}>
+              <div style={lbl}>Billing type (Article 4.2)</div>
+              {seg(BILLING_TYPES, f.billingType, pickBilling, "Billing type")}
+            </div>
+            <div style={{ marginTop: 8 }}>{field("billing", "Billing wording", { rows: 4, hint: "Suggested for the billing type. Each new line becomes its own indented line, e.g. (a), (b). Replace anything in [square brackets]." })}</div>
+            <div style={{ ...grid2, marginTop: 12 }}>
+              {field("payDays", "Pay within (calendar days after evaluation)", { numeric: true })}
+            </div>
+            <div style={{ marginTop: 12 }}>{field("retention", "Retention (Article 4.4)", { rows: 3 })}</div>
+            {chips([["10% released on COCA", () => set("retention", RETENTION_SUGGESTIONS.ten)], ["5% released on COCA", () => set("retention", RETENTION_SUGGESTIONS.five)], ["No retention", () => set("retention", RETENTION_SUGGESTIONS.none)]])}
+          </div>
+
+          <div style={sec}>
+            {secTitle("Other terms", "your template's values; change any")}
+            <div style={grid2}>
+              {field("ldRate", "Liquidated damages per day")}
+              {field("ldCap", "Liquidated damages cap")}
+              {field("takeoverDays", "Take-over after a delay of (days)", { numeric: true })}
+              {field("cocaDays", "COCA / COFA issued within (days)", { numeric: true })}
+              {field("dlpMonths", "Defects liability period (months)", { numeric: true })}
+              {field("noticeDays", "Termination notice (days)", { numeric: true })}
+              {field("termFee", "Termination fee on unbuilt works")}
+            </div>
+          </div>
+
+          <div style={sec}>
+            {secTitle("Signatories and witnesses")}
+            <div style={grid2}>
+              {field("clientSignatory", "For the client: name")}
+              {field("clientSignatoryDesignation", "Designation")}
+              {field("client2Signatory", "Second client signatory (optional)")}
+              {field("client2SignatoryDesignation", "Designation")}
+              {field("contractorSignatory", "For the contractor: name")}
+              {field("contractorSignatoryDesignation", "Designation")}
+              {field("witness1", "Witness 1 (optional)")}
+              {field("witness2", "Witness 2 (optional)")}
+            </div>
+            <div style={{ ...styles.hint, marginTop: 8 }}>The date and place of signing are always left blank in the document, to fill in by hand at signing.</div>
+          </div>
+        </div>
+
+        <div style={{ position: "sticky", top: 124 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSec, marginBottom: 8 }}>
+            <span>Preview of key clauses</span>
+            <span>{missing.length ? `${missing.length} to complete` : "Ready to download"}</span>
+          </div>
+          <article aria-label="Agreement preview" style={{ background: "#FFFFFF", borderRadius: 6, boxShadow: "0 1px 2px rgba(0,0,0,0.08), 0 8px 24px rgba(17,24,39,0.08)", padding: "28px 32px", fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 12.5, lineHeight: 1.6, color: "#1A1A1A", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
+            <div style={{ textAlign: "center", fontWeight: 700, letterSpacing: "0.08em", fontSize: 14 }}>CONSTRUCTION AGREEMENT</div>
+            <div style={{ textAlign: "center", fontStyle: "italic" }}>{V(d.project_name, "[Project Name]")} – {V(d.project_location, "[Project Location]")}</div>
+            <p>This CONSTRUCTION AGREEMENT is made and executed this ____ day of ______________ 20___ at ______________________, by and between:</p>
+            <p><b>{V(d.client_name, "[CLIENT NAME]")}</b>, a corporation … with office address at {V(d.client_address, "[Client Address]")}, represented herein by its {V(d.client_rep_designation, "[Designation]")}, <b>{V(d.client_rep, "[NAME OF REPRESENTATIVE]")}</b> (the “CLIENT”);</p>
+            <p><b>{V(d.contractor_name, "[CONTRACTOR NAME]")}</b>, a {V(d.contractor_type, "[type]")} … with office address at {V(d.contractor_address, "[Contractor Address]")}, represented herein by its {V(d.contractor_rep_designation, "[Designation]")}, <b>{V(d.contractor_rep, "[NAME OF REPRESENTATIVE]")}</b> (the “CONTRACTOR”).</p>
+            <p>WHEREAS, the CLIENT is in need of a qualified CONTRACTOR for {V(f.works ? d.works_phrase : "", "[the works]")} at {V(d.project_location, "[Project Location]")} …</p>
+            <AgrHead>Article 1 – SCOPE OF WORKS</AgrHead>
+            <AgrClause n="1.1">{V(d.lead_a + (d.works_word ? d.works_word + d.lead_b : ""), "[opening]")}</AgrClause>
+            {(d.items.length ? d.items : [{ letter: "a", text: "", sep: "" }]).map(it => (
+              <p key={it.letter} style={{ margin: "4px 0 4px 34px", display: "grid", gridTemplateColumns: "28px 1fr" }}><span>({it.letter})</span><span>{V(it.text ? it.text + it.sep : "", "[Work item]")}</span></p>
+            ))}
+            <AgrClause n="1.2">{V(d.a12, "[design and plans]")}</AgrClause>
+            <AgrHead>Article 2 – CONTRACT PRICE</AgrHead>
+            <AgrClause n="2.1">… the total amount of <b>{V(priceOk ? `${d.price_words} (Php ${d.price_figures})` : "", "[AMOUNT IN WORDS] PESOS (Php [0.00])")}</b>, inclusive of Value Added Tax …</AgrClause>
+            <AgrClause n="2.3">{V(d.a23, "[what the price covers]")}</AgrClause>
+            <AgrHead>Article 3 – COMMENCEMENT AND COMPLETION</AgrHead>
+            <AgrClause n="3.1">{d.a31}</AgrClause>
+            <AgrClause n="3.2">{(f.completionMode === "dates" ? (f.startDate && f.endDate) : /\(\d+\)/.test(d.a32)) ? V(d.a32, "") : V("", "[completion period]")}</AgrClause>
+            <AgrHead>Article 4 – TERMS OF PAYMENT</AgrHead>
+            <AgrClause n="4.1">{V(d.dp, "[down payment]")}</AgrClause>
+            <AgrClause n="4.2">{V(d.billing_first, "[billing]")}</AgrClause>
+            {d.billing_lines.map((l, i) => <p key={i} style={{ margin: "4px 0 4px 34px", display: "grid", gridTemplateColumns: "28px 1fr" }}><span>{l.label}</span><span>{V(l.text, "")}</span></p>)}
+            <AgrClause n="4.3">… not later than {V(d.pay_days, "[__]")} calendar days after the joint evaluation …</AgrClause>
+            <AgrClause n="4.4">{V(d.retention, "[retention]")}</AgrClause>
+            <AgrHead>Articles 5, 8 and 9</AgrHead>
+            <p style={{ margin: "6px 0" }}>Liquidated damages {V(d.ld_rate, "[rate]")} per day, capped at {V(d.ld_cap, "[cap]")}; take-over after {V(d.takeover_days, "[days]")} days of delay; COCA/COFA within {V(d.coca_days, "[days]")} days; defects liability {V(d.dlp_months, "[months]")} months; termination notice {V(d.notice_days, "[days]")} days; termination fee {V(d.term_fee, "[%]")}.</p>
+            <p style={{ textAlign: "center", color: "#777", fontStyle: "italic" }}>Articles 6, 7 and 10–13 stay exactly as in your template.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
+              <div><b>{V(d.client_name, "[CLIENT NAME]")}</b><br />By: ______________<br /><b>{V(d.client_signatory, "[NAME OF SIGNATORY]")}</b><br />{V(d.client_signatory_designation, "[Designation]")}
+                {d.has_client2 && <><br /><br />______________<br /><b>{V(d.client2_signatory, "")}</b><br />{V(d.client2_signatory_designation, "[Designation]")}</>}</div>
+              <div><b>{V(d.contractor_name, "[CONTRACTOR NAME]")}</b><br />By: ______________<br /><b>{V(d.contractor_signatory, "[NAME OF SIGNATORY]")}</b><br />{V(d.contractor_signatory_designation, "[Designation]")}</div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── CONTRACTS LIST PAGE ──────────────────────────────────────────────────────
 function ContractsListPage({ profile, setPage, setSelectedContractId }) {
   const [contracts, setContracts] = useState([]);
@@ -16064,6 +16642,16 @@ function ContractsListPage({ profile, setPage, setSelectedContractId }) {
     <>
       <div style={styles.pageBody}>
         <div style={{ maxWidth: "80%", margin: "0 auto" }}>
+          {can(profile, "agreement.manage") && (
+            <button type="button" onClick={() => setPage("agreements")}
+              style={{ ...styles.card, width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 20px", marginBottom: 12, cursor: "pointer", border: "none", textAlign: "left", fontFamily: "inherit" }}>
+              <span>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: C.textPri }}>Construction Agreements</span>
+                <span style={{ display: "block", fontSize: 12, color: C.textSec }}>Generate a separate agreement from your Word template</span>
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.coral, whiteSpace: "nowrap" }}>Open →</span>
+            </button>
+          )}
           {/* Summary cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
             {[
@@ -16427,6 +17015,12 @@ export default function App() {
   const [selectedRFQId, setSelectedRFQId] = useState(null);
   const [rfaPRId, setRfaPRId] = useState(null);
   const [selectedContractId, setSelectedContractId] = useState(null);
+  // Kept across a reload, so reopening the tab on an agreement shows that agreement, not a blank one
+  const [selectedAgreementId, setSelectedAgreementIdState] = useState(() => { try { return Number(localStorage.getItem("cc_agreement_id")) || null; } catch { return null; } });
+  const setSelectedAgreementId = (id) => {
+    setSelectedAgreementIdState(id);
+    try { if (id) localStorage.setItem("cc_agreement_id", String(id)); else localStorage.removeItem("cc_agreement_id"); } catch { /* storage blocked */ }
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("c360-rail-open") !== "1"; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem("c360-rail-open", sidebarCollapsed ? "0" : "1"); } catch { /* storage blocked */ } }, [sidebarCollapsed]);
   const [headerContent, setHeaderContent] = useState({ subtitle: "", actions: null, searchValue: null, onSearchChange: null });
@@ -16452,7 +17046,7 @@ export default function App() {
     if (data) setProfile(data);
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); setPage("dashboard"); };
+  const handleLogout = async () => { await supabase.auth.signOut(); setSelectedAgreementId(null); setPage("dashboard"); };
 
   if (session === undefined || !introDone) return <LoadingScreen />;
   if (!session) return <LoginPage />;
@@ -16463,7 +17057,7 @@ export default function App() {
     : ["rfp_create", "rfp_detail"].includes(page) ? "rfps"
     : ["rfa_form"].includes(page) ? "rfa_list"
     : ["vendors", "vendors_acc"].includes(page) ? "vendors_dir"
-    : ["contract_detail"].includes(page) ? "contracts"
+    : ["contract_detail", "agreements", "agreement_form"].includes(page) ? "contracts"
     : page;
 
   const pageTitleMap = {
@@ -16483,6 +17077,8 @@ export default function App() {
     rfa_form:        "Rec. for Award",
     contracts:       "Contracts",
     contract_detail: "Contract Detail",
+    agreements:      "Construction Agreements",
+    agreement_form:  "Construction Agreement",
     settings:        "Settings",
     cost_reports:    "Cost Reports",
   };
@@ -16506,6 +17102,8 @@ export default function App() {
     rfa_form:        <RFAFormPage       profile={profile} setPage={setPage} rfaId={selectedRFAId} prId={rfaPRId} setSelectedPRId={setSelectedPRId} setSelectedContractId={setSelectedContractId} />,
     contracts:       <ContractsListPage profile={profile} setPage={setPage} setSelectedContractId={setSelectedContractId} />,
     contract_detail: <ContractDetailPage profile={profile} setPage={setPage} contractId={selectedContractId} setSelectedRFAId={setSelectedRFAId} setRfaPRId={setRfaPRId} />,
+    agreements:      <AgreementsListPage profile={profile} setPage={setPage} setSelectedAgreementId={setSelectedAgreementId} />,
+    agreement_form:  <AgreementFormPage profile={profile} setPage={setPage} agreementId={selectedAgreementId} setSelectedAgreementId={setSelectedAgreementId} />,
     rfq_list:        <RFQListPage profile={profile} setPage={setPage} setSelectedRFQId={setSelectedRFQId} />,
     rfq_detail:      <RFQDetailPage profile={profile} rfqId={selectedRFQId} setPage={setPage} />,
     settings:        <SettingsPage      profile={profile} />,
