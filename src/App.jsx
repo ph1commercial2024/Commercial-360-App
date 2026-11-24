@@ -8,8 +8,8 @@ import { prSubmitProblems, blockersFor, isSubmitClick, canSaveDraft, checklistVi
 import { pickToken, buildInviteUrl } from "./lib/inviteTokenLogic";
 import { matchProjects, projectLabel } from "./lib/projectSearch";
 import { accessState } from "./lib/access";
-import { isNetworkError, CONNECTION_DROPPED_SAVE_MSG } from "./lib/fetchTimeout";
-import { emptyAgreement, agreementData, agreementMissing, isSuggested, renderAgreement, agreementNo, agreementFileName, parseAmount, pesoWords, pesoFigures, WORK_TYPES, DP_SUGGESTIONS, BILLING_TYPES, BILLING_SUGGESTIONS, RETENTION_SUGGESTIONS } from "./lib/agreement";
+import { isNetworkError, timedFetch, CONNECTION_DROPPED_SAVE_MSG } from "./lib/fetchTimeout";
+import { emptyAgreement, loadAgreement, agreementData, agreementMissing, isSuggested, renderAgreement, agreementNo, agreementFileName, parseAmount, pesoWords, pesoFigures, WORK_TYPES, DP_SUGGESTIONS, BILLING_TYPES, BILLING_SUGGESTIONS, RETENTION_SUGGESTIONS, PRICE_TYPES, PRICE_SUGGESTIONS, COMMENCEMENT_SUGGESTIONS, dpWording } from "./lib/agreement";
 import agreementTemplateUrl from "./assets/construction_agreement_template.docx?url";
 import { PROJECT_TYPES, AREA_KIND_LABEL, defaultAreas, setTowerCount, towerCount, addArea, hasAreaName, activeAreas, totalUnits, areaSummary, areaNames, switchType } from "./lib/projectAreas";
 import DatePicker from "react-datepicker";
@@ -16036,8 +16036,8 @@ function RFAFormPage({ profile, setPage, rfaId: initialRfaId, prId: initialPrId,
 // Commercial Manager and D&C Head only. The CA-YYYY-NNN reference is internal and never printed in the document.
 
 async function downloadAgreementDocx(form) {
-  const res = await fetch(agreementTemplateUrl);
-  if (!res.ok) throw new Error("The agreement template could not be loaded.");
+  const res = await timedFetch()(agreementTemplateUrl).catch(() => null);
+  if (!res?.ok) throw new Error("The agreement template could not be loaded. Check your internet and try again.");
   const out = renderAgreement(await res.arrayBuffer(), agreementData(form));
   const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
   const url = URL.createObjectURL(blob);
@@ -16076,7 +16076,7 @@ function AgreementsListPage({ profile, setPage, setSelectedAgreementId }) {
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (!alive) return;
-        setLoadError(!error ? "" : error.message.includes("construction_agreements")
+        setLoadError(!error ? "" : ["PGRST205", "42P01"].includes(error.code)
           ? "The agreements table isn't set up yet. Run supabase/migrations/construction_agreements.sql in Supabase."
           : isNetworkError(error.message) ? "The connection dropped. Check your internet and reload the page." : error.message);
         setRows(data || []);
@@ -16099,7 +16099,7 @@ function AgreementsListPage({ profile, setPage, setSelectedAgreementId }) {
   if (!allowed) return <NoAgreementAccess />;
 
   const download = async (row) => {
-    const form = { ...emptyAgreement(), ...row.data };
+    const form = loadAgreement(row.data);
     const missing = agreementMissing(form);
     if (missing.length) {
       alert(`${agreementNo(row)} isn't complete yet, so the Word file would have gaps:\n\n• ${missing.join("\n• ")}\n\nOpen it to finish, then download.`);
@@ -16186,7 +16186,7 @@ function AgreementsListPage({ profile, setPage, setSelectedAgreementId }) {
 const AgrClause = ({ n, children }) => <p style={{ margin: "6px 0", display: "grid", gridTemplateColumns: "34px 1fr" }}><span>{n}</span><span>{children}</span></p>;
 const AgrHead = ({ children }) => <div style={{ fontWeight: 700, margin: "14px 0 4px", fontSize: 12.5 }}>{children}</div>;
 
-function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreementId }) {
+function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreementId, setLeaveGuard }) {
   const { setHeaderContent } = useContext(HeaderActionsCtx);
   const allowed = can(profile, "agreement.manage");
   const [f, setF] = useState(emptyAgreement);
@@ -16210,10 +16210,12 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
-  const leave = () => {
-    if (dirty && !window.confirm("You have unsaved changes to this agreement. Leave without saving?")) return;
-    setPage("agreements");
-  };
+  // Covers the back button, the side menu, the header and logout
+  useEffect(() => {
+    if (!dirty) return;
+    setLeaveGuard(() => window.confirm("You have unsaved changes to this agreement. Leave without saving?"));
+    return () => setLeaveGuard(null);
+  }, [dirty]);
 
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
 
@@ -16244,13 +16246,13 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
       let existing = null;
       if (agreementId) {
         const { data, error } = await supabase.from("construction_agreements").select("*").eq("id", agreementId).maybeSingle();
-        if (error || !data) { if (alive) { setLoadError(error ? error.message : "This agreement no longer exists."); setLoading(false); } return; }
+        if (error || !data) { if (alive) { setLoadError(!error ? "This agreement no longer exists." : isNetworkError(error.message) ? "The connection dropped. Check your internet and try again." : error.message); setLoading(false); } return; }
         existing = data;
       }
       if (!alive) return;
       setProjects(pRes.data || []); setBus(bRes.data || []); setVendors(vendorList);
       if (existing) {
-        const loaded = { ...emptyAgreement(), ...existing.data };
+        const loaded = loadAgreement(existing.data);
         setRow(existing); setF(loaded); setSavedJson(JSON.stringify(loaded));
       }
       setLoading(false);
@@ -16262,24 +16264,35 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
     const p = projects.find(x => String(x.id) === String(id));
     const bu = bus.find(b => b.name === p?.business_unit);
     setF(prev => ({ ...prev, projectId: id, projectName: p?.name || "", projectLocation: p?.address || "",
-      clientName: p?.business_unit || "", clientAddress: bu?.address || prev.clientAddress }));
+      clientName: p?.business_unit || "", clientAddress: bu?.address || "" }));
   };
   const pickVendor = (id) => {
     const v = vendors.find(x => String(x.id) === String(id));
     setF(prev => ({ ...prev, vendorId: id, contractorName: v?.company_name || "",
       contractorType: v?.registration_type === "DTI" ? "sole proprietorship" : "corporation",
-      contractorAddress: v?.registered_address || "", contractorRep: v?.authorized_representative || prev.contractorRep,
-      contractorRepDesignation: v?.representative_title || prev.contractorRepDesignation }));
+      contractorAddress: v?.registered_address || "", contractorRep: v?.authorized_representative || "",
+      contractorRepDesignation: v?.representative_title || "" }));
   };
   // Switching type fills the suggested wording, but never silently replaces wording the user rewrote
   const pickWorkType = (t) => {
     const edited = ["lead", "a12", "a23"].filter(k => !isSuggested(k, f[k]));
-    const replace = !edited.length || window.confirm("You've edited Articles 1.1, 1.2 or 2.3. Replace your wording with the suggested wording for this type of works?\n\nCancel keeps your wording.");
-    setF(prev => ({ ...prev, workType: t, ...(replace ? { lead: WORK_TYPES[t].lead, a12: WORK_TYPES[t].a12, a23: WORK_TYPES[t].a23 } : {}) }));
+    // Cancel changes nothing, so the WHEREAS clause and Articles 1.1, 1.2 and 2.3 never describe different types
+    if (edited.length && !window.confirm("You've edited Articles 1.1, 1.2 or 2.3. Switch the type of works and replace your wording with the suggested wording?\n\nCancel keeps the current type and your wording.")) return;
+    setF(prev => ({ ...prev, workType: t, lead: WORK_TYPES[t].lead, a12: WORK_TYPES[t].a12, a23: WORK_TYPES[t].a23 }));
+  };
+  const pickPriceType = (t) => {
+    const edited = String(f.a22 || "").trim() && !Object.values(PRICE_SUGGESTIONS).includes(String(f.a22).trim());
+    if (edited && !window.confirm("You've edited Article 2.2. Switch and replace your wording with the suggested wording?\n\nCancel keeps the current choice and your wording.")) return;
+    setF(prev => ({ ...prev, priceType: t, a22: PRICE_SUGGESTIONS[t] }));
+  };
+  const applyDp = (withBond) => {
+    const text = dpWording(f.dpPercent, withBond);
+    if (!text) { alert("Type the down payment percentage first, as a whole number from 1 to 100."); return; }
+    set("dp", text);
   };
   const pickBilling = (t) => {
-    const replace = isSuggested("billing", f.billing) || window.confirm("You've edited the billing wording. Replace it with the suggested wording for this billing type?\n\nCancel keeps your wording.");
-    setF(prev => ({ ...prev, billingType: t, ...(replace ? { billing: BILLING_SUGGESTIONS[t] } : {}) }));
+    if (!isSuggested("billing", f.billing) && !window.confirm("You've edited the billing wording. Switch the billing type and replace it with the suggested wording?\n\nCancel keeps the current type and your wording.")) return;
+    setF(prev => ({ ...prev, billingType: t, billing: BILLING_SUGGESTIONS[t] }));
   };
 
   const missing = agreementMissing(f);
@@ -16333,7 +16346,7 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
   if (loading) return <LoadingScreen />;
   if (loadError) return (
     <div style={styles.pageBody}><div style={{ ...styles.card, maxWidth: 520, margin: "40px auto", textAlign: "center" }}>
-      <div style={{ fontSize: 14, fontWeight: 600, color: C.textPri, marginBottom: 6 }}>This agreement couldn't be opened</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.textPri, marginBottom: 6 }}>{openedId ? "This agreement couldn't be opened" : "The form couldn't be loaded"}</div>
       <p style={{ fontSize: 13, color: C.textSec, margin: "0 0 14px" }}>{loadError}</p>
       <button style={styles.btnSecondary} onClick={() => setPage("agreements")}>Back to Construction Agreements</button>
     </div></div>
@@ -16385,7 +16398,7 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
 
   return (
     <div style={styles.pageBody}>
-      <button style={{ ...styles.btnGhost, paddingLeft: 0, marginBottom: 10 }} onClick={leave}>← Construction Agreements</button>
+      <button style={{ ...styles.btnGhost, paddingLeft: 0, marginBottom: 10 }} onClick={() => setPage("agreements")}>← Construction Agreements</button>
 
       {showMissing && missing.length > 0 && (
         <div role="alert" style={{ background: C.amberBg, color: C.amberText, borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: 13 }}>
@@ -16414,7 +16427,7 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
             </div>
             <div style={{ marginTop: 10 }}>{field("lead", "Article 1.1 opening", { rows: 4, hint: "Keep {works} where the description goes. Suggested for the type; you can rewrite it." })}</div>
             <div style={{ marginTop: 10 }}>
-              <div style={lbl}>Work items (Article 1.1)</div>
+              <div style={lbl}>Work items (Article 1.1, optional)</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {f.items.map((it, i) => (
                   <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -16479,17 +16492,28 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
                 <div style={{ fontSize: 12.5, color: C.textSec, background: C.offWhite, borderRadius: 9, padding: "8px 11px", minHeight: 36 }}>{priceOk ? `${pesoWords(f.price)} (Php ${pesoFigures(f.price)})` : "—"}</div>
               </div>
             </div>
+            <div style={{ marginTop: 14 }}>
+              <div style={lbl}>Escalation (Article 2.2)</div>
+              {seg(PRICE_TYPES, f.priceType, pickPriceType, "Escalation")}
+            </div>
+            <div style={{ marginTop: 8 }}>{field("a22", "Article 2.2 wording", { rows: 4, hint: "Check the wage order number for each contract." })}</div>
             <div style={{ marginTop: 10 }}>{field("a23", "Article 2.3 (what the price covers)", { rows: 4 })}</div>
           </div>
 
           <div style={sec}>
             {secTitle("Commencement and completion")}
             {seg({ duration: "Duration", dates: "Start and end date" }, f.completionMode, v => set("completionMode", v), "Completion basis")}
-            {f.completionMode === "duration" ? (
+            {f.completionMode === "duration" ? (<>
+              <div style={{ marginTop: 12 }}>{field("a31", "Article 3.1 (when the works start)", { rows: 3 })}</div>
+              {chips([["Starts on receipt of the NTP", () => set("a31", COMMENCEMENT_SUGGESTIONS.ntp)], ["Starts on receipt of the NTP and Downpayment", () => set("a31", COMMENCEMENT_SUGGESTIONS.ntpAndDp)]])}
               <div style={{ ...grid2, marginTop: 12 }}>
-                {field("days", "Completion period (calendar days)", { numeric: true, hint: "Counted from the first day after the Notice to Proceed." })}
+                {field("days", `Completion period (calendar ${f.completionUnit === "months" ? "months" : "days"})`, { numeric: true, hint: "Counted from the official first day in Article 3.1." })}
+                <div>
+                  <div style={lbl}>Count in</div>
+                  {seg({ days: "Calendar days", months: "Calendar months" }, f.completionUnit || "days", v => set("completionUnit", v), "Completion period unit")}
+                </div>
               </div>
-            ) : (
+            </>) : (
               <div style={{ ...grid2, marginTop: 12 }}>
                 <div><label style={lbl} htmlFor="agr-start">Start date</label><input id="agr-start" type="date" value={f.startDate} onChange={e => set("startDate", e.target.value)} style={inp} /></div>
                 <div><label style={lbl} htmlFor="agr-end">Completion date</label><input id="agr-end" type="date" value={f.endDate} min={f.startDate || undefined} onChange={e => set("endDate", e.target.value)} style={inp} /></div>
@@ -16499,8 +16523,16 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
 
           <div style={sec}>
             {secTitle("Terms of payment")}
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 8 }}>
+              <div style={{ width: 120 }}>
+                <label style={lbl} htmlFor="agr-dpPercent">Down payment %</label>
+                <input id="agr-dpPercent" value={f.dpPercent || ""} inputMode="numeric" placeholder="e.g. 25" style={inp} onChange={e => set("dpPercent", e.target.value)} />
+              </div>
+              <button type="button" style={styles.btnSecondary} onClick={() => applyDp(false)}>Use: no DP bond</button>
+              <button type="button" style={styles.btnSecondary} onClick={() => applyDp(true)}>Use: with DP bond</button>
+              <button type="button" style={styles.btnSecondary} onClick={() => set("dp", DP_SUGGESTIONS.none)}>No down payment</button>
+            </div>
             {field("dp", "Down payment (Article 4.1)", { rows: 3 })}
-            {chips([["No down payment", () => set("dp", DP_SUGGESTIONS.none)], ["15% with DP bond", () => set("dp", DP_SUGGESTIONS.fifteen)], ["20% with DP bond", () => set("dp", DP_SUGGESTIONS.twenty)]])}
             <div style={{ marginTop: 14 }}>
               <div style={lbl}>Billing type (Article 4.2)</div>
               {seg(BILLING_TYPES, f.billingType, pickBilling, "Billing type")}
@@ -16510,7 +16542,7 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
               {field("payDays", "Pay within (calendar days after evaluation)", { numeric: true })}
             </div>
             <div style={{ marginTop: 12 }}>{field("retention", "Retention (Article 4.4)", { rows: 3 })}</div>
-            {chips([["10% released on COCA", () => set("retention", RETENTION_SUGGESTIONS.ten)], ["5% released on COCA", () => set("retention", RETENTION_SUGGESTIONS.five)], ["No retention", () => set("retention", RETENTION_SUGGESTIONS.none)]])}
+            {chips([["10%, half per Tower at substantial completion, half after its DLP", () => set("retention", RETENTION_SUGGESTIONS.tower)], ["10% released on COCA", () => set("retention", RETENTION_SUGGESTIONS.ten)], ["5% released on COCA", () => set("retention", RETENTION_SUGGESTIONS.five)], ["No retention", () => set("retention", RETENTION_SUGGESTIONS.none)]])}
           </div>
 
           <div style={sec}>
@@ -16549,7 +16581,6 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
           </div>
           <article aria-label="Agreement preview" style={{ background: "#FFFFFF", borderRadius: 6, boxShadow: "0 1px 2px rgba(0,0,0,0.08), 0 8px 24px rgba(17,24,39,0.08)", padding: "28px 32px", fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 12.5, lineHeight: 1.6, color: "#1A1A1A", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
             <div style={{ textAlign: "center", fontWeight: 700, letterSpacing: "0.08em", fontSize: 14 }}>CONSTRUCTION AGREEMENT</div>
-            <div style={{ textAlign: "center", fontStyle: "italic" }}>{V(d.project_name, "[Project Name]")} – {V(d.project_location, "[Project Location]")}</div>
             <p>This CONSTRUCTION AGREEMENT is made and executed this ____ day of ______________ 20___ at ______________________, by and between:</p>
             <p><b>{V(d.client_name, "[CLIENT NAME]")}</b>, a corporation … with office address at {V(d.client_address, "[Client Address]")}, represented herein by its {V(d.client_rep_designation, "[Designation]")}, <b>{V(d.client_rep, "[NAME OF REPRESENTATIVE]")}</b> (the “CLIENT”);</p>
             <p><b>{V(d.contractor_name, "[CONTRACTOR NAME]")}</b>, a {V(d.contractor_type, "[type]")} … with office address at {V(d.contractor_address, "[Contractor Address]")}, represented herein by its {V(d.contractor_rep_designation, "[Designation]")}, <b>{V(d.contractor_rep, "[NAME OF REPRESENTATIVE]")}</b> (the “CONTRACTOR”).</p>
@@ -16562,9 +16593,10 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
             <AgrClause n="1.2">{V(d.a12, "[design and plans]")}</AgrClause>
             <AgrHead>Article 2 – CONTRACT PRICE</AgrHead>
             <AgrClause n="2.1">… the total amount of <b>{V(priceOk ? `${d.price_words} (Php ${d.price_figures})` : "", "[AMOUNT IN WORDS] PESOS (Php [0.00])")}</b>, inclusive of Value Added Tax …</AgrClause>
+            <AgrClause n="2.2">{V(d.a22, "[escalation]")}</AgrClause>
             <AgrClause n="2.3">{V(d.a23, "[what the price covers]")}</AgrClause>
             <AgrHead>Article 3 – COMMENCEMENT AND COMPLETION</AgrHead>
-            <AgrClause n="3.1">{d.a31}</AgrClause>
+            <AgrClause n="3.1">{V(d.a31, "[when the works start]")}</AgrClause>
             <AgrClause n="3.2">{(f.completionMode === "dates" ? (f.startDate && f.endDate) : /\(\d+\)/.test(d.a32)) ? V(d.a32, "") : V("", "[completion period]")}</AgrClause>
             <AgrHead>Article 4 – TERMS OF PAYMENT</AgrHead>
             <AgrClause n="4.1">{V(d.dp, "[down payment]")}</AgrClause>
@@ -16574,7 +16606,7 @@ function AgreementFormPage({ profile, setPage, agreementId, setSelectedAgreement
             <AgrClause n="4.4">{V(d.retention, "[retention]")}</AgrClause>
             <AgrHead>Articles 5, 8 and 9</AgrHead>
             <p style={{ margin: "6px 0" }}>Liquidated damages {V(d.ld_rate, "[rate]")} per day, capped at {V(d.ld_cap, "[cap]")}; take-over after {V(d.takeover_days, "[days]")} days of delay; COCA/COFA within {V(d.coca_days, "[days]")} days; defects liability {V(d.dlp_months, "[months]")} months; termination notice {V(d.notice_days, "[days]")} days; termination fee {V(d.term_fee, "[%]")}.</p>
-            <p style={{ textAlign: "center", color: "#777", fontStyle: "italic" }}>Articles 6, 7 and 10–13 stay exactly as in your template.</p>
+            <p style={{ textAlign: "center", color: "#777", fontStyle: "italic" }}>Articles 6, 7 (Force Majeure, as in the signed contract) and 10–13 are fixed text.</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 12 }}>
               <div><b>{V(d.client_name, "[CLIENT NAME]")}</b><br />By: ______________<br /><b>{V(d.client_signatory, "[NAME OF SIGNATORY]")}</b><br />{V(d.client_signatory_designation, "[Designation]")}
                 {d.has_client2 && <><br /><br />______________<br /><b>{V(d.client2_signatory, "")}</b><br />{V(d.client2_signatory_designation, "[Designation]")}</>}</div>
@@ -17008,7 +17040,13 @@ export default function App() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
   const [page, setPageRaw] = useState(() => localStorage.getItem("cc_page") || "dashboard");
-  const setPage = (p) => { localStorage.setItem("cc_page", p); setPageRaw(p); };
+  // A page with unsaved work can register a check here; every in-app navigation and logout goes through it
+  const leaveGuard = useRef(null);
+  const setLeaveGuard = (fn) => { leaveGuard.current = fn; };
+  const setPage = (p) => {
+    if (leaveGuard.current && !leaveGuard.current()) return;
+    localStorage.setItem("cc_page", p); setPageRaw(p);
+  };
   const [selectedPRId, setSelectedPRId] = useState(null);
   const [selectedRFPId, setSelectedRFPId] = useState(null);
   const [selectedRFAId, setSelectedRFAId] = useState(null);
@@ -17046,7 +17084,16 @@ export default function App() {
     if (data) setProfile(data);
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); setSelectedAgreementId(null); setPage("dashboard"); };
+  const handleLogout = async () => {
+    if (leaveGuard.current && !leaveGuard.current()) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      alert(isNetworkError(error.message) ? "You couldn't be logged out because the connection dropped. Check your internet and try again." : "Logging out failed: " + error.message);
+      return;
+    }
+    leaveGuard.current = null;
+    setSelectedAgreementId(null); setPage("dashboard");
+  };
 
   if (session === undefined || !introDone) return <LoadingScreen />;
   if (!session) return <LoginPage />;
@@ -17103,7 +17150,7 @@ export default function App() {
     contracts:       <ContractsListPage profile={profile} setPage={setPage} setSelectedContractId={setSelectedContractId} />,
     contract_detail: <ContractDetailPage profile={profile} setPage={setPage} contractId={selectedContractId} setSelectedRFAId={setSelectedRFAId} setRfaPRId={setRfaPRId} />,
     agreements:      <AgreementsListPage profile={profile} setPage={setPage} setSelectedAgreementId={setSelectedAgreementId} />,
-    agreement_form:  <AgreementFormPage profile={profile} setPage={setPage} agreementId={selectedAgreementId} setSelectedAgreementId={setSelectedAgreementId} />,
+    agreement_form:  <AgreementFormPage setLeaveGuard={setLeaveGuard} profile={profile} setPage={setPage} agreementId={selectedAgreementId} setSelectedAgreementId={setSelectedAgreementId} />,
     rfq_list:        <RFQListPage profile={profile} setPage={setPage} setSelectedRFQId={setSelectedRFQId} />,
     rfq_detail:      <RFQDetailPage profile={profile} rfqId={selectedRFQId} setPage={setPage} />,
     settings:        <SettingsPage      profile={profile} />,

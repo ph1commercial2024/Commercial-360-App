@@ -25,9 +25,10 @@ function wholeWords(n) {
   return parts.join(' ');
 }
 
+/** A plain amount like 2,500,000.50, rounded to centavos once so words and figures always agree; anything else is 0 */
 export const parseAmount = (v) => {
-  const n = parseFloat(String(v ?? '').replace(/[,\s]/g, ''));
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  const s = String(v ?? '').replace(/[,\s]/g, '');
+  return /^\d+(\.\d+)?$/.test(s) ? Math.round(parseFloat(s) * 100) / 100 : 0;
 };
 
 /** 4850000.5 → "FOUR MILLION EIGHT HUNDRED FIFTY THOUSAND PESOS AND FIFTY CENTAVOS" */
@@ -43,7 +44,7 @@ export const pesoFigures = (amount) =>
 /** 120 → "one hundred twenty (120)"; blank or not a number → "" */
 export function countWords(v) {
   const n = parseInt(String(v ?? '').trim(), 10);
-  if (!Number.isFinite(n) || n <= 0 || String(n) !== String(v).trim()) return '';
+  if (!Number.isFinite(n) || n <= 0 || n > 99999 || String(n) !== String(v).trim()) return '';
   return `${wholeWords(n).toLowerCase()} (${n})`;
 }
 
@@ -75,6 +76,26 @@ export const WORK_TYPES = {
   },
 };
 
+// 2.2: the signed contract (Nov 2026) allows escalation; the original template was a fixed price
+export const PRICE_TYPES = { escalation: 'With escalation', fixed: 'Fixed, no escalation' };
+export const PRICE_SUGGESTIONS = {
+  escalation: "The Contract Price is a lump sum and shall be subject to escalation for increases in the cost of labor and materials. Labor escalation shall be limited to increases in the minimum wage mandated by wage orders issued after Wage Order No. NCR-26 of the RTWPB–NCR, which serves as the basis of the labor cost in the Contract Price. Material escalation shall apply only to materials actually incorporated into the Works, whose actual cost exceeds the unit price in the CONTRACTOR's approved proposal.",
+  fixed: 'The Contract Price is a fixed lump sum and shall not be subject to escalation for any reason, including increases in the cost of labor, materials, or equipment.',
+};
+
+// 3.1 (when the completion period is a duration): the signed contract starts the works only after the down payment too
+export const COMMENCEMENT_SUGGESTIONS = {
+  ntp: 'The CONTRACTOR shall commence the Works within the day of its receipt of the Notice of Award/Notice to Proceed ("NTP") from the CLIENT, which day shall be considered the official first day of the Works.',
+  ntpAndDp: 'The CONTRACTOR shall commence the Works within the day of its receipt of the Notice of Award/Notice to Proceed ("NTP") and Downpayment from the CLIENT, which day shall be considered the official first day of the Works.',
+};
+
+/** 4.1 from a percentage: "a down payment of twenty-five percent (25%) …", with or without a down payment bond */
+export function dpWording(percent, withBond) {
+  const n = parseInt(String(percent ?? '').trim(), 10);
+  if (!Number.isFinite(n) || n <= 0 || n > 100 || String(n) !== String(percent).trim()) return '';
+  return `The CLIENT shall pay a down payment of ${wholeWords(n).toLowerCase()} percent (${n}%) of the Contract Price within fifteen (15) calendar days from issuance of the NTP, ${withBond ? 'secured by a down payment bond of equal amount, ' : ''}to be recouped pro rata from each progress billing.`;
+}
+
 export const DP_SUGGESTIONS = {
   none: "No down payment shall be made under this Agreement. Accordingly, no down payment bond, performance bond, or contractor's insurance shall be required of the CONTRACTOR.",
   fifteen: 'The CLIENT shall pay a down payment of fifteen percent (15%) of the Contract Price within fifteen (15) calendar days from issuance of the NTP, secured by a down payment bond of equal amount, to be recouped pro rata from each progress billing.',
@@ -92,6 +113,8 @@ export const RETENTION_SUGGESTIONS = {
   ten: "A retention of ten percent (10%) shall be withheld from each billing. The retention shall be released upon the CONTRACTOR's submission of the Certificate of Completion and Acceptance, the accomplishment of all punch list items, and the submission of the final billing invoice.",
   five: "A retention of five percent (5%) shall be withheld from each billing. The retention shall be released upon the CONTRACTOR's submission of the Certificate of Completion and Acceptance, the accomplishment of all punch list items, and the submission of the final billing invoice.",
   none: 'No retention shall be withheld from the billings under this Agreement.',
+  // From the signed contract (Nov 2026): half released per Tower at substantial completion, half after its DLP
+  tower: "The CONTRACTOR shall be subject to a retention of ten percent (10%) of each Progress Billing. Half of the retention for each Tower, or five percent (5%), shall be released upon Substantial Completion of that Tower. The remaining five percent (5%) shall be released at the end of that Tower's Defects Liability Period, provided the CONTRACTOR has addressed all properly notified defects. Each release shall be paid within thirty (30) calendar days from its release date.",
 };
 
 export const defaultTerms = () => ({
@@ -104,12 +127,23 @@ export const emptyAgreement = () => ({
   clientName: '', clientAddress: '', clientRep: '', clientRepDesignation: '',
   vendorId: '', contractorName: '', contractorType: 'corporation', contractorAddress: '', contractorRep: '', contractorRepDesignation: '',
   works: '', workType: 'build', lead: WORK_TYPES.build.lead, a12: WORK_TYPES.build.a12, a23: WORK_TYPES.build.a23, items: [''],
-  price: '', completionMode: 'duration', days: '', startDate: '', endDate: '',
+  price: '', priceType: 'escalation', a22: PRICE_SUGGESTIONS.escalation,
+  completionMode: 'duration', completionUnit: 'days', days: '', startDate: '', endDate: '', a31: COMMENCEMENT_SUGGESTIONS.ntp, dpPercent: '',
   dp: DP_SUGGESTIONS.none, billingType: 'milestone', billing: BILLING_SUGGESTIONS.milestone, payDays: '30', retention: RETENTION_SUGGESTIONS.ten,
   ...defaultTerms(),
   clientSignatory: '', clientSignatoryDesignation: '', client2Signatory: '', client2SignatoryDesignation: '',
   contractorSignatory: '', contractorSignatoryDesignation: '', witness1: '', witness2: '',
 });
+
+/** A saved agreement as the form edits it. Agreements saved before 2.2 became a choice were printed with the
+ *  fixed-price clause, so they keep it rather than picking up the new escalation default. */
+export function loadAgreement(data) {
+  const d = data || {};
+  return { ...emptyAgreement(), ...(d.a22 === undefined ? { priceType: 'fixed', a22: PRICE_SUGGESTIONS.fixed } : {}), ...d };
+}
+
+/** 1.1 as printed: with no work items, the suggested ", consisting of the following:" becomes a full stop */
+const leadFor = (f, items) => (items.length ? tx(f.lead) : tx(f.lead).replace(/,?\s*consisting of the following:\s*$/i, '.'));
 
 /** WHEREAS wording: "the design and construction of the fence" */
 export const worksPhrase = (type, works) => `${(WORK_TYPES[type] || WORK_TYPES.build).phrase} ${works}`.trim();
@@ -159,6 +193,9 @@ export function billingParts(billing) {
 export function agreementData(f) {
   const items = (f.items || []).map(tx).filter(Boolean);
   const byDates = f.completionMode === 'dates';
+  // Work items are optional (the signed contract has none): then 1.1 ends at the defined term
+  const lead = leadFor(f, items);
+  const unit = f.completionUnit === 'months' ? 'months' : 'days';
   return {
     project_name: tx(f.projectName), project_location: tx(f.projectLocation),
     client_name: up(f.clientName), client_address: tx(f.clientAddress),
@@ -166,19 +203,19 @@ export function agreementData(f) {
     contractor_name: up(f.contractorName), contractor_type: tx(f.contractorType) || 'corporation',
     contractor_address: tx(f.contractorAddress), contractor_rep: up(f.contractorRep), contractor_rep_designation: tx(f.contractorRepDesignation),
     works_phrase: worksPhrase(f.workType, tx(f.works)),
-    ...splitLead(f.lead, tx(f.works)),
+    ...splitLead(lead, tx(f.works)),
     items: items.map((text, i) => ({
       letter: String.fromCharCode(97 + i), text,
       sep: i === items.length - 1 ? '.' : i === items.length - 2 ? '; and' : ';',
     })),
     a12: tx(f.a12), a23: tx(f.a23),
-    price_words: pesoWords(f.price), price_figures: pesoFigures(f.price),
+    price_words: pesoWords(f.price), price_figures: pesoFigures(f.price), a22: tx(f.a22),
     a31: byDates
-      ? `The CONTRACTOR shall commence the Works on ${longDate(f.startDate)}, which day shall be considered the official first day of the Works.`
-      : 'The CONTRACTOR shall commence the Works within the day of its receipt of the Notice of Award/Notice to Proceed (“NTP”) from the CLIENT, which day shall be considered the official first day of the Works.',
+      ? `The CONTRACTOR shall commence the Works on ${longDate(f.startDate)}, following its receipt of the Notice of Award/Notice to Proceed (“NTP”) from the CLIENT, and such date shall be considered the official first day of the Works.`
+      : tx(f.a31),
     a32: byDates
       ? `The CONTRACTOR shall complete the Works on or before ${longDate(f.endDate)} (the “Completion Period”).`
-      : `The CONTRACTOR shall complete the Works within ${countWords(f.days)} calendar days from the official first day (the “Completion Period”).`,
+      : `The CONTRACTOR shall complete the Works within ${countWords(f.days)} calendar ${unit} from the official first day (the “Completion Period”).`,
     dp: tx(f.dp), ...billingParts(f.billing), pay_days: countWords(f.payDays), retention: tx(f.retention),
     ld_rate: tx(f.ldRate), ld_cap: tx(f.ldCap), takeover_days: countWords(f.takeoverDays),
     coca_days: countWords(f.cocaDays), dlp_months: countWords(f.dlpMonths), notice_days: countWords(f.noticeDays), term_fee: tx(f.termFee),
@@ -197,7 +234,6 @@ export function agreementMissing(f) {
   if (!f.vendorId) miss.push('Contractor');
   if (!tx(f.works)) miss.push('Description of the works');
   const itemCount = (f.items || []).filter(i => tx(i)).length;
-  if (!itemCount) miss.push('At least one work item');
   if (itemCount > 26) miss.push('At most 26 work items');
   if (!parseAmount(f.price)) miss.push('Contract price');
   else if (parseAmount(f.price) >= 1e12) miss.push('Contract price below one trillion pesos');
@@ -211,9 +247,29 @@ export function agreementMissing(f) {
   for (const [k, label] of [['ldRate', 'Liquidated damages per day'], ['ldCap', 'Liquidated damages cap'], ['termFee', 'Termination fee']]) {
     if (!tx(f[k])) miss.push(label);
   }
+  // Parties, signatories and clauses: a blank here would print a sentence with a hole in it
+  const need = (cond, key, label) => { if (cond && !tx(f[key])) miss.push(label); };
+  need(f.projectId, 'projectLocation', 'Project location');
+  need(f.projectId, 'clientName', 'Client');
+  need(f.projectId, 'clientAddress', 'Client office address');
+  need(f.vendorId, 'contractorAddress', 'Contractor office address');
+  for (const [k, label] of [['clientRep', 'Client representative'], ['clientRepDesignation', 'Client representative designation'],
+    ['contractorRep', 'Contractor representative'], ['contractorRepDesignation', 'Contractor representative designation'],
+    ['clientSignatory', 'Client signatory'], ['clientSignatoryDesignation', 'Client signatory designation'],
+    ['contractorSignatory', 'Contractor signatory'], ['contractorSignatoryDesignation', 'Contractor signatory designation'],
+    ['lead', 'Article 1.1'], ['a12', 'Article 1.2'], ['a22', 'Article 2.2'], ['a23', 'Article 2.3'], ['a31', 'Article 3.1'],
+    ['dp', 'Down payment'], ['billing', 'Billing'], ['retention', 'Retention']]) {
+    need(k !== 'a31' || f.completionMode !== 'dates', k, label); // in dates mode 3.1 is written from the start date
+  }
+  if (tx(f.lead) && !String(f.lead).includes('{works}')) miss.push('Keep {works} in Article 1.1');
+  const typedItems = (f.items || []).map(tx).filter(Boolean);
+  if (!typedItems.length && /:\s*$/.test(leadFor(f, typedItems))) miss.push('Add work items, or end Article 1.1 without a colon');
+  need(tx(f.client2SignatoryDesignation), 'client2Signatory', 'Second client signatory name');
+  need(tx(f.client2Signatory), 'client2SignatoryDesignation', 'Second client signatory designation');
   // Suggested wording leaves blanks like [milestone] for the user to fill in
-  const fields = [['lead', 'Article 1.1'], ['a12', 'Article 1.2'], ['a23', 'Article 2.3'], ['dp', 'Down payment'], ['billing', 'Billing'], ['retention', 'Retention']];
+  const fields = [['lead', 'Article 1.1'], ['a12', 'Article 1.2'], ['a22', 'Article 2.2'], ['a23', 'Article 2.3'], ['a31', 'Article 3.1'], ['dp', 'Down payment'], ['billing', 'Billing'], ['retention', 'Retention']];
   for (const [k, label] of fields) {
+    if (k === 'a31' && f.completionMode === 'dates') continue; // hidden: 3.1 is written from the start date
     const m = String(f[k] || '').match(/\[[^\]]+\]/);
     if (m) miss.push(`Fill in ${m[0]} in ${label}`);
   }

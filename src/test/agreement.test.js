@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import process from 'node:process';
 import PizZip from 'pizzip';
 import {
-  pesoWords, countWords, worksPhrase, splitLead, agreementData, renderAgreement, agreementNo, agreementMissing, smartQuotes, billingParts, isSuggested,
+  pesoWords, countWords, worksPhrase, splitLead, agreementData, renderAgreement, agreementNo, agreementMissing, smartQuotes, billingParts, isSuggested, parseAmount, pesoFigures, PRICE_SUGGESTIONS, COMMENCEMENT_SUGGESTIONS, dpWording, loadAgreement,
   WORK_TYPES, DP_SUGGESTIONS, BILLING_SUGGESTIONS, RETENTION_SUGGESTIONS, defaultTerms, emptyAgreement,
 } from '../lib/agreement.js';
 
@@ -88,7 +88,7 @@ describe('agreementData', () => {
   });
   it('uses start and end dates when chosen', () => {
     const d = agreementData({ ...sample(), completionMode: 'dates', startDate: '2026-12-01', endDate: '2027-03-31' });
-    expect(d.a31).toBe('The CONTRACTOR shall commence the Works on December 1, 2026, which day shall be considered the official first day of the Works.');
+    expect(d.a31).toBe('The CONTRACTOR shall commence the Works on December 1, 2026, following its receipt of the Notice of Award/Notice to Proceed (“NTP”) from the CLIENT, and such date shall be considered the official first day of the Works.');
     expect(d.a32).toBe('The CONTRACTOR shall complete the Works on or before March 31, 2027 (the “Completion Period”).');
   });
   it('a single work item ends with a full stop', () => {
@@ -163,9 +163,135 @@ describe('agreementMissing', () => {
     expect(agreementMissing(f)).toEqual(['Fill in [milestone] in Billing']);
   });
   it('flags missing basics and a completion date before the start', () => {
-    expect(agreementMissing({ ...emptyAgreement() })).toEqual(['Project', 'Contractor', 'Description of the works', 'At least one work item', 'Contract price', 'Completion period', 'Fill in [milestone] in Billing']);
+    expect(agreementMissing({ ...emptyAgreement() })).toEqual(['Project', 'Contractor', 'Description of the works', 'Contract price', 'Completion period',
+      'Client representative', 'Client representative designation', 'Contractor representative', 'Contractor representative designation',
+      'Client signatory', 'Client signatory designation', 'Contractor signatory', 'Contractor signatory designation',
+      'Fill in [milestone] in Billing']);
     const f = { ...sample(), projectId: 1, vendorId: 2, completionMode: 'dates', startDate: '2027-01-10', endDate: '2027-01-01' };
     expect(agreementMissing(f)).toEqual(['Completion date on or after the start date']);
+  });
+});
+
+describe('patterned on the signed contract (Nov 2026)', () => {
+  const full = () => ({ ...sample(), projectId: 1, vendorId: 2 });
+  const text = (f) => docText(renderAgreement(TEMPLATE, agreementData(f)));
+  it('has no project line under the title', () => {
+    expect(text(full())).not.toContain('Avesta Residences – Santa Rosa');
+  });
+  it('uses the signed Force Majeure article, with 7.2 at twenty-eight (28) business days', () => {
+    const t = text(full());
+    expect(t).toContain('“Force Majeure” means an event or circumstance which is beyond the control of the Party');
+    expect(t).toContain('viii.\tunforeseeable soil conditions that the CONTRACTOR could not have foreseen at the bidding stage.');
+    expect(t).toContain('iv.\tunworkable weather conditions, i.e. 3days of heavy and continues rain'); // kept as signed
+    expect(t).toContain('within twenty-eight (28) business days after it became aware');
+    expect(t).toContain('7.3\tIf the CONTRACTOR is the Affected Party');
+    expect(t).not.toContain('famine, or plague');                               // the old 7.1 is gone
+  });
+  it('2.2 offers fixed price or escalation, and new agreements start with escalation', () => {
+    expect(emptyAgreement().a22).toBe(PRICE_SUGGESTIONS.escalation);
+    expect(PRICE_SUGGESTIONS.escalation).toContain('Wage Order No. NCR-26 of the RTWPB–NCR');
+    expect(text({ ...full(), a22: PRICE_SUGGESTIONS.fixed })).toContain('2.2\tThe Contract Price is a fixed lump sum and shall not be subject to escalation');
+  });
+  it('3.1 can require the down payment before the works start', () => {
+    expect(text({ ...full(), a31: COMMENCEMENT_SUGGESTIONS.ntpAndDp })).toContain('Notice of Award/Notice to Proceed (“NTP”) and Downpayment from the CLIENT');
+  });
+  it('3.2 in calendar months', () => {
+    expect(agreementData({ ...full(), days: '21', completionUnit: 'months' }).a32)
+      .toBe('The CONTRACTOR shall complete the Works within twenty-one (21) calendar months from the official first day (the “Completion Period”).');
+  });
+  it('writes the down payment from a percentage, with or without a bond', () => {
+    expect(dpWording('25', false)).toBe('The CLIENT shall pay a down payment of twenty-five percent (25%) of the Contract Price within fifteen (15) calendar days from issuance of the NTP, to be recouped pro rata from each progress billing.');
+    expect(dpWording('20', true)).toContain('twenty percent (20%) of the Contract Price within fifteen (15) calendar days from issuance of the NTP, secured by a down payment bond of equal amount,');
+    expect(dpWording('', true)).toBe('');
+    expect(dpWording('150', false)).toBe('');
+  });
+  it('offers the per-tower retention from the signed contract', () => {
+    expect(RETENTION_SUGGESTIONS.tower).toContain('Half of the retention for each Tower, or five percent (5%), shall be released upon Substantial Completion of that Tower');
+  });
+  it('work items are optional: without them 1.1 ends at the defined term', () => {
+    const d = agreementData({ ...full(), items: [''] });
+    expect(d.items).toEqual([]);
+    expect(d.lead_b).toBe('”).');
+    expect(agreementMissing({ ...full(), items: [''] })).toEqual([]);
+  });
+  it('requires the 2.2 and 3.1 wording', () => {
+    expect(agreementMissing({ ...full(), a22: '', a31: ' ' })).toEqual(['Article 2.2', 'Article 3.1']);
+    expect(agreementMissing({ ...full(), a31: '', completionMode: 'dates', startDate: '2026-12-01', endDate: '2027-01-01' })).toEqual([]);
+  });
+});
+
+describe('third review fixes', () => {
+  const full = () => ({ ...sample(), projectId: 1, vendorId: 2 });
+  it('agreements saved before 2.2 existed keep the fixed-price wording they were made with', () => {
+    const old = full();
+    delete old.a22; delete old.priceType;
+    expect(loadAgreement(old).a22).toBe(PRICE_SUGGESTIONS.fixed);
+    expect(loadAgreement(old).priceType).toBe('fixed');
+    expect(loadAgreement({ ...old, a22: 'Custom 2.2', priceType: 'escalation' }).a22).toBe('Custom 2.2');
+    expect(loadAgreement(old).completionUnit).toBe('days');   // other new fields get their defaults
+  });
+  it('flags a 1.1 opening that ends with a colon when there are no work items', () => {
+    expect(agreementMissing({ ...full(), items: [''], lead: 'The CONTRACTOR shall build {works} (the "Works") as follows:' }))
+      .toEqual(['Add work items, or end Article 1.1 without a colon']);
+    expect(agreementMissing({ ...full(), items: [''] })).toEqual([]);   // the suggested ending is tidied automatically
+  });
+  it('ignores a [blank] left in 3.1 when 3.1 is written from the start date', () => {
+    expect(agreementMissing({ ...full(), a31: 'Starts on [date]', completionMode: 'dates', startDate: '2026-12-01', endDate: '2027-01-01' })).toEqual([]);
+    expect(agreementMissing({ ...full(), a31: 'Starts on [date]' })).toEqual(['Fill in [date] in Article 3.1']);
+  });
+  it('the template has no repeated paragraph ids', () => {
+    const xml = new PizZip(TEMPLATE).file('word/document.xml').asText();
+    const ids = xml.match(/w14:paraId="[^"]+"/g) || [];
+    expect(ids.length).toBeGreaterThan(10);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('second review fixes', () => {
+  const full = () => ({ ...sample(), projectId: 1, vendorId: 2 });
+  it('flags blank addresses and locations once the project and contractor are picked', () => {
+    expect(agreementMissing({ ...full(), projectLocation: ' ', clientName: '', clientAddress: '', contractorAddress: '' }))
+      .toEqual(['Project location', 'Client', 'Client office address', 'Contractor office address']);
+  });
+  it('flags blank representatives and signatories', () => {
+    expect(agreementMissing({ ...full(), clientRep: '', contractorRepDesignation: ' ', clientSignatory: '', contractorSignatoryDesignation: '' }))
+      .toEqual(['Client representative', 'Contractor representative designation', 'Client signatory', 'Contractor signatory designation']);
+  });
+  it('flags empty clause wording, and a 1.1 opening that lost {works}', () => {
+    expect(agreementMissing({ ...full(), a12: ' ', a23: '', dp: '', billing: '  ', retention: '' }))
+      .toEqual(['Article 1.2', 'Article 2.3', 'Down payment', 'Billing', 'Retention']);
+    expect(agreementMissing({ ...full(), lead: '' })).toEqual(['Article 1.1']);
+    expect(agreementMissing({ ...full(), lead: 'The CONTRACTOR shall build it.' })).toEqual(['Keep {works} in Article 1.1']);
+  });
+  it('flags a half-filled second client signatory', () => {
+    expect(agreementMissing({ ...full(), client2SignatoryDesignation: 'Treasurer' })).toEqual(['Second client signatory name']);
+    expect(agreementMissing({ ...full(), client2Signatory: 'Juan' })).toEqual(['Second client signatory designation']);
+  });
+  it('cleans the 1.1 opening too: no control characters, curly quotes', () => {
+    const d = agreementData({ ...full(), lead: `The CONTRACTOR's \u000Bwork on {works} (the "Works"), as follows:` });
+    expect(d.lead_a).toBe('The CONTRACTOR’s work on the perimeter fence and guardhouse (the “');
+    expect(d.works_word).toBe('Works');
+    expect(d.lead_b).toBe('”), as follows:');
+    expect(() => renderAgreement(TEMPLATE, d)).not.toThrow();
+  });
+  it('defines NTP in dates mode, so a down payment clause that uses it makes sense', () => {
+    const t = docText(renderAgreement(TEMPLATE, agreementData({ ...full(), completionMode: 'dates', startDate: '2026-12-01', endDate: '2027-03-31', dp: DP_SUGGESTIONS.fifteen })));
+    expect(t).toContain('Notice to Proceed (“NTP”)');
+  });
+  it('only accepts a plain number as the price', () => {
+    for (const bad of ['5 million', '2.500.000', '1e3', 'abc', '-5']) expect(parseAmount(bad)).toBe(0);
+    expect(parseAmount('2,500,000.50')).toBe(2500000.5);
+    expect(parseAmount(1275500.25)).toBe(1275500.25);
+  });
+  it('rounds once, so words and figures always agree', () => {
+    expect(pesoFigures('1.005')).toBe('1.00');
+    expect(pesoWords('1.005')).toBe('ONE PESO');
+    expect(agreementMissing({ ...full(), price: '999999999999.995' })).toEqual(['Contract price below one trillion pesos']);
+  });
+  it('refuses absurd day counts', () => {
+    expect(countWords('5000000000000')).toBe('');
+    expect(countWords('99999')).toBe('ninety-nine thousand nine hundred ninety-nine (99999)');
+    expect(countWords('100000')).toBe('');
   });
 });
 
